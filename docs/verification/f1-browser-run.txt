@@ -1,0 +1,163 @@
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 250 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.729052s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[check] $ go vet ./...
+[check] $ npm --prefix frontend run typecheck
+
+> azfoundry-deck-ui@0.1.0 typecheck
+> tsc --noEmit
+
+[build:browser] $ npm --prefix frontend run build
+
+> azfoundry-deck-ui@0.1.0 build
+> vite build
+
+vite v8.0.16 building client environment for production...
+[2K
+transforming...✓ 48 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.43 kB │ gzip:  0.28 kB
+dist/assets/index-CPczOGoB.css    6.28 kB │ gzip:  2.16 kB
+dist/assets/index-DiF2bYSU.js   230.13 kB │ gzip: 73.06 kB
+
+✓ built in 104ms
+[build:browser] $ go build -tags server,production -trimpath -o bin/azfoundry-d…
+[test:ui] $ pwsh -NoProfile -File scripts/Test-F1Browser.ps1
+### Browser `f1-ui-54948` opened with pid 51820.
+### Ran Playwright code
+```js
+await page.goto('http://127.0.0.1:9245');
+```
+### Page
+- Page URL: http://127.0.0.1:9245/
+- Page Title: AzFoundry Deck
+- Console: 0 errors, 1 warnings
+### Snapshot
+- [Snapshot](.playwright-cli\page-2026-09-13T03-11-08-552Z.yml)
+### Events
+- New console entries: .playwright-cli\console-2026-09-13T03-11-08-420Z.log#L1-L7
+{
+  "passed": true,
+  "scenarios": [
+    {
+      "name": "success",
+      "deployments": 24,
+      "tenants": 3,
+      "subscriptions": 5,
+      "accounts": 10,
+      "duplicateChat": 10
+    },
+    {
+      "name": "filters",
+      "exactSelects": 5,
+      "nameMatching": "trim/case-insensitive partial",
+      "and": true,
+      "zeroExplanation": true
+    },
+    {
+      "name": "dependent-options",
+      "selectFields": 5,
+      "nameAffectsSelects": 5,
+      "selfConditionExcluded": true,
+      "restoredAfterClear": true,
+      "disabledSelectionPreserved": true
+    },
+    {
+      "name": "empty",
+      "deployments": 0,
+      "successfulAccounts": 10
+    },
+    {
+      "name": "reload",
+      "selectedScenario": "partial",
+      "deployments": 15,
+      "failures": 4,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "partial",
+      "deployments": 15,
+      "successfulAccounts": 6,
+      "failures": 4,
+      "errorsRemainOnDetails": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "failure",
+      "failures": 1,
+      "discoveryIncomplete": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "cli-missing",
+      "failures": 1,
+      "discoveryIncomplete": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "all-accounts-failed",
+      "deployments": 0,
+      "failures": 10,
+      "incomplete": true,
+      "detailsOnSeparateScreen": true,
+      "scrollableDetails": true
+    },
+    {
+      "name": "error-details",
+      "partial": 4,
+      "failure": 1,
+      "cliMissing": 1,
+      "allAccountsFailed": 10,
+      "topLevelSummaryOnly": true,
+      "preservesFiltersAndTimestamp": true,
+      "successClearsDetails": true
+    },
+    {
+      "name": "loading",
+      "filtersChangeable": true,
+      "previousResultShown": true,
+      "subscriptionProgress": true,
+      "accountProgress": true,
+      "incrementalRows": true,
+      "completedAfter30s": true
+    },
+    {
+      "name": "delayed",
+      "oldTpm": 111000,
+      "finalTpm": 120000,
+      "staleResponseSuppressed": true,
+      "staleProgressSuppressed": true,
+      "noPeriodicRefresh": true
+    },
+    {
+      "name": "responsive",
+      "viewport": "1440x920 and 1080x720",
+      "sixFiltersOperable": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "checks": [
+    "success",
+    "filters",
+    "dependent-options",
+    "empty",
+    "reload",
+    "partial",
+    "failure",
+    "cli-missing",
+    "all-accounts-failed",
+    "error-details",
+    "loading",
+    "delayed",
+    "responsive"
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+  "pageErrors": [],
+  "httpErrors": []
+}
+Browser 'f1-ui-54948' closed
+
+Finished in 59.67s

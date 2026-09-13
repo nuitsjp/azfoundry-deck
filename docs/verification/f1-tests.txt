@@ -1,0 +1,26 @@
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 250 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.6953497s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[test] $ go test ./...
+?   	github.com/nuitsjp/azfoundry-deck	[no test files]
+ok  	github.com/nuitsjp/azfoundry-deck/internal/mock	(cached)
+ok  	github.com/nuitsjp/azfoundry-deck/internal/service	(cached)
+[test] $ npm --prefix frontend test
+
+> azfoundry-deck-ui@0.1.0 test
+> node --test tests/*.test.mjs
+
+✔ 同名デプロイを保持し、6属性それぞれで絞り込む (0.5241ms)
+✔ 条件をANDで組み合わせ、該当なしと解除を区別する (0.4387ms)
+✔ 欠損を0にせず、明示された0と設定値を表示する (9.2414ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.6978
+Finished in 3.19s

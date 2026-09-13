@@ -1,0 +1,1097 @@
+F1-S1/S2 normal
+Window: "AzFoundry Deck — F1モック", App: azfoundry-deck.exe.
+	0 ウィンドウ AzFoundry Deck — F1モック Secondary Actions: Raise
+		7 ウィンドウ AzFoundry Deck
+			8 ウィンドウ (disabled)
+			9 領域 AzFoundry Deck - Web コンテンツ
+				10 領域
+					11 領域
+					12 領域
+						13 領域
+							14 領域
+							15 領域
+								16 領域
+									17 領域
+										18 領域
+											19 領域
+											20 ドキュメント AzFoundry Deck ID: RootWebArea
+												21 グループ ID: root
+													22 メイン
+														23 セクション ヘッダー
+															24 テキスト AZFOUNDRY DECK
+															25 見出し デプロイ一覧
+															26 テキスト 起動時と手動操作で取得
+															27 テキスト 最終取得 10:16:27
+															28 ボタン 更新
+														29 補助 モック設定
+															30 テキスト MOCK
+															31 テキスト 架空データ · Azure接続なし
+															32 テキスト 次回の取得状態
+															33 コンボ ボックス 次回の取得状態 ID: scenario
+															34 テキスト 選択後に「
+															35 テキスト 更新
+															36 テキスト 」
+														37 セクション 絞り込み
+															38 見出し 絞り込み ID: filter-heading
+															39 ボタン (disabled) すべて解除
+															40 テキスト テナント
+															41 コンボ ボックス テナント
+															42 テキスト サブスクリプション
+															43 コンボ ボックス サブスクリプション
+															44 テキスト リージョン
+															45 コンボ ボックス リージョン
+															46 テキスト アカウント
+															47 コンボ ボックス アカウント
+															48 テキスト モデル
+															49 コンボ ボックス モデル
+															50 テキスト デプロイ名
+															51 編集 デプロイ名 Description: 名前の一部で検索
+															52 テキスト 複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+														53 状態
+															54 テキスト 全対象の取得完了
+															68 テキスト 10 / 10 アカウント取得成功
+														56 セクション デプロイ 24 / 24 件
+															57 見出し デプロイ 24 / 24 件 ID: deployments-heading
+															58 テキスト TPM: トークン/分 · RPM: リクエスト/分
+															59 テキスト 
+															60 テキスト 「不明」は設定値を取得できない項目です。
+															69 グループ デプロイ一覧のスクロール領域
+																70 表
+																	71 行
+																		72 列のヘッダー デプロイ名
+																		73 列のヘッダー 設定 TPM
+																		74 列のヘッダー 設定 RPM
+																		75 列のヘッダー モデル / バージョン
+																		76 列のヘッダー アカウント / リージョン
+																		77 列のヘッダー テナント / サブスクリプション
+																		78 列のヘッダー SKU
+																	79 行
+																		80 項目 chat-prod
+																			81 重要 Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod/deployments/chat-prod
+																		82 項目 120,000
+																		83 項目 不明
+																		84 項目 gpt-4o 2024-11-20
+																		85 項目 contoso-chat-prod eastus
+																			86 グループ Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod
+																		87 項目 Contoso Engineering Contoso Production
+																			88 グループ Description: tenant-001
+																			89 グループ Description: subscription-001
+																		90 項目 GlobalStandard
+																	91 行
+																		92 項目 embed-prod
+																			93 重要 Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod/deployments/embed-prod
+																		94 項目 不明
+																		95 項目 不明
+																		96 項目 text-embedding-3-large 1
+																		97 項目 contoso-chat-prod eastus
+																			98 グループ Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod
+																		99 項目 Contoso Engineering Contoso Production
+																			100 グループ Description: tenant-001
+																			101 グループ Description: subscription-001
+																		102 項目 Standard
+																	103 行
+																		104 項目 reasoning-prod
+																			105 重要 Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod/deployments/reasoning-prod
+																		106 項目 80,000
+																		107 項目 800
+																		108 項目 o3-mini 2025-01-31
+																		109 項目 contoso-chat-prod eastus
+																			110 グループ Description: /subscriptions/subscription-001/resourceGroups/rg-account-001/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod
+																		111 項目 Contoso Engineering Contoso Production
+																			112 グループ Description: tenant-001
+																			113 グループ Description: subscription-001
+																		114 項目 GlobalStandard
+																	115 行
+																		116 項目 chat-prod
+																			117 重要 Description: /subscriptions/subscription-001/resourceGroups/rg-account-002/providers/Microsoft.CognitiveServices/accounts/contoso-chat-dev/deployments/chat-prod
+																		118 項目 120,000
+																		119 項目 1,200
+																		120 項目 gpt-4o 2024-11-20
+																		121 項目 contoso-chat-dev japaneast
+																			122 グループ Description: /subscriptions/subscription-001/resourceGroups/rg-account-002/providers/Microsoft.CognitiveServices/accounts/contoso-chat-dev
+																		123 項目 Contoso Engineering Contoso Production
+																			124 グループ Description: tenant-001
+																			125 グループ Description: subscription-001
+																		126 項目 GlobalStandard
+																	127 行
+																		128 項目 embed-prod
+																			129 重要 Description: /subscriptions/subscription-001/resourceGroups/rg-account-002/providers/Microsoft.CognitiveServices/accounts/contoso-chat-dev/deployments/embed-prod
+																		130 項目 不明
+																		131 項目 1,000
+																		132 項目 text-embedding-3-large 1
+																		133 項目 contoso-chat-dev japaneast
+																			134 グループ Description: /subscriptions/subscription-001/resourceGroups/rg-account-002/providers/Microsoft.CognitiveServices/accounts/contoso-chat-dev
+																		135 項目 Contoso Engineering Contoso Production
+																			136 グループ Description: tenant-001
+																			137 グループ Description: subscription-001
+																		138 項目 Standard
+																	139 行
+																		140 項目 chat-prod
+																			141 重要 Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research/deployments/chat-prod
+																		142 項目 120,000
+																		143 項目 不明
+																		144 項目 gpt-4o 2024-11-20
+																		145 項目 contoso-research westus2
+																			146 グループ Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research
+																		147 項目 Contoso Engineering Contoso Sandbox
+																			148 グループ Description: tenant-001
+																			149 グループ Description: subscription-002
+																		150 項目 GlobalStandard
+																	151 行
+																		152 項目 embed-prod
+																			153 重要 Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research/deployments/embed-prod
+																		154 項目 不明
+																		155 項目 不明
+																		156 項目 text-embedding-3-large 1
+																		157 項目 contoso-research westus2
+																			158 グループ Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research
+																		159 項目 Contoso Engineering Contoso Sandbox
+																			160 グループ Description: tenant-001
+																			161 グループ Description: subscription-002
+																		162 項目 Standard
+																	163 行
+																		164 項目 reasoning-prod
+																			165 重要 Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research/deployments/reasoning-prod
+																		166 項目 80,000
+																		167 項目 800
+																		168 項目 o3-mini 2025-01-31
+																		169 項目 contoso-research westus2
+																			170 グループ Description: /subscriptions/subscription-002/resourceGroups/rg-account-003/providers/Microsoft.CognitiveServices/accounts/contoso-research
+																		171 項目 Contoso Engineering Contoso Sandbox
+																			172 グループ Description: tenant-001
+																			173 グループ Description: subscription-002
+																		174 項目 GlobalStandard
+																	175 行
+																		176 項目 chat-prod
+																			177 重要 Description: /subscriptions/subscription-003/resourceGroups/rg-account-004/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-prod/deployments/chat-prod
+																		178 項目 120,000
+																		179 項目 1,200
+																		180 項目 gpt-4o 2024-11-20
+																		181 項目 fabrikam-chat-prod eastus2
+																			182 グループ Description: /subscriptions/subscription-003/resourceGroups/rg-account-004/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-prod
+																		183 項目 Fabrikam Research Fabrikam Production
+																			184 グループ Description: tenant-002
+																			185 グループ Description: subscription-003
+																		186 項目 GlobalStandard
+																	187 行
+																		188 項目 embed-prod
+																			189 重要 Description: /subscriptions/subscription-003/resourceGroups/rg-account-004/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-prod/deployments/embed-prod
+																		190 項目 不明
+																		191 項目 1,000
+																		192 項目 text-embedding-3-large 1
+																		193 項目 fabrikam-chat-prod eastus2
+																			194 グループ Description: /subscriptions/subscription-003/resourceGroups/rg-account-004/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-prod
+																		195 項目 Fabrikam Research Fabrikam Production
+																			196 グループ Description: tenant-002
+																			197 グループ Description: subscription-003
+																		198 項目 Standard
+																	199 行
+																		200 項目 chat-prod
+																			201 重要 Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod/deployments/chat-prod
+																		202 項目 120,000
+																		203 項目 不明
+																		204 項目 gpt-4o 2024-11-20
+																		205 項目 fabrikam-ml-prod swedencentral
+																			206 グループ Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod
+																		207 項目 Fabrikam Research Fabrikam Production
+																			208 グループ Description: tenant-002
+																			209 グループ Description: subscription-003
+																		210 項目 GlobalStandard
+																	211 行
+																		212 項目 embed-prod
+																			213 重要 Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod/deployments/embed-prod
+																		214 項目 不明
+																		215 項目 不明
+																		216 項目 text-embedding-3-large 1
+																		217 項目 fabrikam-ml-prod swedencentral
+																			218 グループ Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod
+																		219 項目 Fabrikam Research Fabrikam Production
+																			220 グループ Description: tenant-002
+																			221 グループ Description: subscription-003
+																		222 項目 Standard
+																	223 行
+																		224 項目 reasoning-prod
+																			225 重要 Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod/deployments/reasoning-prod
+																		226 項目 80,000
+																		227 項目 800
+																		228 項目 o3-mini 2025-01-31
+																		229 項目 fabrikam-ml-prod swedencentral
+																			230 グループ Description: /subscriptions/subscription-003/resourceGroups/rg-account-005/providers/Microsoft.CognitiveServices/accounts/fabrikam-ml-prod
+																		231 項目 Fabrikam Research Fabrikam Production
+																			232 グループ Description: tenant-002
+																			233 グループ Description: subscription-003
+																		234 項目 GlobalStandard
+																	235 行
+																		236 項目 chat-prod
+																			237 重要 Description: /subscriptions/subscription-004/resourceGroups/rg-account-006/providers/Microsoft.CognitiveServices/accounts/fabrikam-lab/deployments/chat-prod
+																		238 項目 120,000
+																		239 項目 1,200
+																		240 項目 gpt-4o 2024-11-20
+																		241 項目 fabrikam-lab australiaeast
+																			242 グループ Description: /subscriptions/subscription-004/resourceGroups/rg-account-006/providers/Microsoft.CognitiveServices/accounts/fabrikam-lab
+																		243 項目 Fabrikam Research Fabrikam Development
+																			244 グループ Description: tenant-002
+																			245 グループ Description: subscription-004
+																		246 項目 GlobalStandard
+																	247 行
+																		248 項目 embed-prod
+																			249 重要 Description: /subscriptions/subscription-004/resourceGroups/rg-account-006/providers/Microsoft.CognitiveServices/accounts/fabrikam-lab/deployments/embed-prod
+																		250 項目 不明
+																		251 項目 1,000
+																		252 項目 text-embedding-3-large 1
+																		253 項目 fabrikam-lab australiaeast
+																			254 グループ Description: /subscriptions/subscription-004/resourceGroups/rg-account-006/providers/Microsoft.CognitiveServices/accounts/fabrikam-lab
+																		255 項目 Fabrikam Research Fabrikam Development
+																			256 グループ Description: tenant-002
+																			257 グループ Description: subscription-004
+																		258 項目 Standard
+																	259 行
+																		260 項目 chat-prod
+																			261 重要 Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev/deployments/chat-prod
+																		262 項目 120,000
+																		263 項目 不明
+																		264 項目 gpt-4o 2024-11-20
+																		265 項目 fabrikam-chat-dev eastus
+																			266 グループ Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev
+																		267 項目 Fabrikam Research Fabrikam Development
+																			268 グループ Description: tenant-002
+																			269 グループ Description: subscription-004
+																		270 項目 GlobalStandard
+																	271 行
+																		272 項目 embed-prod
+																			273 重要 Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev/deployments/embed-prod
+																		274 項目 不明
+																		275 項目 不明
+																		276 項目 text-embedding-3-large 1
+																		277 項目 fabrikam-chat-dev eastus
+																			278 グループ Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev
+																		279 項目 Fabrikam Research Fabrikam Development
+																			280 グループ Description: tenant-002
+																			281 グループ Description: subscription-004
+																		282 項目 Standard
+																	283 行
+																		284 項目 reasoning-prod
+																			285 重要 Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev/deployments/reasoning-prod
+																		286 項目 80,000
+																		287 項目 800
+																		288 項目 o3-mini 2025-01-31
+																		289 項目 fabrikam-chat-dev eastus
+																			290 グループ Description: /subscriptions/subscription-004/resourceGroups/rg-account-007/providers/Microsoft.CognitiveServices/accounts/fabrikam-chat-dev
+																		291 項目 Fabrikam Research Fabrikam Development
+																			292 グループ Description: tenant-002
+																			293 グループ Description: subscription-004
+																		294 項目 GlobalStandard
+																	295 行
+																		296 項目 chat-prod
+																			297 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod/deployments/chat-prod
+																		298 項目 120,000
+																		299 項目 1,200
+																		300 項目 gpt-4o 2024-11-20
+																		301 項目 northwind-ai-prod uksouth
+																			302 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod
+																		303 項目 Northwind Labs Northwind Research
+																			304 グループ Description: tenant-003
+																			305 グループ Description: subscription-005
+																		306 項目 GlobalStandard
+																	307 行
+																		308 項目 embed-prod
+																			309 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod/deployments/embed-prod
+																		310 項目 不明
+																		311 項目 1,000
+																		312 項目 text-embedding-3-large 1
+																		313 項目 northwind-ai-prod uksouth
+																			314 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod
+																		315 項目 Northwind Labs Northwind Research
+																			316 グループ Description: tenant-003
+																			317 グループ Description: subscription-005
+																		318 項目 Standard
+																	319 行
+																		320 項目 chat-prod
+																			321 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod/deployments/chat-prod
+																		322 項目 120,000
+																		323 項目 不明
+																		324 項目 gpt-4o 2024-11-20
+																		325 項目 northwind-chat-prod canadacentral
+																			326 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod
+																		327 項目 Northwind Labs Northwind Research
+																			328 グループ Description: tenant-003
+																			329 グループ Description: subscription-005
+																		330 項目 GlobalStandard
+																	331 行
+																		332 項目 embed-prod
+																			333 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod/deployments/embed-prod
+																		334 項目 不明
+																		335 項目 不明
+																		336 項目 text-embedding-3-large 1
+																		337 項目 northwind-chat-prod canadacentral
+																			338 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod
+																		339 項目 Northwind Labs Northwind Research
+																			340 グループ Description: tenant-003
+																			341 グループ Description: subscription-005
+																		342 項目 Standard
+																	343 行
+																		344 項目 chat-prod
+																			345 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation/deployments/chat-prod
+																		346 項目 120,000
+																		347 項目 1,200
+																		348 項目 gpt-4o 2024-11-20
+																		349 項目 northwind-evaluation koreacentral
+																			350 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation
+																		351 項目 Northwind Labs Northwind Research
+																			352 グループ Description: tenant-003
+																			353 グループ Description: subscription-005
+																		354 項目 GlobalStandard
+																	355 行
+																		356 項目 embed-prod
+																			357 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation/deployments/embed-prod
+																		358 項目 100,000
+																		359 項目 1,000
+																		360 項目 text-embedding-3-large 1
+																		361 項目 northwind-evaluation koreacentral
+																			362 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation
+																		363 項目 Northwind Labs Northwind Research
+																			364 グループ Description: tenant-003
+																			365 グループ Description: subscription-005
+																		366 項目 Standard
+														63 セクション フッター
+															64 テキスト 対象: アクセス権のあるすべてのFoundryアカウント
+															65 テキスト F1モック · 画面動作の確認用
+							66 領域
+					67 領域
+		1 タイトル バー
+			2 メニュー バー システム ID: MenuBar
+				3 メニュー項目 システム
+			4 ボタン 最小化
+			5 ボタン 最大化
+			6 ボタン 閉じる
+
+Document text: ```
+AZFOUNDRY DECK
+デプロイ一覧
+起動時と手動操作で取得
+最終取得 10:16:27 
+更新
+MOCK
+架空データ · Azure接続なし
+次回の取得状態
+￼
+選択後に「更新」
+絞り込み
+すべて解除
+テナント
+￼
+サブスクリプション
+￼
+リージョン
+￼
+アカウント
+￼
+モデル
+￼
+デプロイ名
+￼
+複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+全対象の取得完了
+10 / 10 アカウント取得成功
+デプロイ
+24 / 24 件
+TPM: トークン/分 · RPM: リクエスト/分
+「不明」は設定値を取得できない項目です。
+デプロイ名
+設定 TPM
+設定 RPM
+モデル / バージョン
+アカウント / リージョン
+テナント / サブスクリプション
+SKU
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+contoso-chat-prod
+eastus
+Contoso Engineering
+Contoso Production
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+contoso-chat-prod
+eastus
+Contoso Engineering
+Contoso Production
+Standard
+reasoning-prod
+80,000
+800
+o3-mini
+2025-01-31
+contoso-chat-prod
+eastus
+Contoso Engineering
+Contoso Production
+GlobalStandard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+contoso-chat-dev
+japaneast
+Contoso Engineering
+Contoso Production
+GlobalStandard
+embed-prod
+不明
+1,000
+text-embedding-3-large
+1
+contoso-chat-dev
+japaneast
+Contoso Engineering
+Contoso Production
+Standard
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+contoso-research
+westus2
+Contoso Engineering
+Contoso Sandbox
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+contoso-research
+westus2
+Contoso Engineering
+Contoso Sandbox
+Standard
+reasoning-prod
+80,000
+800
+o3-mini
+2025-01-31
+contoso-research
+westus2
+Contoso Engineering
+Contoso Sandbox
+GlobalStandard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+fabrikam-chat-prod
+eastus2
+Fabrikam Research
+Fabrikam Production
+GlobalStandard
+embed-prod
+不明
+1,000
+text-embedding-3-large
+1
+fabrikam-chat-prod
+eastus2
+Fabrikam Research
+Fabrikam Production
+Standard
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+fabrikam-ml-prod
+swedencentral
+Fabrikam Research
+Fabrikam Production
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+fabrikam-ml-prod
+swedencentral
+Fabrikam Research
+Fabrikam Production
+Standard
+reasoning-prod
+80,000
+800
+o3-mini
+2025-01-31
+fabrikam-ml-prod
+swedencentral
+Fabrikam Research
+Fabrikam Production
+GlobalStandard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+fabrikam-lab
+australiaeast
+Fabrikam Research
+Fabrikam Development
+GlobalStandard
+embed-prod
+不明
+1,000
+text-embedding-3-large
+1
+fabrikam-lab
+australiaeast
+Fabrikam Research
+Fabrikam Development
+Standard
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+fabrikam-chat-dev
+eastus
+Fabrikam Research
+Fabrikam Development
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+fabrikam-chat-dev
+eastus
+Fabrikam Research
+Fabrikam Development
+Standard
+reasoning-prod
+80,000
+800
+o3-mini
+2025-01-31
+fabrikam-chat-dev
+eastus
+Fabrikam Research
+Fabrikam Development
+GlobalStandard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+northwind-ai-prod
+uksouth
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+不明
+1,000
+text-embedding-3-large
+1
+northwind-ai-prod
+uksouth
+Northwind Labs
+Northwind Research
+Standard
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+northwind-chat-prod
+canadacentral
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+northwind-chat-prod
+canadacentral
+Northwind Labs
+Northwind Research
+Standard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+northwind-evaluation
+koreacentral
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+100,000
+1,000
+text-embedding-3-large
+1
+northwind-evaluation
+koreacentral
+Northwind Labs
+Northwind Research
+Standard
+対象: アクセス権のあるすべてのFoundryアカウント
+F1モック · 画面動作の確認用
+```
+
+F1-S3 tenant Northwind 6/24
+Window: "AzFoundry Deck — F1モック", App: azfoundry-deck.exe.
+	0 ウィンドウ AzFoundry Deck — F1モック Secondary Actions: Raise
+		7 ウィンドウ AzFoundry Deck
+			8 ウィンドウ (disabled)
+			9 領域 AzFoundry Deck - Web コンテンツ
+				10 領域
+					11 領域
+					12 領域
+						13 領域
+							14 領域
+							15 領域
+								16 領域
+									17 領域
+										18 領域
+											19 領域
+											20 ドキュメント AzFoundry Deck ID: RootWebArea
+												21 グループ ID: root
+													22 メイン
+														23 セクション ヘッダー
+															24 テキスト AZFOUNDRY DECK
+															25 見出し デプロイ一覧
+															26 テキスト 起動時と手動操作で取得
+															27 テキスト 最終取得 10:16:27
+															28 ボタン 更新
+														29 補助 モック設定
+															30 テキスト MOCK
+															31 テキスト 架空データ · Azure接続なし
+															32 テキスト 次回の取得状態
+															33 コンボ ボックス 次回の取得状態 ID: scenario
+															34 テキスト 選択後に「
+															35 テキスト 更新
+															36 テキスト 」
+														37 セクション 絞り込み 1
+															38 見出し 絞り込み 1 ID: filter-heading
+															39 ボタン すべて解除
+															40 テキスト テナント
+															41 コンボ ボックス テナント
+															42 テキスト サブスクリプション
+															43 コンボ ボックス サブスクリプション
+															44 テキスト リージョン
+															45 コンボ ボックス リージョン
+															46 テキスト アカウント
+															47 コンボ ボックス アカウント
+															48 テキスト モデル
+															49 コンボ ボックス モデル
+															50 テキスト デプロイ名
+															51 編集 デプロイ名 Description: 名前の一部で検索
+															52 テキスト 複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+														53 状態
+															54 テキスト 全対象の取得完了
+															68 テキスト 10 / 10 アカウント取得成功
+														56 セクション デプロイ 6 / 24 件
+															57 見出し デプロイ 6 / 24 件 ID: deployments-heading
+															58 テキスト TPM: トークン/分 · RPM: リクエスト/分
+															59 テキスト 
+															60 テキスト 「不明」は設定値を取得できない項目です。
+															69 グループ デプロイ一覧のスクロール領域
+																70 表
+																	71 行
+																		72 列のヘッダー デプロイ名
+																		73 列のヘッダー 設定 TPM
+																		74 列のヘッダー 設定 RPM
+																		75 列のヘッダー モデル / バージョン
+																		76 列のヘッダー アカウント / リージョン
+																		77 列のヘッダー テナント / サブスクリプション
+																		78 列のヘッダー SKU
+																	295 行
+																		296 項目 chat-prod
+																			297 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod/deployments/chat-prod
+																		298 項目 120,000
+																		299 項目 1,200
+																		300 項目 gpt-4o 2024-11-20
+																		301 項目 northwind-ai-prod uksouth
+																			302 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod
+																		303 項目 Northwind Labs Northwind Research
+																			304 グループ Description: tenant-003
+																			305 グループ Description: subscription-005
+																		306 項目 GlobalStandard
+																	307 行
+																		308 項目 embed-prod
+																			309 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod/deployments/embed-prod
+																		310 項目 不明
+																		311 項目 1,000
+																		312 項目 text-embedding-3-large 1
+																		313 項目 northwind-ai-prod uksouth
+																			314 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod
+																		315 項目 Northwind Labs Northwind Research
+																			316 グループ Description: tenant-003
+																			317 グループ Description: subscription-005
+																		318 項目 Standard
+																	319 行
+																		320 項目 chat-prod
+																			321 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod/deployments/chat-prod
+																		322 項目 120,000
+																		323 項目 不明
+																		324 項目 gpt-4o 2024-11-20
+																		325 項目 northwind-chat-prod canadacentral
+																			326 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod
+																		327 項目 Northwind Labs Northwind Research
+																			328 グループ Description: tenant-003
+																			329 グループ Description: subscription-005
+																		330 項目 GlobalStandard
+																	331 行
+																		332 項目 embed-prod
+																			333 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod/deployments/embed-prod
+																		334 項目 不明
+																		335 項目 不明
+																		336 項目 text-embedding-3-large 1
+																		337 項目 northwind-chat-prod canadacentral
+																			338 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod
+																		339 項目 Northwind Labs Northwind Research
+																			340 グループ Description: tenant-003
+																			341 グループ Description: subscription-005
+																		342 項目 Standard
+																	343 行
+																		344 項目 chat-prod
+																			345 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation/deployments/chat-prod
+																		346 項目 120,000
+																		347 項目 1,200
+																		348 項目 gpt-4o 2024-11-20
+																		349 項目 northwind-evaluation koreacentral
+																			350 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation
+																		351 項目 Northwind Labs Northwind Research
+																			352 グループ Description: tenant-003
+																			353 グループ Description: subscription-005
+																		354 項目 GlobalStandard
+																	355 行
+																		356 項目 embed-prod
+																			357 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation/deployments/embed-prod
+																		358 項目 100,000
+																		359 項目 1,000
+																		360 項目 text-embedding-3-large 1
+																		361 項目 northwind-evaluation koreacentral
+																			362 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation
+																		363 項目 Northwind Labs Northwind Research
+																			364 グループ Description: tenant-003
+																			365 グループ Description: subscription-005
+																		366 項目 Standard
+														63 セクション フッター
+															64 テキスト 対象: アクセス権のあるすべてのFoundryアカウント
+															65 テキスト F1モック · 画面動作の確認用
+							66 領域
+					67 領域
+		1 タイトル バー
+			2 メニュー バー システム ID: MenuBar
+				3 メニュー項目 システム
+			4 ボタン 最小化
+			5 ボタン 最大化
+			6 ボタン 閉じる
+
+Document text: ```
+AZFOUNDRY DECK
+デプロイ一覧
+起動時と手動操作で取得
+最終取得 10:16:27 
+更新
+MOCK
+架空データ · Azure接続なし
+次回の取得状態
+￼
+選択後に「更新」
+絞り込み 1
+すべて解除
+テナント
+￼
+サブスクリプション
+￼
+リージョン
+￼
+アカウント
+￼
+モデル
+￼
+デプロイ名
+￼
+複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+全対象の取得完了
+10 / 10 アカウント取得成功
+デプロイ
+6 / 24 件
+TPM: トークン/分 · RPM: リクエスト/分
+「不明」は設定値を取得できない項目です。
+デプロイ名
+設定 TPM
+設定 RPM
+モデル / バージョン
+アカウント / リージョン
+テナント / サブスクリプション
+SKU
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+northwind-ai-prod
+uksouth
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+不明
+1,000
+text-embedding-3-large
+1
+northwind-ai-prod
+uksouth
+Northwind Labs
+Northwind Research
+Standard
+chat-prod
+120,000
+不明
+gpt-4o
+2024-11-20
+northwind-chat-prod
+canadacentral
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+不明
+不明
+text-embedding-3-large
+1
+northwind-chat-prod
+canadacentral
+Northwind Labs
+Northwind Research
+Standard
+chat-prod
+120,000
+1,200
+gpt-4o
+2024-11-20
+northwind-evaluation
+koreacentral
+Northwind Labs
+Northwind Research
+GlobalStandard
+embed-prod
+100,000
+1,000
+text-embedding-3-large
+1
+northwind-evaluation
+koreacentral
+Northwind Labs
+Northwind Research
+Standard
+対象: アクセス権のあるすべてのFoundryアカウント
+F1モック · 画面動作の確認用
+```
+
+F1-S3 tenant+uppercase name 3/24
+Window: "AzFoundry Deck — F1モック", App: azfoundry-deck.exe.
+	0 ウィンドウ AzFoundry Deck — F1モック Secondary Actions: Raise
+		7 ウィンドウ AzFoundry Deck
+			8 ウィンドウ (disabled)
+			9 領域 AzFoundry Deck - Web コンテンツ
+				10 領域
+					11 領域
+					12 領域
+						13 領域
+							14 領域
+							15 領域
+								16 領域
+									17 領域
+										18 領域
+											19 領域
+											20 ドキュメント AzFoundry Deck ID: RootWebArea
+												21 グループ ID: root
+													22 メイン
+														23 セクション ヘッダー
+															24 テキスト AZFOUNDRY DECK
+															25 見出し デプロイ一覧
+															26 テキスト 起動時と手動操作で取得
+															27 テキスト 最終取得 10:16:27
+															28 ボタン 更新
+														29 補助 モック設定
+															30 テキスト MOCK
+															31 テキスト 架空データ · Azure接続なし
+															32 テキスト 次回の取得状態
+															33 コンボ ボックス 次回の取得状態 ID: scenario
+															34 テキスト 選択後に「
+															35 テキスト 更新
+															36 テキスト 」
+														37 セクション 絞り込み 2
+															38 見出し 絞り込み 2 ID: filter-heading
+															39 ボタン すべて解除
+															40 テキスト テナント
+															41 コンボ ボックス テナント
+															42 テキスト サブスクリプション
+															43 コンボ ボックス サブスクリプション
+															44 テキスト リージョン
+															45 コンボ ボックス リージョン
+															46 テキスト アカウント
+															47 コンボ ボックス アカウント
+															48 テキスト モデル
+															49 コンボ ボックス モデル
+															50 テキスト デプロイ名
+															51 編集 デプロイ名 Description: 名前の一部で検索
+															52 テキスト 複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+														53 状態
+															54 テキスト 全対象の取得完了
+															68 テキスト 10 / 10 アカウント取得成功
+														56 セクション デプロイ 3 / 24 件
+															57 見出し デプロイ 3 / 24 件 ID: deployments-heading
+															58 テキスト TPM: トークン/分 · RPM: リクエスト/分
+															59 テキスト 
+															60 テキスト 「不明」は設定値を取得できない項目です。
+															69 グループ デプロイ一覧のスクロール領域
+																70 表
+																	71 行
+																		72 列のヘッダー デプロイ名
+																		73 列のヘッダー 設定 TPM
+																		74 列のヘッダー 設定 RPM
+																		75 列のヘッダー モデル / バージョン
+																		76 列のヘッダー アカウント / リージョン
+																		77 列のヘッダー テナント / サブスクリプション
+																		78 列のヘッダー SKU
+																	295 行
+																		296 項目 chat-prod
+																			297 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod/deployments/chat-prod
+																		298 項目 120,000
+																		299 項目 1,200
+																		300 項目 gpt-4o 2024-11-20
+																		301 項目 northwind-ai-prod uksouth
+																			302 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-008/providers/Microsoft.CognitiveServices/accounts/northwind-ai-prod
+																		303 項目 Northwind Labs Northwind Research
+																			304 グループ Description: tenant-003
+																			305 グループ Description: subscription-005
+																		306 項目 GlobalStandard
+																	319 行
+																		320 項目 chat-prod
+																			321 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod/deployments/chat-prod
+																		322 項目 120,000
+																		323 項目 不明
+																		324 項目 gpt-4o 2024-11-20
+																		325 項目 northwind-chat-prod canadacentral
+																			326 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-009/providers/Microsoft.CognitiveServices/accounts/northwind-chat-prod
+																		327 項目 Northwind Labs Northwind Research
+																			328 グループ Description: tenant-003
+																			329 グループ Description: subscription-005
+																		330 項目 GlobalStandard
+																	343 行
+																		344 項目 chat-prod
+																			345 重要 Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation/deployments/chat-prod
+																		346 項目 120,000
+																		347 項目 1,200
+																		348 項目 gpt-4o 2024-11-20
+																		349 項目 northwind-evaluation koreacentral
+																			350 グループ Description: /subscriptions/subscription-005/resourceGroups/rg-account-010/providers/Microsoft.CognitiveServices/accounts/northwind-evaluation
+																		351 項目 Northwind Labs Northwind Research
+																			352 グループ Description: tenant-003
+																			353 グループ Description: subscription-005
+																		354 項目 GlobalStandard
+														63 セクション フッター
+															64 テキスト 対象: アクセス権のあるすべてのFoundryアカウント
+															65 テキスト F1モック · 画面動作の確認用
+							66 領域
+					67 領域
+		1 タイトル バー
+			2 メニュー バー システム ID: MenuBar
+				3 メニュー項目 システム
+			4 ボタン 最小化
+			5 ボタン 最大化
+			6 ボタン 閉じる
+
+Document text: ```
+CHAT
+```
+
+F1-S4 filter empty
+Window: "AzFoundry Deck — F1モック", App: azfoundry-deck.exe.
+	0 ウィンドウ AzFoundry Deck — F1モック Secondary Actions: Raise
+		7 ウィンドウ AzFoundry Deck
+			8 ウィンドウ (disabled)
+			9 領域 AzFoundry Deck - Web コンテンツ
+				10 領域
+					11 領域
+					12 領域
+						13 領域
+							14 領域
+							15 領域
+								16 領域
+									17 領域
+										18 領域
+											19 領域
+											20 ドキュメント AzFoundry Deck ID: RootWebArea
+												21 グループ ID: root
+													22 メイン
+														23 セクション ヘッダー
+															24 テキスト AZFOUNDRY DECK
+															25 見出し デプロイ一覧
+															26 テキスト 起動時と手動操作で取得
+															27 テキスト 最終取得 10:16:27
+															28 ボタン 更新
+														29 補助 モック設定
+															30 テキスト MOCK
+															31 テキスト 架空データ · Azure接続なし
+															32 テキスト 次回の取得状態
+															33 コンボ ボックス 次回の取得状態 ID: scenario
+															34 テキスト 選択後に「
+															35 テキスト 更新
+															36 テキスト 」
+														37 セクション 絞り込み 2
+															38 見出し 絞り込み 2 ID: filter-heading
+															39 ボタン すべて解除
+															40 テキスト テナント
+															41 コンボ ボックス テナント
+															42 テキスト サブスクリプション
+															43 コンボ ボックス サブスクリプション
+															44 テキスト リージョン
+															45 コンボ ボックス リージョン
+															46 テキスト アカウント
+															47 コンボ ボックス アカウント
+															48 テキスト モデル
+															49 コンボ ボックス モデル
+															50 テキスト デプロイ名
+															51 編集 デプロイ名 Description: 名前の一部で検索
+															52 テキスト 複数の条件を組み合わせて絞り込めます。デプロイ名は大文字・小文字を区別しません。
+														53 状態
+															54 テキスト 全対象の取得完了
+															68 テキスト 10 / 10 アカウント取得成功
+														56 セクション デプロイ 0 / 24 件
+															57 見出し デプロイ 0 / 24 件 ID: deployments-heading
+															58 テキスト TPM: トークン/分 · RPM: リクエスト/分
+															59 テキスト 
+															60 テキスト 「不明」は設定値を取得できない項目です。
+															374 見出し 条件に一致するデプロイがありません
+															375 テキスト 絞り込み条件を変更するか、すべて解除してください。
+														63 セクション フッター
+															64 テキスト 対象: アクセス権のあるすべてのFoundryアカウント
+															65 テキスト F1モック · 画面動作の確認用
+							66 領域
+					67 領域
+		1 タイトル バー
+			2 メニュー バー システム ID: MenuBar
+				3 メニュー項目 システム
+			4 ボタン 最小化
+			5 ボタン 最大化
+			6 ボタン 閉じる
+
+Document text: ```
+CHAT-no-match
+```

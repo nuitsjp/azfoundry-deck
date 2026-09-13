@@ -5,18 +5,53 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-export class DeploymentSample {
+/**
+ * Deployment is a row in the cross-account deployment list.
+ */
+export class Deployment {
+    "id": string;
     "name": string;
+    "tenantId": string;
+    "tenantName": string;
+    "subscriptionId": string;
+    "subscriptionName": string;
+    "accountId": string;
+    "accountName": string;
+    "region": string;
     "model": string;
     "modelVersion": string;
     "sku": string;
-    "capacity": number | null;
-    "state": string;
+    "tpm": number | null;
+    "rpm": number | null;
 
-    /** Creates a new DeploymentSample instance. */
-    constructor($$source: Partial<DeploymentSample> = {}) {
+    /** Creates a new Deployment instance. */
+    constructor($$source: Partial<Deployment> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
         if (!("name" in $$source)) {
             this["name"] = "";
+        }
+        if (!("tenantId" in $$source)) {
+            this["tenantId"] = "";
+        }
+        if (!("tenantName" in $$source)) {
+            this["tenantName"] = "";
+        }
+        if (!("subscriptionId" in $$source)) {
+            this["subscriptionId"] = "";
+        }
+        if (!("subscriptionName" in $$source)) {
+            this["subscriptionName"] = "";
+        }
+        if (!("accountId" in $$source)) {
+            this["accountId"] = "";
+        }
+        if (!("accountName" in $$source)) {
+            this["accountName"] = "";
+        }
+        if (!("region" in $$source)) {
+            this["region"] = "";
         }
         if (!("model" in $$source)) {
             this["model"] = "";
@@ -27,21 +62,205 @@ export class DeploymentSample {
         if (!("sku" in $$source)) {
             this["sku"] = "";
         }
-        if (!("capacity" in $$source)) {
-            this["capacity"] = null;
+        if (!("tpm" in $$source)) {
+            this["tpm"] = null;
         }
-        if (!("state" in $$source)) {
-            this["state"] = "";
+        if (!("rpm" in $$source)) {
+            this["rpm"] = null;
         }
 
         Object.assign(this, $$source);
     }
 
     /**
-     * Creates a new DeploymentSample instance from a string or object.
+     * Creates a new Deployment instance from a string or object.
      */
-    static createFrom($$source: any = {}): DeploymentSample {
+    static createFrom($$source: any = {}): Deployment {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        return new DeploymentSample($$parsedSource as Partial<DeploymentSample>);
+        return new Deployment($$parsedSource as Partial<Deployment>);
     }
 }
+
+/**
+ * DeploymentProgress is one immutable snapshot of an in-flight deployment
+ * read. TotalSubscriptions and TotalAccounts are nil while their respective
+ * totals are not known yet.
+ */
+export class DeploymentProgress {
+    "requestId": string;
+    "sequence": number;
+    "stage": string;
+    "completedSubscriptions": number;
+    "totalSubscriptions": number | null;
+    "completedAccounts": number;
+    "result": DeploymentResult;
+
+    /** Creates a new DeploymentProgress instance. */
+    constructor($$source: Partial<DeploymentProgress> = {}) {
+        if (!("requestId" in $$source)) {
+            this["requestId"] = "";
+        }
+        if (!("sequence" in $$source)) {
+            this["sequence"] = 0;
+        }
+        if (!("stage" in $$source)) {
+            this["stage"] = "";
+        }
+        if (!("completedSubscriptions" in $$source)) {
+            this["completedSubscriptions"] = 0;
+        }
+        if (!("totalSubscriptions" in $$source)) {
+            this["totalSubscriptions"] = null;
+        }
+        if (!("completedAccounts" in $$source)) {
+            this["completedAccounts"] = 0;
+        }
+        if (!("result" in $$source)) {
+            this["result"] = (new DeploymentResult());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeploymentProgress instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeploymentProgress {
+        const $$createField6_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("result" in $$parsedSource) {
+            $$parsedSource["result"] = $$createField6_0($$parsedSource["result"]);
+        }
+        return new DeploymentProgress($$parsedSource as Partial<DeploymentProgress>);
+    }
+}
+
+/**
+ * DeploymentResult is one complete read result. TotalAccounts is nil when
+ * account discovery did not complete, so a discovery failure is not confused
+ * with a successful empty result.
+ */
+export class DeploymentResult {
+    "deployments": Deployment[];
+    "failures": FetchFailure[];
+    "successfulAccounts": number;
+    "totalAccounts": number | null;
+    "fetchedAt": string;
+
+    /** Creates a new DeploymentResult instance. */
+    constructor($$source: Partial<DeploymentResult> = {}) {
+        if (!("deployments" in $$source)) {
+            this["deployments"] = [];
+        }
+        if (!("failures" in $$source)) {
+            this["failures"] = [];
+        }
+        if (!("successfulAccounts" in $$source)) {
+            this["successfulAccounts"] = 0;
+        }
+        if (!("totalAccounts" in $$source)) {
+            this["totalAccounts"] = null;
+        }
+        if (!("fetchedAt" in $$source)) {
+            this["fetchedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeploymentResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeploymentResult {
+        const $$createField0_0 = $$createType2;
+        const $$createField1_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("deployments" in $$parsedSource) {
+            $$parsedSource["deployments"] = $$createField0_0($$parsedSource["deployments"]);
+        }
+        if ("failures" in $$parsedSource) {
+            $$parsedSource["failures"] = $$createField1_0($$parsedSource["failures"]);
+        }
+        return new DeploymentResult($$parsedSource as Partial<DeploymentResult>);
+    }
+}
+
+/**
+ * Environment describes the source of the data returned by the service.
+ */
+export class Environment {
+    "mock": boolean;
+
+    /** Creates a new Environment instance. */
+    constructor($$source: Partial<Environment> = {}) {
+        if (!("mock" in $$source)) {
+            this["mock"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Environment instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Environment {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Environment($$parsedSource as Partial<Environment>);
+    }
+}
+
+/**
+ * FetchFailure describes an account or discovery scope that could not be
+ * read. A scope may be a tenant, subscription, account, or discovery scope.
+ */
+export class FetchFailure {
+    "scope": string;
+    "tenantName": string;
+    "subscriptionName": string;
+    "accountName": string;
+    "code": string;
+    "message": string;
+    "action": string;
+
+    /** Creates a new FetchFailure instance. */
+    constructor($$source: Partial<FetchFailure> = {}) {
+        if (!("scope" in $$source)) {
+            this["scope"] = "";
+        }
+        if (!("tenantName" in $$source)) {
+            this["tenantName"] = "";
+        }
+        if (!("subscriptionName" in $$source)) {
+            this["subscriptionName"] = "";
+        }
+        if (!("accountName" in $$source)) {
+            this["accountName"] = "";
+        }
+        if (!("code" in $$source)) {
+            this["code"] = "";
+        }
+        if (!("message" in $$source)) {
+            this["message"] = "";
+        }
+        if (!("action" in $$source)) {
+            this["action"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FetchFailure instance from a string or object.
+     */
+    static createFrom($$source: any = {}): FetchFailure {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FetchFailure($$parsedSource as Partial<FetchFailure>);
+    }
+}
+
+// Private type creation functions
+const $$createType0 = DeploymentResult.createFrom;
+const $$createType1 = Deployment.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = FetchFailure.createFrom;
+const $$createType4 = $Create.Array($$createType3);

@@ -23,12 +23,35 @@ depends = ["bindings"]
 run = ["go vet ./...", "npm --prefix frontend run typecheck"]
 
 [tasks.build]
-description = "互換性確認用の Windows アプリをビルドする"
+description = "Windows アプリをビルドする"
 depends = ["check"]
 run = ["npm --prefix frontend run build", "go build -tags production -trimpath -o bin/azfoundry-deck.exe ."]
 
 [tasks.mock]
-description = "互換性確認用アプリを固定データで起動する"
+description = "F1 モックを固定データで起動する"
 depends = ["build"]
 env.AZFOUNDRY_MOCK = "1"
 run = ".\\bin\\azfoundry-deck.exe"
+
+[tasks.test]
+description = "F1 の取得結果と絞り込み・数量表示を検証する"
+depends = ["bindings"]
+run = ["go test ./...", "npm --prefix frontend test"]
+
+[tasks."build:browser"]
+description = "共通の画面・GoサービスをWails標準のブラウザー実行用にビルドする"
+depends = ["check"]
+run = ["npm --prefix frontend run build", "go build -tags server,production -trimpath -o bin/azfoundry-deck-browser.exe ."]
+
+[tasks."mock:browser"]
+description = "F1モックをブラウザーで確認する（http://127.0.0.1:9245）"
+depends = ["build:browser"]
+env.AZFOUNDRY_MOCK = "1"
+env.WAILS_SERVER_HOST = "127.0.0.1"
+env.WAILS_SERVER_PORT = "9245"
+run = ".\\bin\\azfoundry-deck-browser.exe"
+
+[tasks."test:ui"]
+description = "F1全シナリオを一時プロファイルのheadless Edgeで検証する"
+depends = ["build:browser"]
+run = "pwsh -NoProfile -File scripts/Test-F1Browser.ps1"

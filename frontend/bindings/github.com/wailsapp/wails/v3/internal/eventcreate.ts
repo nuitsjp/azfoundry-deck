@@ -6,4 +6,17 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
-Object.freeze($Create.Events);
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as service$0 from "../../../../nuitsjp/azfoundry-deck/internal/service/models.js";
+
+function configure() {
+    Object.freeze(Object.assign($Create.Events, {
+        "deployments:progress": $$createType0,
+    }));
+}
+
+// Private type creation functions
+const $$createType0 = service$0.DeploymentProgress.createFrom;
+
+configure();
