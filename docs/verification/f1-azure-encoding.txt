@@ -1,0 +1,49 @@
+F1 Azure CLI Japanese-name encoding fix
+Date: 2026-09-13
+Environment: Windows / PowerShell, pinned dependencies, Windows MSI Azure CLI
+
+Implementation: decode stdout and stderr using Windows GetACP and strict MultiByteToWideChar before JSON parsing. No console/system/CLI configuration changes.
+
+Verification commands:
+- mise run test: PASS (Go and 3 frontend tests)
+- mise run build: PASS (bindings, go vet, TypeScript, frontend and native executable)
+- mise run build:browser: PASS
+- CGO_ENABLED=1 go test -race ./internal/azurego -count=1 -timeout=60s: PASS (1.629s)
+- go test ./internal/azurego -run 'TestDecodeCLI|TestCLIJapanese' -count=1 -v: PASS (8 conversion cases and Japanese metadata flow)
+
+Live Azure comparison (AZFOUNDRY_LIVE=1):
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=12.066s, first rows=10.746s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+=== RUN   TestLiveAzureProvider/parallel_cold
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=2.867s, first rows=2.603s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+=== RUN   TestLiveAzureProvider/parallel_refresh_1
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=2.743s, first rows=2.004s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+=== RUN   TestLiveAzureProvider/parallel_refresh_2
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=2.432s, first rows=1.902s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+=== RUN   TestLiveAzureProvider/previous_api_after
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=6.778s, first rows=6.324s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+=== RUN   TestLiveAzureProvider/serial_cold
+    provider_live_test.go:191: subscription concurrency=1, account concurrency=1, elapsed=8.853s, first rows=8.083s, subscriptions completed=7, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=14, parity=true
+--- PASS: TestLiveAzureProvider (35.74s)
+    --- PASS: TestLiveAzureProvider/previous_api_before (12.07s)
+    --- PASS: TestLiveAzureProvider/parallel_cold (2.87s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_1 (2.74s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_2 (2.43s)
+    --- PASS: TestLiveAzureProvider/previous_api_after (6.78s)
+    --- PASS: TestLiveAzureProvider/serial_cold (8.85s)
+PASS
+ok  	github.com/nuitsjp/azfoundry-deck/internal/azurego	36.204s
+
+Headless verification:
+Command: pwsh -NoProfile -File bin/Test-EncodingBrowser.ps1
+Reference: .NET ProcessStartInfo.StandardOutputEncoding=CP932 on independently read CLI output; 7 enabled AzureCloud subscriptions, 3 contain Japanese display names. Names and IDs omitted from this log.
+Compared initial and refreshed table names plus filter options to reference metadata.
+{
+  "result": "{\"passed\":true,\"rows\":11,\"initialJapaneseRows\":11,\"refreshJapaneseRows\":11,\"exactCLIMetadataMatch\":true,\"filterNamesMatch\":true,\"replacementCharacters\":0,\"javascriptErrors\":0}"
+}
+Browser 'encoding-39044' closed
+
+
+Screenshot: f1-azure-encoding.png (visually checked)
+Temporary headless Edge session encoding-39044 and server port 9247 closed.
+Existing native application not restarted; native WebView2 operation unverified in this change.
+Existing azure-cli-not-logged-in discovery failure remains (1).

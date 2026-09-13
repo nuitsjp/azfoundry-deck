@@ -64,6 +64,9 @@
 
 テナントの権限不足に関する変更合意: 2026-09-13。判断者: リポジトリ所有者。根拠: テナントの権限は簡単に追加できず、毎回表示されるのは好ましくないため、取扱い対象外とするという本タスクの明示指示。テナント権限不足を探索失敗として通知する従前の扱いを変更し、対応するモック状態を廃止する。未ログイン、Azure CLI未導入、対象アカウントの権限不足や通信障害の扱いは維持する。
 
+<a id="f1-auth-negative-case"></a>
+実環境の認証エラー検証に関する合意: 2026-09-13。判断者: リポジトリ所有者。根拠: 「Visual Studio Professional（中村MSDN）はこの環境ではログインできないので、エラーになる例として扱います」という指示。この対象の再ログイン・取得成功を検証の前提にせず、F1-S5の実環境の異常系として扱います。アプリから対象を除外したり、エラー・一覧の不完全表示を隠したりはしません。他の対象の成功行と、この対象の認証エラーが初回・手動更新後も共存することを確認します。想定外の失敗は、この合意によって許容しません。
+
 進捗表示の変更指示: 2026-09-13。判断者: リポジトリ所有者。根拠: サブスクリプション等への要求は別々に完了するため、並列処理中の進捗を可視化してほしいという本タスクの指示。全件が揃うまで取得中表示だけを続ける方式を、完了件数と途中結果の表示へ変更する。今回の対象は共通の通知契約とモックであり、実Azureの並列数・応答時間・除外対象の判別はU3で検証する。
 
 #### モックのシナリオと実接続での検証条件
@@ -131,7 +134,7 @@
 <a id="mock-stack"></a>
 ### 技術構成と選定理由
 
-既存の画面と処理境界を検討材料にできるため、仮実装と同じ Go + Wails v3、React + TypeScript + Vite、Azure SDK for Go、mise を起点とします。2026-09-13、U2 のモック用構成として次を選定し、依存取得・コード生成・型検査・Windows ビルドを確認しました。
+既存の画面と処理境界を検討材料にできるため、仮実装と同じ Go + Wails v3、React + TypeScript + Vite、Azure SDK for Go、mise を起点とします。2026-09-13、モック用構成に加えて F1 実接続用の依存を固定し、依存取得・コード生成・型検査・Windows ビルドを確認しました。
 
 モック用構成の採用合意: リポジトリ所有者、2026-09-13。本タスクで Wails v3 がベータ版であることと検証範囲を提示し、「OK」の回答を得た。画面・操作は [F1 の要件](#f1-agreement) に従ってゼロから検討する。
 
@@ -142,12 +145,19 @@
 | Wails フロントエンドランタイム | 3.0.0-beta.5 | [package.json](../frontend/package.json) |
 | React / React DOM、および各型定義 | 19.2.0 | [package.json](../frontend/package.json) |
 | TypeScript / Vite | 5.9.3 / 8.0.16 | [package.json](../frontend/package.json) |
+| Azure ARM SDK / Azure CLI 資格情報 | `armcognitiveservices/v3` 3.0.0 / `azidentity` 1.14.1 / `azcore` 1.23.1 | [go.mod](../go.mod) |
 
 Go と Node.js はインストール済みの版を使用し、Wails 本体・CLI は同一版に固定しました。ランタイムの beta.5 は [Wails beta.6 内の公式定義](https://github.com/wailsapp/wails/blob/v3.0.0-beta.6/v3/internal/runtime/desktop/%40wailsio/runtime/package.json) と一致します。Wails はベータ版のため、自動更新せず、変更時にコード生成とビルドを再検証します。
 
 Vite は仮実装候補の 8.0.13 で `npm audit` が高深刻度1件を報告したため、[公式の修正版 8.0.16](https://github.com/vitejs/vite/security/advisories/GHSA-fx2h-pf6j-xcff) に更新しました。新しい画面ライブラリやモックツールは追加していません。現時点ではホットリロードを必要としないため、React 用 Vite プラグインも追加せず、Vite 標準の TSX 変換を使用します。
 
-Azure SDK は今回の固定データ検証には不要なため未導入です。実接続用の採用版と互換性は U2 の残件とし、API・認証・権限の動作検証は U3 で扱います。
+実接続には [Azure Cognitive Services ARM SDK v3](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices/v3) 3.0.0、`azidentity` 1.14.1、`azcore` 1.23.1 を採用しました。アカウント探索は [ARM Resources List（2021-04-01）](https://learn.microsoft.com/en-us/rest/api/resources/resources/list?view=rest-resources-2021-04-01) に `resourceType eq 'Microsoft.CognitiveServices/accounts'` を指定し、応答の `kind` で対象を絞ります。デプロイは SDK 3.0.0 と同じ API 2025-09-01 と応答モデルを使用します。両一覧は共通の `arm.Client` パイプラインから読み、`nextLink` を最後まで辿ります。要求先以外のホスト・サブスクリプションへのページ移動は拒否します。認証・トークン更新・再試行・キャンセルは既存SDKに任せ、別のSDK依存や独自トークンキャッシュは追加しません。
+
+2026-09-13、取得時間と結果の一致を比較したうえで、リポジトリ所有者の「では適用してください」に基づき探索APIの変更とSDKクライアントの再利用を適用しました。専用の Accounts List のページ巡回と、毎回のクライアント再作成が計測上のボトルネックだったためです。Provider内で、テナント・サブスクリプション・CLIユーザー名と種別が同じクライアントを再利用します。CLI一覧は毎回読み直し、一覧から消えた対象とユーザー変更前のクライアントを破棄します。一覧取得失敗時もキャッシュを破棄します。リソースや数量はキャッシュせず、更新ごとに全ページを読み直します。探索4・アカウント取得8の並列数、進捗・部分失敗・数量欠損の表示契約は変更しません。同一テナントの複数サブスクリプション間での認証共有は今回の適用範囲外です。[検証結果](#f1-azure-performance) を参照してください。
+
+認証は [Azure CLI credential](https://learn.microsoft.com/en-us/azure/developer/go/sdk/authentication/azure-cli) に委譲し、アプリからログインや `az account set` を実行しません。各 ARM クライアントの URL にはサブスクリプション ID を渡し、資格情報にはそのサブスクリプション ID を指定します。現行の Azure CLI は `tenant` と `subscription` の同時指定を受け付けないため、サブスクリプション ID（テナントを一意に特定する値）を使います。Azure CLI の `--all` に含まれる `id == tenantId` のテナントレベル擬似エントリは ARM サブスクリプションではないため対象外にします。SDK の RP 自動登録は無効化し、F1 は読取だけを行います。
+
+Windows版Azure CLIの標準出力・標準エラーは、[CLI境界](../internal/azurego/cli_windows.go)でWindowsの既定ANSIコードページからUTF-8へ変換してから使用します。2026-09-13、この環境のMSI版ランチャーはPythonを`-I`（隔離モード）で起動し、実際のパイプ出力はCP932でした。[Pythonの標準入出力仕様](https://docs.python.org/3.14/library/sys.html#sys.stdout)に合わせて`GetACP`でコードページを取得し、[MultiByteToWideChar](https://learn.microsoft.com/en-us/windows/win32/api/stringapiset/nf-stringapiset-multibytetowidechar)の`MB_ERR_INVALID_CHARS`で厳密変換します。不正バイトを黙って置換せず、変換失敗を取得エラーにします。文字コードの推測や、`chcp`・OS設定・Azure CLI設定の変更は行いません。既存の`golang.org/x/sys`を直接利用し、新規依存は追加していません。CLIの配布方式やPythonの既定文字コードが変わる場合は、この入出力契約を再検証します。
 
 F1 では単一 Go モジュールと画面向けサービスを基本構成とし、独自 HTTP サーバー、DB、Repository 層、DI コンテナー、汎用状態管理ライブラリは導入しません。ブラウザー検証には、採用済み Wails の標準 server モードを利用します。
 
@@ -156,11 +166,11 @@ F1 では単一 Go モジュールと画面向けサービスを基本構成と�
 <a id="rate-limit-source"></a>
 ### レート制限の外部仕様の確認
 
-2026-09-13、Microsoft の [Deployments List（API 2025-06-01）](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/accountmanagement/deployments/list?view=rest-microsoftfoundry-accountmanagement-2025-06-01) を確認しました。応答には `sku.capacity`、`properties.rateLimits`、`properties.callRateLimit` が定義されていますが、直接 `tpm` / `rpm` という名前の項目はありません。汎用の制限情報をどの設定値として扱うかは、このスキーマだけでは確定できません。
+2026-09-13、Microsoft の [Deployments List（API 2025-06-01）](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/accountmanagement/deployments/list?view=rest-microsoftfoundry-accountmanagement-2025-06-01) を確認しました。応答には `sku.capacity`、`properties.rateLimits`、`properties.callRateLimit` が定義されていますが、直接 `tpm` / `rpm` という名前の項目はありません。F1 の表示契約では `properties.rateLimits` の `key` が `token` の値を TPM、`request` の値を RPM とし、`count` と `renewalPeriod` から1分あたりへ正規化します。欠損・不正値・1分あたりに整数化できない値は不明のままにします。
 
-[クォータの公式資料](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota) は、容量単位と TPM/RPM の対応がモデルにより異なると説明しています。また、[Provisioned の容量](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/provisioned-throughput) は PTU で扱われます。このため、Capacity の生値を TPM として表示したり、全モデル・SKU に一律の換算を適用したりしません。採用 API・SDK の確定と、各モデル・SKU の取得値を Portal の設定値に照合する検証は U2・U3 の残件です。今回の確認は文書調査のみで、Azure への接続や値の取得は未実施です。
+[クォータの公式資料](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota) は、容量単位と TPM/RPM の対応がモデルにより異なると説明しています。また、[Provisioned の容量](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/provisioned-throughput) は PTU で扱われます。このため、`sku.capacity` の生値を TPM として表示したり、全モデル・SKU に一律の換算を適用したりしません。実接続では11デプロイを取得し、11件のRPM、10件のTPMを `rateLimits` から表示でき、TPM欠損の1件は不明になりました。Portal の設定値との照合、別モデル・SKUおよびページング境界の網羅性は U3 の残件です。
 
-取得要求の単位: 2026-09-13に確認した [Accounts List](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/accountmanagement/accounts/list?view=rest-microsoftfoundry-accountmanagement-2025-06-01) はサブスクリプション単位、[Deployments List](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/accountmanagement/deployments/list?view=rest-microsoftfoundry-accountmanagement-2025-06-01) はアカウント単位で、どちらも複数ページになり得ます。このAPI構造を踏まえ、進捗はHTTP要求数ではなく各対象の全ページ取得の完了数で扱います。失敗で終了したアカウントとデプロイ0件の成功も完了数に含めます。探索とデプロイ取得では総作業量が異なるため、全工程を通した推測のパーセントは表示しません。
+取得要求の単位: アカウント探索に使う Resources List はサブスクリプション単位、[Deployments List](https://learn.microsoft.com/en-us/rest/api/microsoftfoundry/accountmanagement/deployments/list?view=rest-microsoftfoundry-accountmanagement-2025-06-01) はアカウント単位で、どちらも複数ページになり得ます。このAPI構造を踏まえ、進捗はHTTP要求数ではなく各対象の全ページ取得の完了数で扱います。失敗で終了したアカウントとデプロイ0件の成功も完了数に含めます。探索とデプロイ取得では総作業量が異なるため、全工程を通した推測のパーセントは表示しません。
 
 ### F1 の責務と境界の案
 
@@ -234,7 +244,15 @@ mise run build
 mise run mock
 ```
 
-`mise run mock` は build を含むタスクで、`AZFOUNDRY_MOCK=1` を設定して起動します。起動時のシナリオは success に戻ります。終了はウィンドウの X で行います。モック無効で起動した場合は実接続が未実装のためエラー終了するだけで、架空データへフォールバックしません。
+`mise run mock` は build を含むタスクで、`AZFOUNDRY_MOCK=1` を設定して起動します。起動時のシナリオは success に戻ります。終了はウィンドウの X で行います。`AZFOUNDRY_MOCK` を設定しない場合は実接続だけを使い、失敗しても架空データへフォールバックしません。
+
+### F1 実接続の起動
+
+```powershell
+mise run production
+```
+
+`mise run production` は build を含むタスクで、`AZFOUNDRY_MOCK=0` を明示して `bin/azfoundry-deck.exe` を起動します。サインイン済み Azure CLI の実リソースを読み取り、モックへ切り替えません。終了はウィンドウの X で行います。
 
 型検査は `mise run check`、Go と絞り込み・数量表示の単体テストは `mise run test`、バインディング生成・検査・フロントエンド・Windows 実行ファイルの構築は `mise run build` で行います。
 
@@ -257,6 +275,35 @@ mise run mock
 
 進捗を操作して確認する場合は「読込中 · 30秒かけて順次取得」を選んで「更新」を押します。探索の完了件数に続き、アカウントの完了件数と一覧が増えます。途中でデプロイ名へ `chat` を入力し、応答済みの行へ絞り込みが適用されることを確認します。「通常」を選び「再取得」を押すと新しい要求へ切り替わり、古い要求の途中通知や最終結果は反映しません。
 
+### F1 実 Azure 接続の検証
+
+```powershell
+mise run test:azure
+```
+
+`test:azure` は `AZFOUNDRY_LIVE=1` を設定したオプトイン検証です。サインイン済みの Azure CLI から対象サブスクリプションを読み取り、ARM のアカウント・デプロイ一覧を取得します。旧SDKの専用アカウント探索、現行方式の並列初回・同じProviderでの更新2回・逐次（各1）を比較し、全表示項目、対象アカウント、件数、失敗情報の一致と所要時間を検証します。旧SDK呼出しは比較テストだけに存在し、本番の代替経路ではありません。読取専用であり、`az login`、`az account set`、リソース変更を実行しません。未ログイン・期限切れトークン・権限エラーは検証結果として失敗情報に残り、モックへ切り替えません。比較中に実リソースが変更された場合も不一致として失敗するため、変更のない時間帯に実行します。
+
+同タスクの [探索・設定値テスト](../internal/azurego/provider_scope_live_test.go) では、通常のResources Listと`$top=1`を指定して実際の`nextLink`を辿った結果を比較します。デプロイ一覧の表示値も個別GETと照合します。探索の403・認証失敗は成功した対象と分けて記録し、取得不能な対象の網羅性は確認済みにしません。API間の一致はPortal画面との照合を代替しません。
+
+実Azure接続のアプリ画面も、既存Edgeのデバッグ設定やPortalログインを使わず、次のheadlessテストで検証します。
+
+```powershell
+mise run test:azure:ui
+```
+
+このタスクは共通の [テスト起動処理](../scripts/Test-F1Browser.ps1) に`-Azure`を渡し、`AZFOUNDRY_MOCK=0`のWails標準サーバーをループバックの9247番で起動します。認証は本番と共通のGoサービスがAzure CLIから取得し、一時ブラウザー自身へのログインは不要です。[実接続画面テスト](../frontend/tests/f1.azure.browser.js) は、[合意した認証エラー](#f1-auth-negative-case)1件と成功行の共存、初回・更新の表示値一致、絞り込み0件でも詳細を確認できること、一覧復帰時の状態保持を検証します。この環境専用の異常系テストであり、別の資格情報での全件成功を要求する汎用テストではありません。想定外の失敗や、実行中のリソース変更はテスト失敗として扱います。結果と画像は`docs/verification/f1-azure-*`へ保存し、終了時はテストで起動したサーバーとブラウザーだけを閉じます。
+
+実接続の画面を Wails 標準 server で確認する場合は、先に `mise run build:browser` を実行してから、モック用の `AZFOUNDRY_MOCK` を設定せずに次を実行します。
+
+```powershell
+$env:WAILS_SERVER_HOST = "127.0.0.1"
+$env:WAILS_SERVER_PORT = "9246"
+Remove-Item Env:AZFOUNDRY_MOCK -ErrorAction SilentlyContinue
+.\bin\azfoundry-deck-browser.exe
+```
+
+ブラウザー確認は実 Azure の応答を使うため、対象の名称・件数・権限状態は実行時のアカウントに依存します。終了後は実行ファイルを起動したターミナルで Ctrl+C を押します。
+
 ### headlessによる画面テストとブラウザーでの確認
 
 ```powershell
@@ -267,7 +314,7 @@ mise run test:ui
 
 画面をブラウザーで手動確認する場合は `mise run mock:browser` を実行し、[ローカルのF1モック](http://127.0.0.1:9245/) を開きます。終了は実行したターミナルで Ctrl+C です。ポート9245はループバックだけで待ち受けます。`test:ui` と同時に起動せず、使用中なら先に `mock:browser` を終了します。ブラウザーの再読み込みでは現在のモック状態を保持し、サーバー再起動で「通常」に戻ります。
 
-Windows/WebView2固有の起動・終了・表示はネイティブで確認します。headlessでの合格は、利用者の動作合意や実Azureの認証・権限・取得性能の検証完了を意味しません。
+Windows/WebView2固有の起動・終了・表示はネイティブで確認します。モックのheadless合格は実Azureの検証実績ではありません。実接続のheadless合格も、利用者の動作合意、ネイティブ固有の表示、未使用の権限構成や性能条件の確認完了を意味しません。Azure Portalの設定画面との照合には別途Portalの認証が必要です。CLIの認証と混同せず、未実施なら未検証として記録し、アプリ画面のheadless検証は進めます。
 
 
 <a id="verification"></a>
@@ -320,7 +367,7 @@ headless画面テスト・画像・単体テスト・型検査・Windowsビル�
 | headless画面テスト | `mise run test:ui` の13項目が合格。8状態、テナント権限不足の選択肢がないこと、対象アカウントの権限エラーが引き続き詳細に表示されること、6属性・複合絞り込み、候補の連動、再読み込み後の状態一致、通常・絞り込み時の件数と重複しないエラー概要に加え、エラー詳細への移動・一覧復帰・詳細画面での成功更新を確認。名前検索と取得時刻は画面切替で保持され、絞り込み0件でも詳細に失敗4件が残る。1080×720で失敗10件を末尾までスクロールし、更新・一覧復帰を操作できる。30秒の取得中に探索件数・アカウント完了数と進捗バーが進み、完了前に応答済みの行へ切り替わること、途中の名前絞り込みと解除、8秒の旧応答・旧進捗の破棄も合格。JavaScript実行エラー・HTTPエラー0件。[結果](verification/f1-browser-result.json)、[ログ](verification/f1-browser-run.txt) |
 | 状態の見た目 | [通常24件](verification/f1-browser-normal.png)、[部分失敗の一覧](verification/f1-browser-partial.png)、[絞り込み中の件数](verification/f1-browser-filtered.png)、[エラー詳細](verification/f1-browser-error-details.png)、[成功0件](verification/f1-browser-empty.png)、[探索失敗の一覧](verification/f1-browser-failure.png)、[探索の進捗](verification/f1-browser-loading.png)、[アカウントの進捗と途中結果](verification/f1-browser-progress.png) の各状態を確認。 |
 | ネイティブ確認 | Windowsアプリの起動、WebView2への24件表示、名前検索、テナントとの複合条件、条件0件、解除、手動更新と部分失敗表示、Alt+F4での終了を確認。[通常画面](verification/f1-native.jpg)、[取得した画面情報](verification/f1-native.txt)。この確認後にブラウザーの状態読み合わせとserver制限を追加し、最終版をビルドした。ネイティブで全シナリオを再実行せず、以後はheadlessで検証した。 |
-| モック無効時 | `AZFOUNDRY_MOCK` を外すと終了コード1と「実接続は未実装」を返し、架空データを表示しない。[ログ](verification/f1-disabled.txt)。実接続の成功を検証したものではない。 |
+| モック無効時 | `AZFOUNDRY_MOCK` を外すと実 Azure provider を使い、架空データへフォールバックしない。実接続の取得結果、部分失敗、モックバーのない画面は次の [実 Azure 接続検証](#f1-azure-verification) に記録。旧 `f1-disabled.txt` は実接続未実装時点の履歴。 |
 | テスト終了処理 | 自動テスト完了後にCLIのブラウザーセッションが0件、ポート9245の待受けがないことを確認。 |
 | 文書・検証対象の整合 | Markdown 7文書のファイル参照125件・明示アンカー41件が有効。記録したソース29ファイルのSHA-256が一致。変更差分と未追跡のソース・設定ファイルに空白エラーなし。 |
 
@@ -338,4 +385,64 @@ headless画面テスト・画像・単体テスト・型検査・Windowsビル�
 
 追加変更後の動作合意の記録更新（2026-09-13）: 進捗表示の反映後に得た利用者の「OKです」を第3節へ記録し、PLAN.mdの現在のステップを完了としました。変更は文書と合意対象の記録のみです。現在のソース29ファイルが検証時点および追加変更後の合意記録と一致すること、文書のリンク・アンカーと差分の空白検査を確認しました。アプリケーションのテスト・ビルドは再実行していません。
 
-**F1モックの作成・headless検証と第3節の範囲の動作合意は完了、実Azure接続・認証・権限・設定TPM/RPM照合・実取得時間は未検証です。** F2〜F4は未実装です。モックの応答時間から全件取得の性能や既定範囲を決めていません。未決事項は [PLAN.md](../PLAN.md) の U1〜U4 に残しています。
+**F1モックの画面・操作の合意、実処理境界の実装、実 Azure の部分取得検証、およびモック無効時の実接続画面確認は完了しました。** 認証不能な1対象は、[合意した異常系](#f1-auth-negative-case)として扱い、再ログイン待ちにはしません。設定値・ページングの追加確認は後述の実環境検証に記録します。Portal照合、ネイティブ WebView2 操作、性能に基づく既定表示範囲などの残件と、未実装のF2〜F4は [PLAN.md](../PLAN.md) の U1〜U4 で管理します。
+
+<a id="f1-azure-verification"></a>
+### F1 実 Azure 接続の検証
+
+対象: 現行作業ツリーの [Azure 境界](../internal/azurego/provider.go)、確認日: 2026-09-13。`mise run test:azure` はサインイン済み Azure CLI と実 Azure Resource Manager に対して読取だけを実行します。
+
+| 確認内容 | 結果・範囲・証跡 |
+| --- | --- |
+| 依存・ビルド | `mise run check`、`mise run build`、`mise run build:browser`、`mise run test`、および `CGO_ENABLED=1 go test -race ./internal/azurego` が合格。Azure SDK for Go の ARM Cognitive Services 3.0.0、`azidentity` 1.14.1、`azcore` 1.23.1を `go.mod` と `go.sum` に固定し、Wailsの生成バインディングを再生成した。 |
+| 実接続の対象探索 | `az account list --all` の Azure Public Cloud・Enabled エントリから、テナントレベル擬似エントリを除外し、7サブスクリプションを探索した。サブスクリプションごとの応答完了を7件確認した。 |
+| 実データの取得 | 成功したアカウントから11デプロイを取得した。探索7件・アカウント取得5件の完了通知を発行し、初期通知と取得開始通知を含む進捗イベントは計14件だった。10件でTPM、11件でRPMを取得し、TPM欠損は `null` のまま画面で「不明」と表示した。 |
+| 並列数と所要時間 | サブスクリプション4・アカウント8の並列設定と、各1の逐次設定を連続測定した。実行時の値は [実接続テスト](../internal/azurego/provider_live_test.go) と [実行記録](verification/f1-azure-test.txt) に記録した。差はネットワーク状態を含む一回の観測値であり、既定表示範囲の合意には使っていない。 |
+| 認証・権限エラー | 1件の Azure CLI 資格情報エラーを `azure-cli-not-logged-in` として探索失敗に保持し、`totalAccounts` を未確定のまま成功した11デプロイを表示した。モックへのフォールバックは発生しなかった。探索段階の権限不足の対象外化とアカウント段階の権限エラーは単体テストで確認した。 |
+| CLI コンテキスト | 実接続コードに `az account set` 呼出しがなく、実行前後の既定サブスクリプションが変わらないことを確認した。 |
+| 実接続画面 | モックを設定しない Windows server ビルドを headless Edge で開き、モックバーなし、11行、TPMの「不明」、エラー詳細1件を確認した。JavaScriptエラーは0件、Wails標準ランタイム警告は1件だった。[画面確認記録](verification/f1-azure-browser.txt)。ネイティブ WebView2 の同一シナリオは、この環境の Computer Use がネイティブアプリを公開しなかったため未確認。 |
+| 残る実環境確認 | 認証不能な対象は[異常系の検証対象](#f1-auth-negative-case)とし、再ログイン後の全件成功は要求しない。Portal設定値との照合、デプロイの実際の複数ページ境界、権限不足テナントの別構成、および許容時間・既定表示範囲は未確認（U1〜U3）。探索の実ページングとAPI表示値照合の追加結果は後述する。 |
+
+<a id="f1-azure-performance"></a>
+### F1 取得高速化の適用検証
+
+対象: 探索API変更・SDKクライアント再利用後の作業ツリー。確認日: 2026-09-13。Windows / PowerShell、固定済み依存、サインイン済みAzure CLIで確認しました。[実行記録](verification/f1-azure-performance.txt) と [比較テスト](../internal/azurego/provider_live_test.go) を参照してください。
+
+| 検証 | 結果・範囲 |
+| --- | --- |
+| 実Azureの取得時間 | 旧方式は比較の前後で9.582秒・7.825秒。現行方式はクライアント新規作成時3.702秒、同じProviderによる更新1.931秒・1.815秒。逐次設定では8.196秒。画面起動時間ではなくCLI一覧取得から全件取得完了までの観測値であり、速度を保証するものではない。 |
+| 結果と通知の一致 | 6試行すべてで、成功5アカウント、11デプロイ、TPM既知10件・RPM既知11件、認証エラー1件、総対象数未確定が一致。アカウントのID・名前・kind・リージョン、デプロイの全表示項目、件数、失敗情報を比較した。各試行で探索完了7件・取得完了5件・進捗14通知を確認した。 |
+| 再利用と鮮度 | 単体テストでユーザー・ユーザー種別・テナント・サブスクリプションの分離、削除された対象の破棄、CLI失敗時の破棄、生成失敗後の再試行、並行Fetch時の共有、表示名とデプロイ設定値の更新を確認。HTTP境界では2回の全ページ再取得に対してSDKのトークン取得1回、期限切れ時の再取得を確認した。 |
+| ページング・障害 | 両一覧の複数ページ、空ページからの継続、kindの絞り込み、数量欠損、401・403・404・429・500、SDK再試行、途中ページ失敗時の不完全な対象結果の破棄、キャンセル、不正JSON、要求先外のnextLink拒否が合格。ページング境界は合成HTTP応答での検証であり、実環境の多ページ構成は引き続きU3の残件。 |
+| 自動検査とビルド | `mise run test`（Go・フロントエンド3テスト）、`CGO_ENABLED=1 go test -race ./internal/azurego -count=1 -timeout=60s`、`mise run build`（生成・Go検査・型検査・Windowsビルド）、`mise run test:azure` が合格。追加後のAzure境界単体19テストも合格。 |
+| 未実施・残件 | 今回は画面・通知契約を変更しておらず、headless画面テストとネイティブ操作は再実行していない。起動中のアプリは再起動後に新実行ファイルへ切り替わる。既存の認証エラー1件、Portal照合、別RBAC構成・リソース作成削除直後の探索、およびU1〜U3の未決事項は解消扱いにしない。 |
+
+HTTPテスト作成中、テスト用の再試行待機設定により実行が長引いたため、その実行は途中中断しました（終了コード1、テスト失敗の出力なし）。テスト専用の待機上限を1ミリ秒に修正して全テストを再実行し、合格を確認しました。本番SDKの再試行設定は変更していません。
+
+<a id="f1-azure-encoding"></a>
+### F1 日本語名の文字化け修正
+
+2026-09-13、ユーザーの「対処してください」に基づいてCLI出力の文字コード変換を修正しました。CP932の出力バイトをそのままUTF-8のJSONとして解析していたため、日本語のテナント名・サブスクリプション名が置換文字へ変わっていました。画面・フォントやAzureリソースの名称自体は変更していません。
+
+| 検証 | 結果・範囲 |
+| --- | --- |
+| 単体・競合検査 | CP932の日本語・半角カナ・拡張文字①、UTF-8の日本語・絵文字、ASCII・改行・NULの保持、空出力、不正バイト拒否と日本語名の行データ到達を確認。[回帰テスト](../internal/azurego/cli_windows_test.go)の8変換ケースと日本語名テスト、Azure境界全体の`go test -race`が合格。 |
+| 実Azure・headless画面 | モック無効の共通画面で、初回・更新後それぞれ11行のテナント名・サブスクリプション名が、別途.NETでCP932復号したCLI参照値と完全一致。フィルター候補も一致し、一覧・エラー詳細の置換文字0件、JavaScriptエラー0件。テスト専用Edge・サーバーは終了済み。[画面](verification/f1-azure-encoding.png)、[検証記録](verification/f1-azure-encoding.txt) |
+| ビルド・既存機能 | `mise run test`、`mise run build`、`mise run build:browser`と実Azure比較6試行が合格。成功5アカウント・11デプロイ・TPM既知10件・RPM既知11件と既存の認証エラー1件を保持。取得の並列化とクライアント再利用は維持した。 |
+| 未実施・残件 | ネイティブWebView2の操作とモック全シナリオのheadless再検証は今回未実施。起動中の旧実行ファイルには変更が反映されないため再起動が必要。認証エラー1件とU1〜U3の既存の未検証項目は残る。 |
+
+<a id="f1-azure-headless"></a>
+### F1 実環境の異常系とheadless検証の継続
+
+対象: 認証エラーを異常系として扱う合意を反映した作業ツリー。確認日: 2026-09-13。Windows 11 / PowerShell、固定済み依存、headless Edge 153、サインイン済みAzure CLI。アプリ本体の表示・取得処理は変更せず、検証用タスクとテスト、作業方針を更新しました。以下は前節までの履歴に対する追加結果です。
+
+| 検証 | 結果・範囲・証跡 |
+| --- | --- |
+| 実Azureのheadless画面 | `mise run test:azure:ui`が合格。初回・更新後とも11行が一致し、合意したサブスクリプションの`azure-cli-not-logged-in`1件と探索失敗・一覧不完全の表示を保持。名前絞り込み0件でもエラー詳細を確認でき、戻ると条件と最終取得時刻を保持し、全解除で11行へ戻った。一覧・詳細の置換文字0件、JavaScriptエラー・アプリHTTPエラー0件。[結果](verification/f1-azure-browser-result.json)、[一覧](verification/f1-azure-headless.png)、[エラー詳細](verification/f1-azure-auth-error.png) |
+| 実Azureの探索とページング | `mise run test:azure`の`TestLiveAzureScopes`が合格。7対象のうち探索成功5、HTTP403の対象外1、合意した認証不能1。Resources Listの通常取得と`$top=1`指定による全ページ取得でメタデータが一致し、実際の継続ページ5回を確認。指定はページサイズのヒントとして用い、1ページ1件とは仮定していない。[テスト](../internal/azurego/provider_scope_live_test.go) |
+| 設定値のAPI間照合 | 同テストで11デプロイのListと個別GETを比較し、所属情報・モデル・バージョン・SKU・TPM/RPMを含む全表示項目が一致。TPM既知10件・不明1件、RPM既知11件。Portal画面での設定値確認ではない。 |
+| 取得方式の回帰 | `test:azure`の比較6試行が合格。旧方式・現行初回・更新2回・逐次で成功5アカウント・11デプロイ・認証エラー1件と表示項目が一致。今回の現行方式は初回2.926秒、更新1.606秒・2.402秒。所要時間はこの実行の観測値で、許容時間や既定範囲の合意ではない。 |
+| 自動検査 | `mise run test`のGoテストとフロントエンド3テストが合格。実Azure画面タスクに含む生成・Go検査・型検査・フロントエンドとWails serverビルドが合格。共通runnerのモック側でも8状態を含むheadless13項目が合格し、JavaScriptエラー・アプリHTTPエラー0件。[モック結果](verification/f1-browser-result.json) |
+| 検証境界 | 既存Edgeへの接続・デバッグ設定変更・再ログインは実施していない。Portalの認証済み画面照合、デプロイAPIの実複数ページ、別権限構成、ネイティブWebView2固有項目は未検証のまま。認証不能対象の取得成功は要求せず、エラー例としての検証は完了。 |
+
+Wails標準ランタイムのブラウザー警告1件は既存と同じです。headless用ブラウザーとサーバーはテスト終了時に閉じ、利用者のEdgeや起動中のネイティブアプリは操作していません。画面検証をEdgeのデバッグ接続で止めない方針を[AGENTS.md](../AGENTS.md)へ明記しました。

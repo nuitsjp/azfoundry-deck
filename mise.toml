@@ -33,10 +33,22 @@ depends = ["build"]
 env.AZFOUNDRY_MOCK = "1"
 run = ".\\bin\\azfoundry-deck.exe"
 
+[tasks.production]
+description = "F1を実Azure接続で起動する"
+depends = ["build"]
+env.AZFOUNDRY_MOCK = "0"
+run = ".\\bin\\azfoundry-deck.exe"
+
 [tasks.test]
 description = "F1 の取得結果と絞り込み・数量表示を検証する"
 depends = ["bindings"]
 run = ["go test ./...", "npm --prefix frontend test"]
+
+[tasks."test:azure"]
+description = "サインイン済み Azure CLI で F1 の実接続を読み取り検証する"
+depends = ["bindings"]
+env.AZFOUNDRY_LIVE = "1"
+run = "go test ./internal/azurego -run TestLiveAzure -count=1 -v"
 
 [tasks."build:browser"]
 description = "共通の画面・GoサービスをWails標準のブラウザー実行用にビルドする"
@@ -55,3 +67,8 @@ run = ".\\bin\\azfoundry-deck-browser.exe"
 description = "F1全シナリオを一時プロファイルのheadless Edgeで検証する"
 depends = ["build:browser"]
 run = "pwsh -NoProfile -File scripts/Test-F1Browser.ps1"
+
+[tasks."test:azure:ui"]
+description = "実Azureの成功行と合意済み認証エラーをheadlessで検証する"
+depends = ["build:browser"]
+run = "pwsh -NoProfile -File scripts/Test-F1Browser.ps1 -Azure"

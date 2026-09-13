@@ -1,8 +1,13 @@
+param([switch]$Azure)
+
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location -LiteralPath $repoRoot
 $cli = Join-Path $repoRoot 'frontend/node_modules/@playwright/cli/playwright-cli.js'
-$session = "f1-ui-$PID"
+$testName = if ($Azure) { 'f1-azure' } else { 'f1' }
+$port = if ($Azure) { 9247 } else { 9245 }
+$testFile = if ($Azure) { 'frontend/tests/f1.azure.browser.js' } else { 'frontend/tests/f1.browser.js' }
+$session = "$testName-ui-$PID"
 $serverProcess = $null
 $previousEnvironment = @{}
 foreach ($name in @('AZFOUNDRY_MOCK', 'WAILS_SERVER_HOST', 'WAILS_SERVER_PORT')) {
@@ -10,30 +15,30 @@ foreach ($name in @('AZFOUNDRY_MOCK', 'WAILS_SERVER_HOST', 'WAILS_SERVER_PORT'))
 }
 
 try {
-    if (Get-NetTCPConnection -LocalPort 9245 -State Listen -ErrorAction SilentlyContinue) {
-        throw 'Port 9245 is in use. Stop the browser mock before running test:ui.'
+    if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
+        throw "Port $port is in use. Close its server before running this test."
     }
-    $env:AZFOUNDRY_MOCK = '1'
+    $env:AZFOUNDRY_MOCK = if ($Azure) { '0' } else { '1' }
     $env:WAILS_SERVER_HOST = '127.0.0.1'
-    $env:WAILS_SERVER_PORT = '9245'
-    $serverProcess = Start-Process -FilePath (Join-Path $repoRoot 'bin/azfoundry-deck-browser.exe') -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput bin/f1-test-server-stdout.log -RedirectStandardError bin/f1-test-server-stderr.log
+    $env:WAILS_SERVER_PORT = "$port"
+    $serverProcess = Start-Process -FilePath (Join-Path $repoRoot 'bin/azfoundry-deck-browser.exe') -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput "bin/$testName-test-server-stdout.log" -RedirectStandardError "bin/$testName-test-server-stderr.log"
     $ready = $false
     for ($attempt = 0; $attempt -lt 100; $attempt++) {
         if ($serverProcess.HasExited) {
-            throw "Wails server exited: $(Get-Content -Raw bin/f1-test-server-stderr.log)"
+            throw "Wails server exited: $(Get-Content -Raw "bin/$testName-test-server-stderr.log")"
         }
         try {
-            $ready = (Invoke-WebRequest -Uri 'http://127.0.0.1:9245/' -NoProxy -TimeoutSec 1).StatusCode -eq 200
+            $ready = (Invoke-WebRequest -Uri "http://127.0.0.1:$port/" -NoProxy -TimeoutSec 1).StatusCode -eq 200
         } catch { $ready = $false }
         if ($ready) { break }
         Start-Sleep -Milliseconds 100
     }
-    if (!$ready -or $serverProcess.HasExited) { throw 'Wails server did not start on 127.0.0.1:9245.' }
+    if (!$ready -or $serverProcess.HasExited) { throw "Wails server did not start on 127.0.0.1:$port." }
 
-    & node $cli "-s=$session" open http://127.0.0.1:9245 --config=frontend/tests/browser.config.json
+    & node $cli "-s=$session" open "http://127.0.0.1:$port" --config=frontend/tests/browser.config.json
     if ($LASTEXITCODE -ne 0) { throw 'Headless browser launch failed.' }
-    $output = & node $cli "-s=$session" --json run-code --filename=frontend/tests/f1.browser.js
-    $output | Set-Content -LiteralPath docs/verification/f1-browser-result.json -Encoding utf8NoBOM
+    $output = & node $cli "-s=$session" --json run-code "--filename=$testFile"
+    $output | Set-Content -LiteralPath "docs/verification/$testName-browser-result.json" -Encoding utf8NoBOM
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
     $envelope = ($output -join "`n") | ConvertFrom-Json
     $result = $envelope.result | ConvertFrom-Json

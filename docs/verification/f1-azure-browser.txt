@@ -1,0 +1,17 @@
+F1 実 Azure server 画面確認記録
+確認日: 2026-09-13（Azure CLI 再認証前の確認）
+実行条件: `mise run build:browser` 後、`AZFOUNDRY_MOCK` を設定せずに Wails server を Windows の loopback で起動し、headless Edge 153 から接続。
+
+確認結果:
+    - Page title: AzFoundry Deck
+    - 実接続の初期表示中に「対象を探索 · サブスクリプション 3 / 4 完了」を確認。
+    - 完了後にモックバーなしでデプロイ11行を確認。
+    - eastus2 / swedencentral、2アカウント、8モデル候補を確認。
+    - `gpt-image-2` の TPM が「不明」、RPM が8として表示されることを確認。
+    - 探索失敗の概要と「エラー詳細」を確認し、詳細画面でエラー1件を確認。
+    - JavaScript page errors 0件、HTTP errors 0件、Wails標準ランタイム警告1件。
+    - 「エラー詳細」から一覧へ戻る操作は、画面分岐の確認後にブラウザーを終了した。
+
+後処理:
+    headless Edge セッションと Wails server を終了し、ポート9245・9246の待受けがないことを確認。
+    これは Azure CLI 再認証前の実 Azure 部分結果を使った画面確認であり、全対象完了の証跡ではない。

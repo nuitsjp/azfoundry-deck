@@ -1,0 +1,47 @@
+F1 実 Azure 接続検証記録
+確認日: 2026-09-13（Azure CLI 再認証後の再確認）
+実行条件: Windows 11 / PowerShell / サインイン済み Azure CLI / Azure Public Cloud
+
+実行コマンド:
+    mise run test:azure
+
+結果:
+    Wails bindings: 2 services, 4 methods, 5 models, 1 event
+    go test ./internal/azurego -run TestLiveAzureProvider -count=1 -v: PASS
+
+parallel:
+    subscription concurrency=4
+    account concurrency=8
+    elapsed=9.674s
+    subscriptions completed=7
+    account completions=5
+    successful accounts=5
+    accounts=unknown (one discovery failure makes the full total intentionally unknown)
+    deployments=11
+    failures=1 (azure-cli-not-logged-in=1)
+    known TPM=10
+    known RPM=11
+    progress events=14
+
+serial:
+    subscription concurrency=1
+    account concurrency=1
+    elapsed=23.231s
+    subscriptions completed=7
+    account completions=5
+    successful accounts=5
+    accounts=unknown (one discovery failure makes the full total intentionally unknown)
+    deployments=11
+    failures=1 (azure-cli-not-logged-in=1)
+    known TPM=10
+    known RPM=11
+    progress events=14
+
+個別トークン確認:
+    AzureCloud・Enabled・テナントレベル擬似エントリ除外後の7件を確認し、6件は管理APIトークン取得に成功、1件は失敗した。
+    既定サブスクリプションの管理APIトークンは取得できた。
+
+判定:
+    実接続は失敗をモックへ切り替えず、取得できた結果と認証失敗を同時に返した。
+    Azure CLI の再認証後も対象1件の資格情報エラーが残っているため、全対象の完了確認ではなく部分取得の検証結果である。
+    Portal との値照合、実際の nextLink ページング境界、ネイティブ WebView2 操作はこの記録の対象外。
