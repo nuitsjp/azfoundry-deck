@@ -98,7 +98,7 @@ func TestSDKListsAllPagesAndReusesTokenWithoutCachingResourceData(t *testing.T) 
 	})
 	p := newProvider(providerOptions{
 		runCommand: func(context.Context, ...string) ([]byte, []byte, error) {
-			return []byte(`[{"id":"sub","tenantId":"tenant","cloudName":"AzureCloud","user":{"name":"test","type":"user"}}]`), nil, nil
+			return []byte(`[{"id":"sub","tenantId":"tenant","cloudName":"AzureCloud","state":"Enabled","user":{"name":"test","type":"user"}}]`), nil, nil
 		},
 		newClient: func(subscriptionInfo) (subscriptionClient, error) { return client, nil },
 	})

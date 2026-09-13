@@ -68,6 +68,8 @@ func TestListSubscriptionsFiltersCloudStateAndDoesNotChangeAzureCLIContext(t *te
                 {"id":"sub-a","name":"A","tenantId":"tenant-a","tenantDisplayName":"Tenant A","cloudName":"AzureCloud","state":"Enabled"},
                 {"id":"sub-government","name":"Gov","tenantId":"tenant-a","cloudName":"AzureUSGovernment","state":"Enabled"},
                 {"id":"sub-missing-cloud","name":"Missing cloud","tenantId":"tenant-a","state":"Enabled"},
+                {"id":"sub-missing-state","name":"Missing state","tenantId":"tenant-a","cloudName":"AzureCloud"},
+                {"id":"sub-empty-state","name":"Empty state","tenantId":"tenant-a","cloudName":"AzureCloud","state":""},
                 {"id":"sub-disabled","name":"Disabled","tenantId":"tenant-a","cloudName":"AzureCloud","state":"Disabled"},
                 {"id":"sub-missing-tenant","name":"Missing","cloudName":"AzureCloud","state":"Enabled"},
                 {"id":"tenant-a","name":"N/A(tenant level account)","tenantId":"tenant-a","cloudName":"AzureCloud","state":"Enabled"},
@@ -250,6 +252,125 @@ func TestFetchExcludesForbiddenSubscriptionDiscoveryFromTarget(t *testing.T) {
 	if len(result.Failures) != 0 || result.TotalAccounts == nil || *result.TotalAccounts != 0 || result.SuccessfulAccounts != 0 {
 		t.Fatalf("excluded discovery result = %#v, want clean zero-account result", result)
 	}
+}
+
+func TestFetchExcludesForbiddenSubscriptionDiscoveryFromProgress(t *testing.T) {
+	clients := map[string]subscriptionClient{
+		"sub-a": &fakeSubscriptionClient{accountsErr: &azcore.ResponseError{ErrorCode: "AuthorizationFailed", StatusCode: 403}},
+		"sub-b": &fakeSubscriptionClient{accountsErr: &azcore.ResponseError{ErrorCode: "AuthorizationFailed", StatusCode: 403}},
+		"sub-c": &fakeSubscriptionClient{accountsErr: &azcore.ResponseError{ErrorCode: "AuthorizationFailed", StatusCode: 403}},
+	}
+	p := testProvider(t, []cliSubscription{
+		{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"},
+		{ID: "sub-b", Name: "Subscription B", TenantID: "tenant-b", TenantDisplayName: "Tenant B", CloudName: azureCloudName, State: "Enabled"},
+		{ID: "sub-c", Name: "Subscription C", TenantID: "tenant-c", TenantDisplayName: "Tenant C", CloudName: azureCloudName, State: "Enabled"},
+	}, clients)
+
+	progress := make([]service.DeploymentProgress, 0)
+	result, err := p.Fetch(context.Background(), func(snapshot service.DeploymentProgress) {
+		progress = append(progress, snapshot)
+	})
+	if err != nil {
+		t.Fatalf("Fetch returned error: %v", err)
+	}
+	if len(result.Failures) != 0 || result.SuccessfulAccounts != 0 || result.TotalAccounts == nil || *result.TotalAccounts != 0 {
+		t.Fatalf("all-forbidden result = %#v, want clean zero-account result", result)
+	}
+	if len(progress) != 2 {
+		t.Fatalf("all-forbidden progress count = %d, want initial discovery and fetch-start only; progress = %#v", len(progress), progress)
+	}
+	if progress[0].Stage != service.DeploymentProgressStageDiscovering || progress[0].CompletedSubscriptions != 0 || progress[0].TotalSubscriptions != nil {
+		t.Fatalf("initial progress = %#v", progress[0])
+	}
+	if progress[1].Stage != service.DeploymentProgressStageFetching || progress[1].CompletedSubscriptions != 0 || progress[1].TotalSubscriptions == nil || *progress[1].TotalSubscriptions != 0 {
+		t.Fatalf("fetch-start progress = %#v, want 0/0 after excluding all forbidden subscriptions", progress[1])
+	}
+}
+
+func TestFetchSeparatesForbiddenSubscriptionFromMixedDiscoveryProgress(t *testing.T) {
+	account := &armcognitiveservices.Account{
+		ID:       stringPointer("/subscriptions/sub-success/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/account"),
+		Name:     stringPointer("account"),
+		Kind:     stringPointer(accountKindAIServices),
+		Location: stringPointer("japaneast"),
+	}
+
+	run := func(t *testing.T, forbiddenLast bool) {
+		t.Helper()
+		forbiddenID := "sub-forbidden"
+		forbiddenTenant := "Tenant A"
+		successID := "sub-success"
+		successTenant := "Tenant B"
+		failureID := "sub-auth-failure"
+		failureTenant := "Tenant C"
+		if forbiddenLast {
+			forbiddenTenant = "Tenant C"
+			successTenant = "Tenant A"
+			failureTenant = "Tenant B"
+		}
+		clients := map[string]subscriptionClient{
+			forbiddenID: &fakeSubscriptionClient{accountsErr: &azcore.ResponseError{ErrorCode: "AuthorizationFailed", StatusCode: 403}},
+			successID: &fakeSubscriptionClient{
+				accounts:         []*armcognitiveservices.Account{account},
+				deployments:      map[string][]*armcognitiveservices.Deployment{"account": {{Name: stringPointer("deployment")}}},
+				deploymentErrors: map[string]error{},
+			},
+			failureID: &fakeSubscriptionClient{accountsErr: &azcore.ResponseError{ErrorCode: "Unauthorized", StatusCode: 401}},
+		}
+		p := testProvider(t, []cliSubscription{
+			{ID: forbiddenID, Name: forbiddenID, TenantID: forbiddenTenant, TenantDisplayName: forbiddenTenant, CloudName: azureCloudName, State: "Enabled"},
+			{ID: successID, Name: successID, TenantID: successTenant, TenantDisplayName: successTenant, CloudName: azureCloudName, State: "Enabled"},
+			{ID: failureID, Name: failureID, TenantID: failureTenant, TenantDisplayName: failureTenant, CloudName: azureCloudName, State: "Enabled"},
+		}, clients)
+
+		progress := make([]service.DeploymentProgress, 0)
+		result, err := p.Fetch(context.Background(), func(snapshot service.DeploymentProgress) {
+			progress = append(progress, snapshot)
+		})
+		if err != nil {
+			t.Fatalf("Fetch returned error: %v", err)
+		}
+		if len(result.Deployments) != 1 || result.Deployments[0].Name != "deployment" {
+			t.Fatalf("deployments = %#v, want successful deployment only", result.Deployments)
+		}
+		if len(result.Failures) != 1 || result.Failures[0].Scope != "subscription" || result.Failures[0].Code != "Unauthorized" {
+			t.Fatalf("failures = %#v, want one authentication failure", result.Failures)
+		}
+		if result.SuccessfulAccounts != 1 || result.TotalAccounts != nil {
+			t.Fatalf("account totals = successful %d, total %v; want 1/unknown after discovery failure", result.SuccessfulAccounts, result.TotalAccounts)
+		}
+
+		if len(progress) != 5 {
+			t.Fatalf("mixed progress count = %d, want initial + 2 eligible discoveries + fetch start + account; progress = %#v", len(progress), progress)
+		}
+		if progress[0].Stage != service.DeploymentProgressStageDiscovering || progress[0].TotalSubscriptions != nil {
+			t.Fatalf("initial progress = %#v", progress[0])
+		}
+		if progress[1].CompletedSubscriptions != 1 || progress[1].TotalSubscriptions != nil {
+			t.Fatalf("first eligible discovery progress = %#v, want 1/unknown", progress[1])
+		}
+		if forbiddenLast {
+			if progress[2].CompletedSubscriptions != 2 || progress[2].TotalSubscriptions != nil {
+				t.Fatalf("discovery before final forbidden response = %#v, want 2/unknown", progress[2])
+			}
+		} else if progress[2].CompletedSubscriptions != 2 || progress[2].TotalSubscriptions == nil || *progress[2].TotalSubscriptions != 2 {
+			t.Fatalf("final eligible discovery progress = %#v, want 2/2", progress[2])
+		}
+		fetchStart := progress[3]
+		if fetchStart.Stage != service.DeploymentProgressStageFetching || fetchStart.CompletedSubscriptions != 2 || fetchStart.TotalSubscriptions == nil || *fetchStart.TotalSubscriptions != 2 {
+			t.Fatalf("fetch-start progress = %#v, want 2/2 after excluding forbidden subscription", fetchStart)
+		}
+		if fetchStart.Result.TotalAccounts != nil || len(fetchStart.Result.Failures) != 1 {
+			t.Fatalf("fetch-start result = %#v, want authentication failure and unknown account total", fetchStart.Result)
+		}
+		accountProgress := progress[4]
+		if accountProgress.CompletedAccounts != 1 || accountProgress.Result.SuccessfulAccounts != 1 || accountProgress.Result.TotalAccounts != nil || len(accountProgress.Result.Deployments) != 1 || len(accountProgress.Result.Failures) != 1 {
+			t.Fatalf("account progress = %#v, want successful row, unknown total, and retained authentication failure", accountProgress)
+		}
+	}
+
+	t.Run("forbidden-first", func(t *testing.T) { run(t, false) })
+	t.Run("forbidden-last", func(t *testing.T) { run(t, true) })
 }
 
 func TestFetchReturnsStructuredAzureCLIFailure(t *testing.T) {

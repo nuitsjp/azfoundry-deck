@@ -48,7 +48,10 @@ async page => {
   await page.getByRole("button", { name: /(?:更新|再取得)$/ }).first().click();
   await page.locator(".fetch-progress").waitFor();
   const refreshedRows = await checkList();
-  assert(JSON.stringify(refreshedRows) === JSON.stringify(initialRows), "更新前後で実デプロイの表示値が異なります。リソース変更の有無を確認してください");
+  // Parallel account requests can complete in a different order on refresh.
+  const initialById = initialRows.toSorted((left, right) => left.id.localeCompare(right.id));
+  const refreshedById = refreshedRows.toSorted((left, right) => left.id.localeCompare(right.id));
+  assert(JSON.stringify(refreshedById) === JSON.stringify(initialById), "更新前後で実デプロイの表示値が異なります。リソース変更の有無を確認してください");
 
   const nameInput = page.getByPlaceholder("名前の一部で検索");
   await nameInput.fill("__f1_negative_case_no_deployment__");

@@ -259,26 +259,38 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	failures := make([]service.FetchFailure, 0)
 	accounts := make([]discoveredAccount, 0)
 	discoveryComplete := true
-	totalSubscriptions := len(subscriptions)
+	totalSubscriptionResponses := len(subscriptions)
+	completedSubscriptionResponses := 0
 	completedSubscriptions := 0
-	totalSub := totalSubscriptions
+	var totalSub *int
 	processDiscovery := func(discovery subscriptionDiscovery) {
+		completedSubscriptionResponses++
+		if discovery.err != nil && isExcludedTenantPermission(discovery.err) {
+			// A tenant not authorized for subscription discovery is outside
+			// F1's target set and is intentionally absent from the result and
+			// progress counts.
+			if completedSubscriptionResponses == totalSubscriptionResponses {
+				total := completedSubscriptions
+				totalSub = &total
+			}
+			return
+		}
+
 		completedSubscriptions++
 		if discovery.err != nil {
-			if isExcludedTenantPermission(discovery.err) {
-				// A tenant not authorized for subscription discovery is outside
-				// F1's target set and is intentionally absent from the result.
-			} else {
-				discoveryComplete = false
-				failures = append(failures, failureForError("subscription", discovery.subscription, discoveredAccount{}, discovery.err))
-			}
+			discoveryComplete = false
+			failures = append(failures, failureForError("subscription", discovery.subscription, discoveredAccount{}, discovery.err))
 		} else {
 			accounts = append(accounts, discovery.accounts...)
 		}
 
+		if completedSubscriptionResponses == totalSubscriptionResponses {
+			total := completedSubscriptions
+			totalSub = &total
+		}
 		progressResult := emptyResult()
 		progressResult.Failures = cloneFailures(failures)
-		if completedSubscriptions == totalSubscriptions && discoveryComplete {
+		if completedSubscriptionResponses == totalSubscriptionResponses && discoveryComplete {
 			deduplicated := deduplicateAccounts(accounts)
 			total := len(deduplicated)
 			progressResult.TotalAccounts = &total
@@ -286,7 +298,7 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 		reportSnapshot(report, service.DeploymentProgress{
 			Stage:                  service.DeploymentProgressStageDiscovering,
 			CompletedSubscriptions: completedSubscriptions,
-			TotalSubscriptions:     &totalSub,
+			TotalSubscriptions:     cloneIntPointer(totalSub),
 			Result:                 progressResult,
 		})
 	}
@@ -294,13 +306,14 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	if err := ctx.Err(); err != nil {
 		return emptyResult(), err
 	}
-	if totalSubscriptions == 0 {
+	if totalSubscriptionResponses == 0 {
 		total := 0
+		totalSub = &total
 		progressResult := emptyResult()
 		progressResult.TotalAccounts = &total
 		reportSnapshot(report, service.DeploymentProgress{
 			Stage:              service.DeploymentProgressStageDiscovering,
-			TotalSubscriptions: &totalSub,
+			TotalSubscriptions: cloneIntPointer(totalSub),
 			Result:             progressResult,
 		})
 	}
@@ -317,8 +330,8 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	fetchStart.TotalAccounts = cloneIntPointer(totalAccounts)
 	reportSnapshot(report, service.DeploymentProgress{
 		Stage:                  service.DeploymentProgressStageFetching,
-		CompletedSubscriptions: totalSubscriptions,
-		TotalSubscriptions:     &totalSub,
+		CompletedSubscriptions: completedSubscriptions,
+		TotalSubscriptions:     cloneIntPointer(totalSub),
 		Result:                 fetchStart,
 	})
 
@@ -348,9 +361,9 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 		snapshot.TotalAccounts = cloneIntPointer(totalAccounts)
 		reportSnapshot(report, service.DeploymentProgress{
 			Stage:                  service.DeploymentProgressStageFetching,
-			CompletedSubscriptions: totalSubscriptions,
+			CompletedSubscriptions: completedSubscriptions,
 			CompletedAccounts:      completedAccounts,
-			TotalSubscriptions:     &totalSub,
+			TotalSubscriptions:     cloneIntPointer(totalSub),
 			Result:                 snapshot,
 		})
 	}
@@ -386,7 +399,7 @@ func (p *Provider) listSubscriptions(ctx context.Context) ([]subscriptionInfo, e
 		if !strings.EqualFold(strings.TrimSpace(value.CloudName), azureCloudName) {
 			continue
 		}
-		if value.State != "" && !strings.EqualFold(value.State, "Enabled") {
+		if !strings.EqualFold(value.State, "Enabled") {
 			continue
 		}
 		id := strings.TrimSpace(value.ID)

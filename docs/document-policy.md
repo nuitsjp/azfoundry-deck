@@ -37,6 +37,7 @@
 | [project.md](project.md) | プロジェクトの目的・制約、仕様、設計判断、手順、検証結果 |
 | 外部の仮実装・検証記録 | 調査用の参考資料（[参照資料](project.md#references)）。正式版の正本ではない。 |
 | [PLAN.md](../PLAN.md) | 作業進捗、作業順序、未決事項の管理 |
+| GitHub Issue | 利用者の合意により移管した残件の状態・再開条件・完了条件を管理。PLAN.mdから移管先を参照し、確定した合意・検証結果はproject.mdに記録する（[F1の移管合意](project.md#f1-closeout)）。 |
 | [README.md](../README.md) | プロジェクト概要と参照案内 |
 | [AGENTS.md](../AGENTS.md) | AIエージェントの行動指針 |
 

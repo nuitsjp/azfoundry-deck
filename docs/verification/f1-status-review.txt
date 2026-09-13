@@ -1,0 +1,432 @@
+F1 status review verification, 2026-09-13; base commit b21caf2 plus current corrections.
+COMMAND: mise run test
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.9426097s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[test] $ go test ./...
+?   	github.com/nuitsjp/azfoundry-deck	[no test files]
+--- FAIL: TestSDKListsAllPagesAndReusesTokenWithoutCachingResourceData (0.00s)
+    provider_http_test.go:109: Fetch failed: err=<nil>, failures=[], deployments=0
+FAIL
+FAIL	github.com/nuitsjp/azfoundry-deck/internal/azurego	0.509s
+ok  	github.com/nuitsjp/azfoundry-deck/internal/mock	(cached)
+ok  	github.com/nuitsjp/azfoundry-deck/internal/service	(cached)
+FAIL
+Finished in 4.25s
+[test] ERROR task failed
+Fixture correction: the HTTP success fixture now explicitly declares state=Enabled. Verification restarted below.
+COMMAND: mise run test
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.8297706s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[test] $ go test ./...
+?   	github.com/nuitsjp/azfoundry-deck	[no test files]
+ok  	github.com/nuitsjp/azfoundry-deck/internal/azurego	0.443s
+ok  	github.com/nuitsjp/azfoundry-deck/internal/mock	(cached)
+ok  	github.com/nuitsjp/azfoundry-deck/internal/service	(cached)
+[test] $ npm --prefix frontend test
+
+> azfoundry-deck-ui@0.1.0 test
+> node --test tests/*.test.mjs
+
+✔ 同名デプロイを保持し、6属性それぞれで絞り込む (0.5058ms)
+✔ 条件をANDで組み合わせ、該当なしと解除を区別する (0.4458ms)
+✔ 欠損を0にせず、明示された0と設定値を表示する (8.9915ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106.4317
+Finished in 4.48s
+COMMAND: mise run build
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.738804s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[check] $ go vet ./...
+[check] $ npm --prefix frontend run typecheck
+
+> azfoundry-deck-ui@0.1.0 typecheck
+> tsc --noEmit
+
+[build] $ npm --prefix frontend run build
+
+> azfoundry-deck-ui@0.1.0 build
+> vite build
+
+vite v8.0.16 building client environment for production...
+
+transforming...✓ 48 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.43 kB │ gzip:  0.28 kB
+dist/assets/index-CPczOGoB.css    6.28 kB │ gzip:  2.16 kB
+dist/assets/index-DiF2bYSU.js   230.13 kB │ gzip: 73.06 kB
+
+✓ built in 94ms
+[build] $ go build -tags production -trimpath -o bin/azfoundry-deck.exe .
+Finished in 6.10s
+COMMAND: mise run test:azure
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.8771086s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[test:azure] $ go test ./internal/azurego -run TestLiveAzure -count=1 -v
+=== RUN   TestLiveAzureProvider
+=== RUN   TestLiveAzureProvider/previous_api_before
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=11.973s, first rows=9.895s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+=== RUN   TestLiveAzureProvider/parallel_cold
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=3.486s, first rows=3.282s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+=== RUN   TestLiveAzureProvider/parallel_refresh_1
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=2.962s, first rows=2.186s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+=== RUN   TestLiveAzureProvider/parallel_refresh_2
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=2.496s, first rows=2.279s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+=== RUN   TestLiveAzureProvider/previous_api_after
+    provider_live_test.go:191: subscription concurrency=4, account concurrency=8, elapsed=8.285s, first rows=8.025s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+=== RUN   TestLiveAzureProvider/serial_cold
+    provider_live_test.go:191: subscription concurrency=1, account concurrency=1, elapsed=10.11s, first rows=9.303s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+--- PASS: TestLiveAzureProvider (39.31s)
+    --- PASS: TestLiveAzureProvider/previous_api_before (11.97s)
+    --- PASS: TestLiveAzureProvider/parallel_cold (3.49s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_1 (2.96s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_2 (2.50s)
+    --- PASS: TestLiveAzureProvider/previous_api_after (8.29s)
+    --- PASS: TestLiveAzureProvider/serial_cold (10.11s)
+=== RUN   TestLiveAzureScopes
+=== RUN   TestLiveAzureScopes/scope_1
+    provider_scope_live_test.go:49: discovery excluded: HTTP 403 code=AuthorizationFailed
+=== RUN   TestLiveAzureScopes/scope_2
+    provider_scope_live_test.go:76: resources=0 pages_with_top_1=4 metadata_equal=true
+=== RUN   TestLiveAzureScopes/scope_3
+    provider_scope_live_test.go:76: resources=0 pages_with_top_1=1 metadata_equal=true
+=== RUN   TestLiveAzureScopes/scope_4
+    provider_scope_live_test.go:76: resources=0 pages_with_top_1=2 metadata_equal=true
+=== RUN   TestLiveAzureScopes/scope_5
+    provider_scope_live_test.go:54: discovery unavailable: subscription="Visual Studio Professional（中村MSDN）" tenant=e717ec3d-6036-4776-b72e-41f49481d91e code=azure-cli-not-logged-in aadsts=AADSTS700082
+=== RUN   TestLiveAzureScopes/scope_6
+    provider_scope_live_test.go:76: resources=5 pages_with_top_1=2 metadata_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.3-codex model=gpt-5.3-codex sku=GlobalStandard TPM=2000000 RPM=20000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.4 model=gpt-5.4 sku=GlobalStandard TPM=2000000 RPM=20000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.4-pro model=gpt-5.4-pro sku=GlobalStandard TPM=350000 RPM=350 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.3-codex model=gpt-5.3-codex sku=GlobalStandard TPM=2000000 RPM=20000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.4 model=gpt-5.4 sku=GlobalStandard TPM=2000000 RPM=20000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.4-pro model=gpt-5.4-pro sku=GlobalStandard TPM=350000 RPM=350 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-image-2 model=gpt-image-2 sku=GlobalStandard TPM=unknown RPM=8 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.6-sol model=gpt-5.6-sol sku=GlobalStandard TPM=2000000 RPM=2000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.6-luna model=gpt-5.6-luna sku=GlobalStandard TPM=1000000 RPM=1000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.6-terra model=gpt-5.6-terra sku=GlobalStandard TPM=2000000 RPM=2000 list_get_equal=true
+    provider_scope_live_test.go:104: deployment=gpt-5.4-mini model=gpt-5.4-mini sku=GlobalStandard TPM=10000 RPM=10 list_get_equal=true
+=== RUN   TestLiveAzureScopes/scope_7
+    provider_scope_live_test.go:76: resources=0 pages_with_top_1=1 metadata_equal=true
+=== NAME  TestLiveAzureScopes
+    provider_scope_live_test.go:112: SUMMARY subscriptions=7 discovery_success=5 forbidden_excluded=1 unavailable=1 real_continuations=5 deployment_get_matches=11
+    provider_scope_live_test.go:117: LIMIT: unavailable scopes remain unverified; this is not complete discovery success
+--- PASS: TestLiveAzureScopes (17.63s)
+    --- PASS: TestLiveAzureScopes/scope_1 (0.81s)
+    --- PASS: TestLiveAzureScopes/scope_2 (3.07s)
+    --- PASS: TestLiveAzureScopes/scope_3 (1.71s)
+    --- PASS: TestLiveAzureScopes/scope_4 (2.15s)
+    --- PASS: TestLiveAzureScopes/scope_5 (1.17s)
+    --- PASS: TestLiveAzureScopes/scope_6 (7.10s)
+    --- PASS: TestLiveAzureScopes/scope_7 (1.17s)
+PASS
+ok  	github.com/nuitsjp/azfoundry-deck/internal/azurego	57.408s
+Finished in 60.59s
+COMMAND: mise run test:azure:ui
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 2.3958478s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[check] $ go vet ./...
+[check] $ npm --prefix frontend run typecheck
+
+> azfoundry-deck-ui@0.1.0 typecheck
+> tsc --noEmit
+
+[build:browser] $ npm --prefix frontend run build
+
+> azfoundry-deck-ui@0.1.0 build
+> vite build
+
+vite v8.0.16 building client environment for production...
+
+transforming...✓ 48 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.43 kB │ gzip:  0.28 kB
+dist/assets/index-CPczOGoB.css    6.28 kB │ gzip:  2.16 kB
+dist/assets/index-DiF2bYSU.js   230.13 kB │ gzip: 73.06 kB
+
+✓ built in 122ms
+[build:browser] $ go build -tags server,production -trimpath -o bin/azfoundry-d…
+[test:azure:ui] $ pwsh -NoProfile -File scripts/Test-F1Browser.ps1 -Azure
+### Browser `f1-azure-ui-50284` opened with pid 40912.
+### Ran Playwright code
+```js
+await page.goto('http://127.0.0.1:9247');
+```
+### Page
+- Page URL: http://127.0.0.1:9247/
+- Page Title: AzFoundry Deck
+- Console: 0 errors, 1 warnings
+### Snapshot
+- [Snapshot](.playwright-cli\page-2026-09-13T09-05-01-687Z.yml)
+### Events
+- New console entries: .playwright-cli\console-2026-09-13T09-05-01-532Z.log#L1-L6
+{
+  "passed": true,
+  "mock": false,
+  "initialRows": 11,
+  "refreshedRows": 11,
+  "expectedFailure": "Visual Studio Professional（中村MSDN）",
+  "failureCode": "azure-cli-not-logged-in",
+  "failureCount": 1,
+  "initialAndRefreshFailureVerified": true,
+  "incompleteRetained": true,
+  "failureVisibleWithEmptyFilter": true,
+  "returnStatePreserved": true,
+  "replacementCharacters": 0,
+  "pageErrors": [],
+  "httpErrors": [],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
+}
+Browser 'f1-azure-ui-50284' closed
+
+Finished in 41.74s
+COMMAND: mise run test:ui
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 327 Packages, 2 Services, 4 Methods, 0 Enums, 5 Models, 1 Event in 1.8639427s.
+ INFO  Output directory: D:\nuitsjp\azfoundry-deck\frontend\bindings
+[check] $ go vet ./...
+[check] $ npm --prefix frontend run typecheck
+
+> azfoundry-deck-ui@0.1.0 typecheck
+> tsc --noEmit
+
+[build:browser] $ npm --prefix frontend run build
+
+> azfoundry-deck-ui@0.1.0 build
+> vite build
+
+vite v8.0.16 building client environment for production...
+
+transforming...✓ 48 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.43 kB │ gzip:  0.28 kB
+dist/assets/index-CPczOGoB.css    6.28 kB │ gzip:  2.16 kB
+dist/assets/index-DiF2bYSU.js   230.13 kB │ gzip: 73.06 kB
+
+✓ built in 106ms
+[build:browser] $ go build -tags server,production -trimpath -o bin/azfoundry-d…
+[test:ui] $ pwsh -NoProfile -File scripts/Test-F1Browser.ps1
+### Browser `f1-ui-31100` opened with pid 47560.
+### Ran Playwright code
+```js
+await page.goto('http://127.0.0.1:9245');
+```
+### Page
+- Page URL: http://127.0.0.1:9245/
+- Page Title: AzFoundry Deck
+- Console: 0 errors, 1 warnings
+### Snapshot
+- [Snapshot](.playwright-cli\page-2026-09-13T09-05-40-629Z.yml)
+### Events
+- New console entries: .playwright-cli\console-2026-09-13T09-05-40-452Z.log#L1-L6
+{
+  "passed": true,
+  "scenarios": [
+    {
+      "name": "success",
+      "deployments": 24,
+      "tenants": 3,
+      "subscriptions": 5,
+      "accounts": 10,
+      "duplicateChat": 10
+    },
+    {
+      "name": "filters",
+      "exactSelects": 5,
+      "nameMatching": "trim/case-insensitive partial",
+      "and": true,
+      "zeroExplanation": true
+    },
+    {
+      "name": "dependent-options",
+      "selectFields": 5,
+      "nameAffectsSelects": 5,
+      "selfConditionExcluded": true,
+      "restoredAfterClear": true,
+      "disabledSelectionPreserved": true
+    },
+    {
+      "name": "empty",
+      "deployments": 0,
+      "successfulAccounts": 10
+    },
+    {
+      "name": "reload",
+      "selectedScenario": "partial",
+      "deployments": 15,
+      "failures": 4,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "partial",
+      "deployments": 15,
+      "successfulAccounts": 6,
+      "failures": 4,
+      "errorsRemainOnDetails": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "failure",
+      "failures": 1,
+      "discoveryIncomplete": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "cli-missing",
+      "failures": 1,
+      "discoveryIncomplete": true,
+      "detailsOnSeparateScreen": true
+    },
+    {
+      "name": "all-accounts-failed",
+      "deployments": 0,
+      "failures": 10,
+      "incomplete": true,
+      "detailsOnSeparateScreen": true,
+      "scrollableDetails": true
+    },
+    {
+      "name": "error-details",
+      "partial": 4,
+      "failure": 1,
+      "cliMissing": 1,
+      "allAccountsFailed": 10,
+      "topLevelSummaryOnly": true,
+      "preservesFiltersAndTimestamp": true,
+      "successClearsDetails": true
+    },
+    {
+      "name": "loading",
+      "filtersChangeable": true,
+      "previousResultShown": true,
+      "subscriptionProgress": true,
+      "accountProgress": true,
+      "incrementalRows": true,
+      "completedAfter30s": true
+    },
+    {
+      "name": "delayed",
+      "oldTpm": 111000,
+      "finalTpm": 120000,
+      "staleResponseSuppressed": true,
+      "staleProgressSuppressed": true,
+      "noPeriodicRefresh": true
+    },
+    {
+      "name": "responsive",
+      "viewport": "1440x920 and 1080x720",
+      "sixFiltersOperable": true,
+      "noHorizontalOverflow": true
+    }
+  ],
+  "checks": [
+    "success",
+    "filters",
+    "dependent-options",
+    "empty",
+    "reload",
+    "partial",
+    "failure",
+    "cli-missing",
+    "all-accounts-failed",
+    "error-details",
+    "loading",
+    "delayed",
+    "responsive"
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+  "pageErrors": [],
+  "httpErrors": []
+}
+Browser 'f1-ui-31100' closed
+
+Finished in 59.48s
+COMMAND: mise exec -- pwsh -NoProfile -Command '$env:CGO_ENABLED = "1"; go test -race ./internal/azurego -count=1 -timeout=60s'
+ok  	github.com/nuitsjp/azfoundry-deck/internal/azurego	1.783s
+Tested changed inputs (SHA-256):
+7588316b832f393e94612365a4916e93280f3fc59a890bfcd795107be9e1ca51  internal/azurego/provider.go
+6f7c6756bc63de78a2184f54753442fac100253dc0717e8759d37ee7fc6c5932  internal/azurego/provider_test.go
+4f46a55f2a295ed8c9dea33bd118c25bfa8f3d106e4e4a0999502800c8917f43  internal/azurego/provider_http_test.go
+1275e9b552a85fcc7a922c1736f814db55d24a7df609f0a2fc57cd761498c90f  frontend/tests/f1.azure.browser.js
+Review checks: 160 local links and 53 anchors verified; git diff HEAD --check passed.
+Test cleanup: both headless browser sessions closed; no listeners on ports 9245 or 9247.
+Regression development notes (summarized from the delegated test output; not a raw transcript):
+- Before the correction, three forbidden scopes produced 5 progress events instead of initial + fetch-start only.
+- CLI fixture entries with missing/empty state were retained instead of leaving only sub-a.
+- An initial mixed-case assertion incorrectly expected a known account total despite authentication failure; it was corrected to the documented unknown total.
+- The full-suite failure for the missing state in the HTTP success fixture is preserved above, followed by the successful rerun.
+
+Read-only deployment paging probe, 2026-09-13:
+- Azure CLI token acquisition succeeded for subscription `fc7753ed-2e69-4202-bb66-86ff5798b8d5`.
+- The five accessible Foundry accounts were mapped as `nuits-japaneast` 0, `nuits-jp` 0, `nuits-sweden-central` 3, the southcentralus resource in the Sweden resource group 0, and `nuits-east-us2` 8 deployments (11 total).
+- Deployment List responses all had one page and no `nextLink`; adding `$top=1` did not create a continuation page.
+- No resource or configuration was changed. A real multi-page Deployment List remains unverified because the current accessible data does not produce one.
+
+Authenticated Chrome Portal probe, 2026-09-13:
+- The existing Chrome user session was attached read-only. Resource overview values for `nuits-east-us2` and `nuits-sweden-central` were `AIServices` and `Succeeded`, with locations `eastus2` and `swedencentral` respectively.
+- Foundry showed 8 serverless deployments for `nuits-east-us2` and 3 for `nuits-sweden-central`. Each row was `Succeeded` and `グローバル標準`; the displayed ranges were `1-8/8` and `1-3/3`.
+- Azure Resource Manager All resources contained 38 real items. The default `Auto` display showed `1-17/38`; after changing the read-only display count to 10, pages showed `1-10/38`, `11-20/38`, `21-30/38`, and `31-38/38`.
+- This reduced-page-size check verifies real Portal paging, while the Deployment List API still has no continuation page. No resource, deployment, or configuration was changed.
+
+GitHub follow-up issue, 2026-09-13:
+- Created and verified open issue [#1](https://github.com/nuitsjp/azfoundry-deck/issues/1), `[F1] 実Azure追加検証のブロッカー`, with the four environment-dependent follow-up items and the evidence paths above.
+- No existing F1 issue was present. The agreed F1 scope is closed in `PLAN.md` and `docs/project.md`; issue #1 remains open for additional verification when the required data, permissions, native window, or specification agreement becomes available.
+
+Native WebView2 probe, 2026-09-13:
+- `bin/azfoundry-deck.exe` was launched with `AZFOUNDRY_MOCK` unset.
+- The available Computer Use surface exposed browsers only and returned no native application/window, so the live WebView2 content could not be observed.
+- The process was stopped after the probe; no native verification claim was made.
+
+Astra re-review, 2026-09-13 (summary of this review's tool results, not a raw transcript):
+- Reviewed the existing Luna changes for discovery progress, forbidden-scope exclusion, CLI state filtering, and order-independent comparison of refreshed rows. No additional mandatory code correction was found. An independent read-only review also found no new defect in these changes.
+- Corrected the closeout record to preserve the user's decision to transfer residual items, rather than claim that all planned verification passed. The current all-scope initial display remains unchanged.
+- Added the previously untracked TPM/RPM Portal-screen comparison as item 5 in issue #1. Portal account/deployment-list checks and Portal UI paging do not prove TPM/RPM screen values or Deployment List API continuation handling.
+- Corrected the PLAN U3 table's missing reference cell and stale dependency on F1 verification completion. Each follow-up item now has its own resumption and completion conditions; F2-F4 do not wait for all issue items together.
+- Clarified the ownership of transferred follow-ups in docs/document-policy.md while retaining confirmed agreements and verification results in docs/project.md.
+
+Re-run Azure boundary unit tests:
+First invocation: mise exec -- go test ./internal/azurego -count=1 -timeout=60s
+Observed error: error: unexpected argument '-timeout=60s'
+The PowerShell invocation reported exit code 0 despite this argument error; it was not treated as a passing test.
+Corrected invocation: mise exec --% -- go test ./internal/azurego -count=1 -timeout=60s
+Observed output: ok  github.com/nuitsjp/azfoundry-deck/internal/azurego  0.466s
+Exit code: 0
+
+Re-run frontend unit tests:
+Command: mise exec -- npm --prefix frontend test
+Observed result: tests 3, pass 3, fail 0, skipped 0; duration_ms 100.7452; exit code 0.
+Passing cases covered six-attribute filtering with same-name deployments, AND conditions/empty results/reset, and missing quantities versus explicit zero.
+
+Verification provenance:
+- Current SHA-256 values for all four changed code/test files exactly matched the saved "Tested changed inputs (SHA-256)" entries above.
+- Build, race tests, live Azure retrieval, headless UI, authenticated Portal, and native probes were not repeated in this review. The recorded successful code verification remains applicable to the identical code; unverified Portal and native items remain unverified.
+- A one-off check of all 7 repository Markdown files verified 170 local links, 62 anchor references, and 27 tables containing 201 rows. No missing target, missing anchor, or inconsistent table column count was found.
+- git diff HEAD --check passed. Git emitted only its existing LF-to-CRLF conversion warnings.
+- Updated issue #1 and read it back via gh issue view. Its body exactly matched the reviewed UTF-8 body file, its title stayed unchanged, and its state remained OPEN. The ignored temporary body file was removed after verification.
+- Issue #1 now tracks five residual items. F1 remains closed by the user's transfer agreement. These local changes have not been committed or pushed.
