@@ -1,0 +1,42 @@
+2026-09-13 / clean source copy: C:\Users\atsus\AppData\Local\Temp\azfoundry-deck-u2-91204d932e9a46e4aaad4f2b7a64f255
+Initial copy excludes frontend/bindings, frontend/dist, frontend/node_modules, and bin.
+mise trusted \\?\C:\Users\atsus\AppData\Local\Temp\azfoundry-deck-u2-91204d932e9a46e4aaad4f2b7a64f255
+> mise run setup
+[setup] $ go mod download
+[setup] $ npm --prefix frontend ci
+
+added 23 packages, and audited 24 packages in 1s
+
+8 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+> mise run build
+[bindings] $ node -e "require('node:fs').mkdirSync('frontend/dist', { recursive…
+[bindings] $ wails3 generate bindings -ts -d frontend/bindings
+Wails v3.0.0-beta.6 › Generate Bindings
+ INFO  Processed: 249 Packages, 1 Service, 1 Method, 0 Enums, 1 Model, 0 Events in 1.8110899s.
+ INFO  Output directory: C:\Users\atsus\AppData\Local\Temp\azfoundry-deck-u2-91204d932e9a46e4aaad4f2b7a64f255\frontend\bindings
+[check] $ go vet ./...
+[check] $ npm --prefix frontend run typecheck
+
+> azfoundry-deck-ui@0.1.0 typecheck
+> tsc --noEmit
+
+[build] $ npm --prefix frontend run build
+
+> azfoundry-deck-ui@0.1.0 build
+> vite build
+
+vite v8.0.16 building client environment for production...
+[2K
+transforming...✓ 45 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.40 kB │ gzip:  0.27 kB
+dist/assets/index-D53HHZ5R.css    0.87 kB │ gzip:  0.48 kB
+dist/assets/index-C2B1L-FH.js   215.90 kB │ gzip: 68.69 kB
+
+✓ built in 310ms
+[build] $ go build -tags production -trimpath -o bin/azfoundry-deck.exe .
+Finished in 6.74s

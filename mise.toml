@@ -1,0 +1,34 @@
+[tools]
+go = "1.26.8"
+node = "24.20.0"
+"go:github.com/wailsapp/wails/v3/cmd/wails3" = "3.0.0-beta.6"
+
+[env]
+CGO_ENABLED = "0"
+
+[tasks.setup]
+description = "固定した依存を取得する"
+run = ["go mod download", "npm --prefix frontend ci"]
+
+[tasks.bindings]
+description = "Go サービスから TypeScript を生成する"
+run = [
+  "node -e \"require('node:fs').mkdirSync('frontend/dist', { recursive: true }); require('node:fs').writeFileSync('frontend/dist/.gitkeep', '')\"",
+  "wails3 generate bindings -ts -d frontend/bindings",
+]
+
+[tasks.check]
+description = "生成コードを含めて Go と TypeScript を検査する"
+depends = ["bindings"]
+run = ["go vet ./...", "npm --prefix frontend run typecheck"]
+
+[tasks.build]
+description = "互換性確認用の Windows アプリをビルドする"
+depends = ["check"]
+run = ["npm --prefix frontend run build", "go build -tags production -trimpath -o bin/azfoundry-deck.exe ."]
+
+[tasks.mock]
+description = "互換性確認用アプリを固定データで起動する"
+depends = ["build"]
+env.AZFOUNDRY_MOCK = "1"
+run = ".\\bin\\azfoundry-deck.exe"
