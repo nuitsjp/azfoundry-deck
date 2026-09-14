@@ -130,3 +130,35 @@ func TestDeploymentServiceSequencesAreIndependentPerRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestModelServiceNormalizesCandidatesAndPassesAccountID(t *testing.T) {
+	serviceUnderTest := NewModelService(func(_ context.Context, accountID string) (ModelResult, error) {
+		if accountID != "account-id" {
+			t.Fatalf("account ID = %q, want account-id", accountID)
+		}
+		return ModelResult{Models: []ModelCandidate{{Name: "model"}}}, nil
+	}, true)
+
+	result, err := serviceUnderTest.GetModels(context.Background(), "account-id")
+	if err != nil {
+		t.Fatalf("GetModels returned error: %v", err)
+	}
+	if result.Models == nil || result.Failures == nil || result.Models[0].SKUs == nil {
+		t.Fatal("model result arrays must be empty arrays, not nil")
+	}
+}
+
+func TestModelServicePassesErrorThrough(t *testing.T) {
+	wantErr := errors.New("model fetch failed")
+	serviceUnderTest := NewModelService(func(context.Context, string) (ModelResult, error) {
+		return ModelResult{}, wantErr
+	}, false)
+
+	result, err := serviceUnderTest.GetModels(context.Background(), "account-id")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("GetModels error = %v, want %v", err, wantErr)
+	}
+	if result.Models == nil || result.Failures == nil {
+		t.Fatal("error result arrays must be empty arrays, not nil")
+	}
+}

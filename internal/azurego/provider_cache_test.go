@@ -50,6 +50,10 @@ func (c *cacheCountingSubscriptionClient) listDeployments(ctx context.Context, r
 	return c.base.listDeployments(ctx, resourceGroup, accountName)
 }
 
+func (c *cacheCountingSubscriptionClient) listModels(ctx context.Context, resourceGroup, accountName string) ([]*armcognitiveservices.AccountModel, error) {
+	return c.base.listModels(ctx, resourceGroup, accountName)
+}
+
 func TestSubscriptionClientCacheReuseRefreshesAccountsDeploymentsAndDisplayName(t *testing.T) {
 	firstCLI := cacheCLIOutput(t, cacheCLIEntry("sub-a", "Old subscription", "tenant-a", "alice", "user"))
 	secondCLI := cacheCLIOutput(t, cacheCLIEntry("sub-a", "Renamed subscription", "tenant-a", "alice", "user"))

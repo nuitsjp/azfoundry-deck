@@ -1,4 +1,4 @@
-// Package azurego contains the Azure boundary used by the F1 screen.
+// Package azurego contains the Azure boundary used by the F1 and F2 screens.
 //
 // Azure CLI is used only for the already signed-in account list and for token
 // acquisition through AzureCLICredential. Resource reads are sent directly to
@@ -41,9 +41,10 @@ const (
 
 	resourcesAPIVersion   = "2021-04-01"
 	deploymentsAPIVersion = "2025-09-01" // Matches armcognitiveservices/v3 v3.0.0.
+	modelsAPIVersion      = "2025-09-01" // Matches armcognitiveservices/v3 v3.0.0.
 )
 
-// Provider is the real Azure boundary for F1. It discovers subscriptions from
+// Provider is the real Azure boundary for F1/F2. It discovers subscriptions from
 // the signed-in Azure CLI account list, then reads accounts and deployments
 // with the ARM SDK. Each request carries its own tenant and subscription.
 type Provider struct {
@@ -112,6 +113,7 @@ type subscriptionClientFactory func(subscriptionInfo) (subscriptionClient, error
 type subscriptionClient interface {
 	listAccounts(context.Context) ([]*armcognitiveservices.Account, error)
 	listDeployments(context.Context, string, string) ([]*armcognitiveservices.Deployment, error)
+	listModels(context.Context, string, string) ([]*armcognitiveservices.AccountModel, error)
 }
 
 type subscriptionInfo struct {
@@ -381,6 +383,88 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	return result, nil
 }
 
+// FetchModels reads the model candidates for the exact account selected from
+// the F1 result. The account resource ID is parsed and checked before any ARM
+// request is made; the subscription is then resolved from the same signed-in
+// Azure CLI account list used by F1.
+func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.ModelResult, error) {
+	result := emptyModelResult()
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	subscriptionID, resourceGroup, accountName := resourceIDTargetParts(accountID)
+	account := discoveredAccount{id: accountID, name: accountName, resourceGroup: resourceGroup}
+	if subscriptionID == "" || resourceGroup == "" || accountName == "" {
+		result.Failures = []service.FetchFailure{{
+			Scope:       "account",
+			AccountName: accountName,
+			Code:        "invalid-account-id",
+			Message:     "選択したアカウントの ARM リソース ID が不正です。",
+			Action:      "デプロイ一覧に戻って対象アカウントを選び直してください。",
+		}}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	commandCtx, cancel := context.WithTimeout(ctx, p.cliCommandTimeout)
+	subscriptions, err := p.listSubscriptions(commandCtx)
+	cancel()
+	if err != nil {
+		p.retainClients(nil)
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+		result.Failures = []service.FetchFailure{failureForError("azure-cli", subscriptionInfo{}, account, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	p.retainClients(subscriptions)
+
+	var subscription subscriptionInfo
+	for _, candidate := range subscriptions {
+		if strings.EqualFold(candidate.id, subscriptionID) {
+			subscription = candidate
+			break
+		}
+	}
+	if subscription.id == "" {
+		result.Failures = []service.FetchFailure{{
+			Scope:            "account",
+			SubscriptionName: subscriptionID,
+			AccountName:      accountName,
+			Code:             "subscription-not-available",
+			Message:          "対象アカウントのサブスクリプションを現在の Azure CLI セッションから確認できません。",
+			Action:           "Azure CLI のサインイン先とサブスクリプションへのアクセス権を確認してから再試行してください。",
+		}}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	client, err := p.subscriptionClient(subscription)
+	if err != nil {
+		result.Failures = []service.FetchFailure{failureForError("account", subscription, account, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	account.subscription = subscription
+	account.client = client
+	operationCtx, cancel := context.WithTimeout(ctx, p.operationTimeout)
+	models, err := client.listModels(operationCtx, resourceGroup, accountName)
+	cancel()
+	if err != nil {
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+		result.Failures = []service.FetchFailure{failureForError("account", subscription, account, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	result.Models = modelCandidates(models)
+	result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+	return result, nil
+}
+
 func (p *Provider) listSubscriptions(ctx context.Context) ([]subscriptionInfo, error) {
 	stdout, stderr, err := p.runCommand(ctx, "account", "list", "--all", "--only-show-errors", "--output", "json")
 	if err != nil {
@@ -644,6 +728,22 @@ func (c *sdkSubscriptionClient) listDeployments(ctx context.Context, resourceGro
 	return result, nil
 }
 
+func (c *sdkSubscriptionClient) listModels(ctx context.Context, resourceGroup, accountName string) ([]*armcognitiveservices.AccountModel, error) {
+	next := c.client.Endpoint() + "/subscriptions/" + url.PathEscape(c.subscriptionID) +
+		"/resourceGroups/" + url.PathEscape(resourceGroup) + "/providers/Microsoft.CognitiveServices/accounts/" +
+		url.PathEscape(accountName) + "/models?api-version=" + modelsAPIVersion
+	result := make([]*armcognitiveservices.AccountModel, 0)
+	for next != "" {
+		var page armcognitiveservices.AccountModelListResult
+		if err := c.getJSON(ctx, next, &page); err != nil {
+			return nil, fmt.Errorf("Cognitive Services モデル一覧の取得に失敗しました: %w", err)
+		}
+		result = append(result, page.Value...)
+		next = value(page.NextLink)
+	}
+	return result, nil
+}
+
 func (c *sdkSubscriptionClient) getJSON(ctx context.Context, requestURL string, target any) error {
 	req, err := runtime.NewRequest(ctx, http.MethodGet, requestURL)
 	if err != nil {
@@ -697,7 +797,13 @@ func discoveredAccountFromSDK(subscription subscriptionInfo, client subscription
 }
 
 func resourceIDAccountParts(id string) (resourceGroup, accountName string) {
+	_, resourceGroup, accountName = resourceIDTargetParts(id)
+	return resourceGroup, accountName
+}
+
+func resourceIDTargetParts(id string) (subscriptionID, resourceGroup, accountName string) {
 	segments := strings.Split(strings.Trim(id, "/"), "/")
+	providerName := ""
 	for index := 0; index+1 < len(segments); index++ {
 		key := segments[index]
 		value, err := url.PathUnescape(segments[index+1])
@@ -705,13 +811,58 @@ func resourceIDAccountParts(id string) (resourceGroup, accountName string) {
 			continue
 		}
 		switch {
+		case strings.EqualFold(key, "subscriptions"):
+			subscriptionID = value
 		case strings.EqualFold(key, "resourceGroups"):
 			resourceGroup = value
+		case strings.EqualFold(key, "providers"):
+			providerName = value
 		case strings.EqualFold(key, "accounts"):
 			accountName = value
 		}
 	}
-	return resourceGroup, accountName
+	if !strings.EqualFold(providerName, "Microsoft.CognitiveServices") {
+		return "", "", ""
+	}
+	return subscriptionID, resourceGroup, accountName
+}
+
+func modelCandidates(models []*armcognitiveservices.AccountModel) []service.ModelCandidate {
+	result := make([]service.ModelCandidate, 0, len(models))
+	for _, model := range models {
+		if model == nil {
+			continue
+		}
+		candidate := service.ModelCandidate{
+			Name:    value(model.Name),
+			Format:  value(model.Format),
+			Version: value(model.Version),
+			SKUs:    make([]string, 0, len(model.SKUs)),
+		}
+		if model.LifecycleStatus != nil {
+			candidate.Lifecycle = string(*model.LifecycleStatus)
+		}
+		if model.IsDefaultVersion != nil {
+			candidate.IsDefaultVersion = *model.IsDefaultVersion
+		}
+		seenSKUs := make(map[string]struct{}, len(model.SKUs))
+		for _, sku := range model.SKUs {
+			name := ""
+			if sku != nil {
+				name = value(sku.Name)
+			}
+			if name == "" {
+				continue
+			}
+			if _, seen := seenSKUs[name]; seen {
+				continue
+			}
+			seenSKUs[name] = struct{}{}
+			candidate.SKUs = append(candidate.SKUs, name)
+		}
+		result = append(result, candidate)
+	}
+	return result
 }
 
 func deploymentRow(account discoveredAccount, deployment *armcognitiveservices.Deployment) service.Deployment {
@@ -889,6 +1040,13 @@ func emptyResult() service.DeploymentResult {
 	return service.DeploymentResult{
 		Deployments: make([]service.Deployment, 0),
 		Failures:    make([]service.FetchFailure, 0),
+	}
+}
+
+func emptyModelResult() service.ModelResult {
+	return service.ModelResult{
+		Models:   make([]service.ModelCandidate, 0),
+		Failures: make([]service.FetchFailure, 0),
 	}
 }
 

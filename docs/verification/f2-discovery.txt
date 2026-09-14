@@ -1,0 +1,23 @@
+F2 external contract and live read-only probe, 2026-09-13.
+
+Environment: Windows 11 / PowerShell, fixed Azure SDK for Go armcognitiveservices/v3 3.0.0, signed-in Azure CLI. No resource, deployment, role, or default subscription was changed.
+
+Contract checked:
+- Azure ARM account model list: GET .../subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.CognitiveServices/accounts/{accountName}/models?api-version=2025-09-01.
+- The pinned SDK exposes AccountsClient.NewListModelsPager and AccountModel.Skus. The response is paged through nextLink.
+- AccountModel entries can have multiple versions and multiple SKUs. SKU capacity, rate limits, and other metadata can be absent.
+
+Read-only command shape:
+az cognitiveservices account list-models --subscription <subscription-id> --resource-group <resource-group> --name <account-name> -o json
+
+Observed accessible accounts:
+
+| account | model/version entries | distinct model names | SKU entries | default versions | Deprecating |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| nuits-east-us2 | 158 | 130 | 344 | 109 | 7 |
+| nuits-sweden-central | 166 | 139 | 330 | 116 | 7 |
+| nuits-jp | 130 | 108 | 303 | 88 | 6 |
+| nuits-japaneast | 109 | 92 | 193 | 74 | 6 |
+| atsus-mkrva4jm-southcentralus | 125 | 101 | 296 | 84 | 6 |
+
+Observed response characteristics include repeated model names with different versions, repeated SKU names across versions, null optional capacity and rate-limit fields, and a lifecycle value `Legacy`. These observations are facts from this run, not acceptance criteria; the service is expected to preserve unknown or missing values rather than infer them.

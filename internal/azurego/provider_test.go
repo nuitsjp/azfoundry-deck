@@ -18,6 +18,8 @@ type fakeSubscriptionClient struct {
 	accountsErr      error
 	deployments      map[string][]*armcognitiveservices.Deployment
 	deploymentErrors map[string]error
+	models           map[string][]*armcognitiveservices.AccountModel
+	modelErrors      map[string]error
 }
 
 func (c *fakeSubscriptionClient) listAccounts(ctx context.Context) ([]*armcognitiveservices.Account, error) {
@@ -35,6 +37,16 @@ func (c *fakeSubscriptionClient) listDeployments(ctx context.Context, _, account
 		return nil, err
 	}
 	return c.deployments[accountName], nil
+}
+
+func (c *fakeSubscriptionClient) listModels(ctx context.Context, _, accountName string) ([]*armcognitiveservices.AccountModel, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := c.modelErrors[accountName]; err != nil {
+		return nil, err
+	}
+	return c.models[accountName], nil
 }
 
 func testProvider(t *testing.T, cliOutput []cliSubscription, clients map[string]subscriptionClient) *Provider {
@@ -171,6 +183,59 @@ func TestResourceIDAccountPartsUnescapesResourceGroupAndAccount(t *testing.T) {
 	resourceGroup, accountName := resourceIDAccountParts("/subscriptions/sub/resourceGroups/rg%20one/providers/Microsoft.CognitiveServices/accounts/account%2Fname")
 	if resourceGroup != "rg one" || accountName != "account/name" {
 		t.Fatalf("parts = %q, %q", resourceGroup, accountName)
+	}
+}
+
+func TestFetchModelsTargetsSelectedAccountAndPreservesOptionalFields(t *testing.T) {
+	accountID := "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.CognitiveServices/accounts/account-a"
+	lifecycle := armcognitiveservices.ModelLifecycleStatusGenerallyAvailable
+	defaultVersion := true
+	client := &fakeSubscriptionClient{
+		models: map[string][]*armcognitiveservices.AccountModel{
+			"account-a": {
+				{Name: stringPointer("gpt-4o"), Format: stringPointer("OpenAI"), Version: stringPointer("2024-11-20"), LifecycleStatus: &lifecycle, IsDefaultVersion: &defaultVersion, SKUs: []*armcognitiveservices.ModelSKU{{Name: stringPointer("GlobalStandard")}, {Name: stringPointer("Standard")}}},
+				{Name: stringPointer("unknown-model")},
+				nil,
+			},
+		},
+		modelErrors: map[string]error{},
+	}
+	p := testProvider(t, []cliSubscription{{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"}}, map[string]subscriptionClient{"sub-a": client})
+
+	result, err := p.FetchModels(context.Background(), accountID)
+	if err != nil {
+		t.Fatalf("FetchModels returned error: %v", err)
+	}
+	if len(result.Models) != 2 || len(result.Failures) != 0 || result.FetchedAt == "" {
+		t.Fatalf("model result = %+v, want two candidates and no failures", result)
+	}
+	if result.Models[0].Name != "gpt-4o" || result.Models[0].Format != "OpenAI" || result.Models[0].Version != "2024-11-20" || result.Models[0].Lifecycle != "GenerallyAvailable" || !result.Models[0].IsDefaultVersion {
+		t.Fatalf("mapped model = %+v", result.Models[0])
+	}
+	if len(result.Models[0].SKUs) != 2 || result.Models[0].SKUs[1] != "Standard" {
+		t.Fatalf("mapped SKUs = %v", result.Models[0].SKUs)
+	}
+	if result.Models[1].Format != "" || result.Models[1].Version != "" || result.Models[1].Lifecycle != "" || result.Models[1].SKUs == nil {
+		t.Fatalf("mapped unknown fields = %+v", result.Models[1])
+	}
+}
+
+func TestFetchModelsRejectsInvalidOrUnavailableAccountTarget(t *testing.T) {
+	p := testProvider(t, []cliSubscription{{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"}}, map[string]subscriptionClient{"sub-a": &fakeSubscriptionClient{}})
+	for _, test := range []struct {
+		name      string
+		accountID string
+		code      string
+	}{
+		{name: "invalid", accountID: "/subscriptions/sub-a/not-an-account", code: "invalid-account-id"},
+		{name: "unavailable-subscription", accountID: "/subscriptions/sub-b/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/account", code: "subscription-not-available"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := p.FetchModels(context.Background(), test.accountID)
+			if err != nil || len(result.Failures) != 1 || result.Failures[0].Code != test.code {
+				t.Fatalf("result = %+v, err=%v; want %s failure", result, err, test.code)
+			}
+		})
 	}
 }
 

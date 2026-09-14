@@ -1,5 +1,5 @@
 async page => {
-  const baseURL = "http://127.0.0.1:9245";
+  const baseURL = page.url();
   const pageErrors = [];
   const httpErrors = [];
   const scenarios = [];
@@ -243,7 +243,7 @@ async page => {
   assert(await page.getByRole("button", { name: "エラー詳細" }).count() === 1, "partialのエラー詳細ボタンがありません");
   assert(await page.getByText("forbidden", { exact: true }).count() === 0 && await page.getByText("communication", { exact: true }).count() === 0, "partialの詳細コードが一覧画面に表示されています");
   await page.screenshot({ path: "docs/verification/f1-browser-partial.png", fullPage: true });
-  const partialUpdateMeta = await page.locator(".update-meta span").nth(1).textContent();
+  const partialUpdateMeta = await page.locator(".update-meta span").last().textContent();
   await nameInput.fill("chat");
   await page.waitForFunction(
     () => {
@@ -271,7 +271,7 @@ async page => {
   assert(await nameInput.inputValue() === "chat", "詳細画面から戻った後に名前フィルターが保持されていません");
   const returnedRows = await getRows();
   assert(returnedRows.length === partialChatExpected, "詳細画面から戻った後の一覧件数が保持されていません");
-  assert(await page.locator(".update-meta span").nth(1).textContent() === partialUpdateMeta, "画面切替だけで最終取得時刻が変わりました");
+  assert(await page.locator(".update-meta span").last().textContent() === partialUpdateMeta, "画面切替だけで最終取得時刻が変わりました");
   await nameInput.fill("no-such-deployment");
   await waitForRows(0);
   assert((await page.locator(".result-count").textContent() || "").replace(/\s+/g, "") === "0/15件", "partialの0件絞り込み表示が不正です");
@@ -360,7 +360,7 @@ async page => {
     { timeout: 3000 },
   );
   await page.screenshot({ path: "docs/verification/f1-browser-loading.png", fullPage: true });
-  assert((await getStatus()).includes("前回の取得結果を表示しています"), "loading中に前回結果の説明がありません");
+  assert((await getStatus()).includes("前回の結果"), "loading中に前回結果の説明がありません");
   await nameInput.fill("chat");
   await waitForRows(10);
   assert((await getStatus()).includes("取得中"), "loading中の条件変更後に取得中表示が消えました");
@@ -378,7 +378,7 @@ async page => {
   const progressingRows = await getRows();
   assert(progressingRows.length === completedAccounts && progressingRows.length < 10, "応答したアカウントのchat行が完了前に表示されていません");
   assert(await nameInput.inputValue() === "chat", "途中結果の反映で絞り込み条件が消えました");
-  assert((await getStatus()).includes("完了したアカウントから表示しています"), "途中結果と前回結果を区別できません");
+  assert((await getStatus()).includes("途中結果"), "途中結果と前回結果を区別できません");
   await nameInput.fill("");
   const unfilteredProgress = await getRows();
   assert(unfilteredProgress.length > 0 && unfilteredProgress.length < 24, "全件完了前に部分的なデプロイ一覧を確認できません");
@@ -397,19 +397,19 @@ async page => {
     undefined,
     { timeout: 3000 },
   );
-  const delayedMetaBefore = await page.locator(".update-meta span").nth(1).textContent();
+  const delayedMetaBefore = await page.locator(".update-meta span").last().textContent();
   await page.waitForTimeout(4000);
-  assert((await page.locator(".update-meta span").nth(1).textContent()) === delayedMetaBefore, "取得中に前回の最終取得時刻が変更されました");
+  assert((await page.locator(".update-meta span").last().textContent()) === delayedMetaBefore, "取得中に前回の最終取得時刻が変更されました");
   await selectScenarioAndRefresh("success");
   await waitForIdle();
   await waitForRows(24);
-  const successMeta = await page.locator(".update-meta span").nth(1).textContent();
+  const successMeta = await page.locator(".update-meta span").last().textContent();
   const immediateTpm = await page.locator("tbody tr").first().locator("td.tpm").textContent();
   assert((immediateTpm || "").includes("120,000") && !(immediateTpm || "").includes("111,000"), "後続successのTPMが直後に正しく反映されていません");
   await page.waitForTimeout(9000);
   const finalTpm = await page.locator("tbody tr").first().locator("td.tpm").textContent();
   assert((finalTpm || "").includes("120,000") && !(finalTpm || "").includes("111,000"), "遅延した旧応答が後続successを上書きしました");
-  assert((await page.locator(".update-meta span").nth(1).textContent()) === successMeta, "遅延応答後に最終取得時刻が巻き戻りました");
+  assert((await page.locator(".update-meta span").last().textContent()) === successMeta, "遅延応答後に最終取得時刻が巻き戻りました");
   assert(await page.locator(".fetch-progress").count() === 0, "古い要求の進捗で完了済みの画面が取得中へ戻りました");
   mark("delayed", { oldTpm: 111000, finalTpm: 120000, staleResponseSuppressed: true, staleProgressSuppressed: true, noPeriodicRefresh: true });
 

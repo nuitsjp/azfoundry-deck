@@ -1,12 +1,11 @@
-param([switch]$Azure, [int]$Port = 0)
-
+param([switch]$Azure, [switch]$AddModel)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location -LiteralPath $repoRoot
 $cli = Join-Path $repoRoot 'frontend/node_modules/@playwright/cli/playwright-cli.js'
-$testName = if ($Azure) { 'f1-azure' } else { 'f1' }
-if ($Port -eq 0) { $Port = if ($Azure) { 9247 } else { 9245 } }
-$testFile = if ($Azure) { 'frontend/tests/f1.azure.browser.js' } else { 'frontend/tests/f1.browser.js' }
+$testName = if ($AddModel) { 'add-model' } elseif ($Azure) { 'f2-azure' } else { 'f2' }
+$port = if ($Azure) { 9248 } else { 9246 }
+$testFile = if ($AddModel) { 'frontend/tests/add-model.browser.js' } elseif ($Azure) { 'frontend/tests/f2.azure.browser.js' } else { 'frontend/tests/f2.browser.js' }
 $session = "$testName-ui-$PID"
 $serverProcess = $null
 $previousEnvironment = @{}
@@ -41,6 +40,7 @@ try {
     $output | Set-Content -LiteralPath "docs/verification/$testName-browser-result.json" -Encoding utf8NoBOM
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
     $envelope = ($output -join "`n") | ConvertFrom-Json
+    if ($envelope.isError) { throw $envelope.error }
     $result = $envelope.result | ConvertFrom-Json
     if ($result.passed -ne $true) { throw ($output -join "`n") }
     $result | ConvertTo-Json -Depth 10

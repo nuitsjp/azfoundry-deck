@@ -121,6 +121,31 @@ func TestSDKListsAllPagesAndReusesTokenWithoutCachingResourceData(t *testing.T) 
 	}
 }
 
+func TestSDKListsAllModelPagesWithThePinnedAPI(t *testing.T) {
+	var calls atomic.Int32
+	client := testSDKClient(t, testToken(&calls), func(request *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		if request.URL.EscapedPath() != "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/account/models" {
+			t.Fatalf("unexpected model path: %s", request.URL.EscapedPath())
+		}
+		if request.URL.Query().Get("api-version") != modelsAPIVersion {
+			t.Fatalf("model API version = %q, want %q", request.URL.Query().Get("api-version"), modelsAPIVersion)
+		}
+		if request.URL.Query().Get("page") == "" {
+			return testJSONResponse(request, http.StatusOK, `{"value":[{"name":"gpt-4o"}],"nextLink":"https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/account/models?api-version=2025-09-01&page=2"}`), nil
+		}
+		return testJSONResponse(request, http.StatusOK, `{"value":[{"name":"gpt-5.4-mini","format":"OpenAI","version":"2025-04-14","lifecycleStatus":"GenerallyAvailable","isDefaultVersion":true,"skus":[{"name":"GlobalStandard"}]}]}`), nil
+	})
+
+	models, err := client.listModels(context.Background(), "rg", "account")
+	if err != nil {
+		t.Fatalf("listModels returned error: %v", err)
+	}
+	if len(models) != 2 || value(models[1].Name) != "gpt-5.4-mini" || len(models[1].SKUs) != 1 || value(models[1].SKUs[0].Name) != "GlobalStandard" {
+		t.Fatalf("models = %+v, want two paged models", models)
+	}
+}
+
 func TestSDKPageFailureDiscardsIncompleteAccountOrDeploymentList(t *testing.T) {
 	for _, deployments := range []bool{false, true} {
 		for _, status := range []int{401, 403, 404, 429, 500} {

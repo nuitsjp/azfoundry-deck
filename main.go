@@ -23,18 +23,22 @@ func main() {
 	emitProgress := func(progress service.DeploymentProgress) {
 		application.Get().Event.Emit(service.DeploymentProgressEvent, progress)
 	}
-	services := make([]application.Service, 0, 2)
+	services := make([]application.Service, 0, 3)
 	title := "AzFoundry Deck"
 	if os.Getenv("AZFOUNDRY_MOCK") == "1" {
 		provider := mock.NewProvider()
 		services = append(services,
 			application.NewService(service.NewDeploymentService(provider.Fetch, true, emitProgress)),
+			application.NewService(service.NewModelService(provider.FetchModels, true)),
 			application.NewService(mock.NewMockService(provider)),
 		)
-		title = "AzFoundry Deck — F1モック"
+		title = "AzFoundry Deck — F1/F2モック"
 	} else {
 		provider := azurego.NewProvider()
-		services = append(services, application.NewService(service.NewDeploymentService(provider.Fetch, false, emitProgress)))
+		services = append(services,
+			application.NewService(service.NewDeploymentService(provider.Fetch, false, emitProgress)),
+			application.NewService(service.NewModelService(provider.FetchModels, false)),
+		)
 	}
 
 	app := application.New(application.Options{

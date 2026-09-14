@@ -258,9 +258,102 @@ export class FetchFailure {
     }
 }
 
+/**
+ * ModelCandidate is one model-version row returned for a Foundry account.
+ * Optional values remain empty when Azure does not provide them; the screen
+ * decides how to present that unknown value.
+ */
+export class ModelCandidate {
+    "name": string;
+    "format": string;
+    "version": string;
+    "lifecycle": string;
+    "isDefaultVersion": boolean;
+    "skus": string[];
+
+    /** Creates a new ModelCandidate instance. */
+    constructor($$source: Partial<ModelCandidate> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("format" in $$source)) {
+            this["format"] = "";
+        }
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("lifecycle" in $$source)) {
+            this["lifecycle"] = "";
+        }
+        if (!("isDefaultVersion" in $$source)) {
+            this["isDefaultVersion"] = false;
+        }
+        if (!("skus" in $$source)) {
+            this["skus"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelCandidate instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelCandidate {
+        const $$createField5_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("skus" in $$parsedSource) {
+            $$parsedSource["skus"] = $$createField5_0($$parsedSource["skus"]);
+        }
+        return new ModelCandidate($$parsedSource as Partial<ModelCandidate>);
+    }
+}
+
+/**
+ * ModelResult is one complete read of the model catalog for one account.
+ */
+export class ModelResult {
+    "models": ModelCandidate[];
+    "failures": FetchFailure[];
+    "fetchedAt": string;
+
+    /** Creates a new ModelResult instance. */
+    constructor($$source: Partial<ModelResult> = {}) {
+        if (!("models" in $$source)) {
+            this["models"] = [];
+        }
+        if (!("failures" in $$source)) {
+            this["failures"] = [];
+        }
+        if (!("fetchedAt" in $$source)) {
+            this["fetchedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelResult {
+        const $$createField0_0 = $$createType7;
+        const $$createField1_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("models" in $$parsedSource) {
+            $$parsedSource["models"] = $$createField0_0($$parsedSource["models"]);
+        }
+        if ("failures" in $$parsedSource) {
+            $$parsedSource["failures"] = $$createField1_0($$parsedSource["failures"]);
+        }
+        return new ModelResult($$parsedSource as Partial<ModelResult>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = DeploymentResult.createFrom;
 const $$createType1 = Deployment.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = FetchFailure.createFrom;
 const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = ModelCandidate.createFrom;
+const $$createType7 = $Create.Array($$createType6);

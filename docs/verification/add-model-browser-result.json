@@ -1,0 +1,3 @@
+{
+  "result": "{\"passed\":true,\"checks\":[\"model-loading-empty-error-retry-stale\",\"stable-validation-and-input-mode\",\"list-button-placement\",\"model-defaults\",\"resource-naming\",\"empty-foundry\",\"review-and-back\",\"subscription-reset\",\"nested-resource-creation\",\"mock-completion\",\"empty-list-entry\",\"direct-group-creation\",\"cancel\",\"responsive-and-escape\"],\"pageErrors\":[]}"
+}

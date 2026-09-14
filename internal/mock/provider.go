@@ -18,6 +18,12 @@ const (
 	ScenarioAllAccountsFailed = "all-accounts-failed"
 	ScenarioLoading           = "loading"
 	ScenarioDelayed           = "delayed"
+
+	ModelScenarioSuccess = "success"
+	ModelScenarioEmpty   = "empty"
+	ModelScenarioFailure = "failure"
+	ModelScenarioLoading = "loading"
+	ModelScenarioDelayed = "delayed"
 )
 
 var validScenarios = map[string]struct{}{
@@ -29,6 +35,14 @@ var validScenarios = map[string]struct{}{
 	ScenarioAllAccountsFailed: {},
 	ScenarioLoading:           {},
 	ScenarioDelayed:           {},
+}
+
+var validModelScenarios = map[string]struct{}{
+	ModelScenarioSuccess: {},
+	ModelScenarioEmpty:   {},
+	ModelScenarioFailure: {},
+	ModelScenarioLoading: {},
+	ModelScenarioDelayed: {},
 }
 
 type sleeper func(context.Context, time.Duration) error
@@ -45,20 +59,22 @@ var (
 	accountOrder   = [...]int{6, 0, 8, 2, 9, 4, 1, 7, 3, 5}
 )
 
-// Provider is the Azure boundary for the F1 mock. It snapshots the selected
+// Provider is the Azure boundary for the F1/F2 mock. It snapshots the selected
 // scenario at the beginning of Fetch, so changing the scenario while a read
 // is in flight cannot change that read's response.
 type Provider struct {
-	mu       sync.Mutex
-	scenario string
-	wait     sleeper
+	mu            sync.Mutex
+	scenario      string
+	modelScenario string
+	wait          sleeper
 }
 
 // NewProvider creates a provider in the normal successful state.
 func NewProvider() *Provider {
 	return &Provider{
-		scenario: ScenarioSuccess,
-		wait:     waitContext,
+		scenario:      ScenarioSuccess,
+		modelScenario: ModelScenarioSuccess,
+		wait:          waitContext,
 	}
 }
 
@@ -69,6 +85,17 @@ func (p *Provider) SetScenario(name string) error {
 	}
 	p.mu.Lock()
 	p.scenario = name
+	p.mu.Unlock()
+	return nil
+}
+
+// SetModelScenario selects the response used by the next FetchModels call.
+func (p *Provider) SetModelScenario(name string) error {
+	if _, ok := validModelScenarios[name]; !ok {
+		return fmt.Errorf("unknown mock model scenario %q", name)
+	}
+	p.mu.Lock()
+	p.modelScenario = name
 	p.mu.Unlock()
 	return nil
 }
@@ -179,6 +206,52 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	return result, nil
 }
 
+// FetchModels returns deterministic F2 candidates for an account selected in
+// the F1 result. The scenario is captured before the wait so a response cannot
+// change when the control is changed during an in-flight read.
+func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.ModelResult, error) {
+	p.mu.Lock()
+	scenario := p.modelScenario
+	wait := p.wait
+	p.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return emptyModelResult(), err
+	}
+	account, ok := accountByResourceID(accountID)
+	if !ok {
+		return service.ModelResult{
+			Models: make([]service.ModelCandidate, 0),
+			Failures: []service.FetchFailure{{
+				Scope:       "account",
+				AccountName: accountID,
+				Code:        "account-not-found",
+				Message:     "選択したアカウントをモックデータから特定できません。",
+				Action:      "デプロイ一覧に戻って対象アカウントを選び直してください。",
+			}},
+			FetchedAt: nowUTC(),
+		}, nil
+	}
+
+	delay := 250 * time.Millisecond
+	switch scenario {
+	case ModelScenarioLoading:
+		delay = 30 * time.Second
+	case ModelScenarioDelayed:
+		delay = 2 * time.Second
+	}
+	if err := wait(ctx, delay); err != nil {
+		return emptyModelResult(), err
+	}
+	if err := ctx.Err(); err != nil {
+		return emptyModelResult(), err
+	}
+
+	result := modelResultForScenario(account, scenario)
+	result.FetchedAt = nowUTC()
+	return result, nil
+}
+
 func reportSnapshot(report func(service.DeploymentProgress), progress service.DeploymentProgress) {
 	if report != nil {
 		report(progress)
@@ -275,4 +348,15 @@ func emptyResult() service.DeploymentResult {
 		Deployments: make([]service.Deployment, 0),
 		Failures:    make([]service.FetchFailure, 0),
 	}
+}
+
+func emptyModelResult() service.ModelResult {
+	return service.ModelResult{
+		Models:   make([]service.ModelCandidate, 0),
+		Failures: make([]service.FetchFailure, 0),
+	}
+}
+
+func nowUTC() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }

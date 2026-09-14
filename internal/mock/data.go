@@ -1,6 +1,10 @@
 package mock
 
-import "github.com/nuitsjp/azfoundry-deck/internal/service"
+import (
+	"strings"
+
+	"github.com/nuitsjp/azfoundry-deck/internal/service"
+)
 
 type mockAccount struct {
 	tenantID         string
@@ -164,6 +168,93 @@ func makeDeployment(account mockAccount, index, number int) service.Deployment {
 
 func accountResourceID(account mockAccount) string {
 	return "/subscriptions/" + account.subscriptionID + "/resourceGroups/rg-" + account.accountID + "/providers/Microsoft.CognitiveServices/accounts/" + account.accountName
+}
+
+func accountByResourceID(accountID string) (mockAccount, bool) {
+	for _, account := range mockAccounts {
+		if strings.EqualFold(accountResourceID(account), accountID) {
+			return account, true
+		}
+	}
+	return mockAccount{}, false
+}
+
+func modelResultForScenario(account mockAccount, scenario string) service.ModelResult {
+	if _, ok := validModelScenarios[scenario]; !ok {
+		panic("invalid mock model scenario: " + scenario)
+	}
+	result := service.ModelResult{
+		Models:   make([]service.ModelCandidate, 0),
+		Failures: make([]service.FetchFailure, 0),
+	}
+	switch scenario {
+	case ModelScenarioSuccess, ModelScenarioDelayed, ModelScenarioLoading:
+		result.Models = modelCandidates()
+	case ModelScenarioFailure:
+		result.Failures = []service.FetchFailure{{
+			Scope:            "account",
+			TenantName:       account.tenantName,
+			SubscriptionName: account.subscriptionName,
+			AccountName:      account.accountName,
+			Code:             "model-catalog-forbidden",
+			Message:          "現在の権限ではモデル候補を読み取れません。",
+			Action:           "対象アカウントのモデル一覧読み取り権限を確認して再試行してください。",
+		}}
+	}
+	return result
+}
+
+func modelCandidates() []service.ModelCandidate {
+	return []service.ModelCandidate{
+		{
+			Name:             "gpt-4o",
+			Format:           "OpenAI",
+			Version:          "2024-05-13",
+			Lifecycle:        "GenerallyAvailable",
+			IsDefaultVersion: false,
+			SKUs:             []string{"GlobalStandard", "Standard"},
+		},
+		{
+			Name:             "gpt-4o",
+			Format:           "OpenAI",
+			Version:          "2024-11-20",
+			Lifecycle:        "Deprecating",
+			IsDefaultVersion: true,
+			SKUs:             []string{"GlobalStandard"},
+		},
+		{
+			Name:             "gpt-5.4-mini",
+			Format:           "OpenAI",
+			Version:          "2025-04-14",
+			Lifecycle:        "GenerallyAvailable",
+			IsDefaultVersion: true,
+			SKUs:             []string{"GlobalStandard", "DataZoneStandard"},
+		},
+		{
+			Name:             "text-embedding-3-large",
+			Format:           "OpenAI",
+			Version:          "1",
+			Lifecycle:        "GenerallyAvailable",
+			IsDefaultVersion: true,
+			SKUs:             []string{"Standard"},
+		},
+		{
+			Name:             "o3-mini",
+			Format:           "OpenAI",
+			Version:          "2025-01-31",
+			Lifecycle:        "Preview",
+			IsDefaultVersion: false,
+			SKUs:             []string{},
+		},
+		{
+			Name:             "custom-model",
+			Format:           "",
+			Version:          "",
+			Lifecycle:        "",
+			IsDefaultVersion: false,
+			SKUs:             []string{},
+		},
+	}
 }
 
 func partialFailures() []service.FetchFailure {

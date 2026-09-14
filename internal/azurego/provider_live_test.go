@@ -62,6 +62,19 @@ func (c *legacySDKClient) listDeployments(ctx context.Context, group, name strin
 	return deployments, nil
 }
 
+func (c *legacySDKClient) listModels(ctx context.Context, group, name string) ([]*armcognitiveservices.AccountModel, error) {
+	var models []*armcognitiveservices.AccountModel
+	pager := c.accounts.NewListModelsPager(group, name, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, page.Value...)
+	}
+	return models, nil
+}
+
 type liveAccountObserver struct {
 	sync.Mutex
 	keys []string

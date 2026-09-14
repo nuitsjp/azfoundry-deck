@@ -28,24 +28,24 @@ depends = ["check"]
 run = ["npm --prefix frontend run build", "go build -tags production -trimpath -o bin/azfoundry-deck.exe ."]
 
 [tasks.mock]
-description = "F1 モックを固定データで起動する"
+description = "F1/F2 モックを固定データで起動する"
 depends = ["build"]
 env.AZFOUNDRY_MOCK = "1"
 run = ".\\bin\\azfoundry-deck.exe"
 
 [tasks.production]
-description = "F1を実Azure接続で起動する"
+description = "F1/F2を実Azure接続で起動する"
 depends = ["build"]
 env.AZFOUNDRY_MOCK = "0"
 run = ".\\bin\\azfoundry-deck.exe"
 
 [tasks.test]
-description = "F1 の取得結果と絞り込み・数量表示を検証する"
+description = "F1/F2 の取得結果と絞り込み・候補表示を検証する"
 depends = ["bindings"]
 run = ["go test ./...", "npm --prefix frontend test"]
 
 [tasks."test:azure"]
-description = "サインイン済み Azure CLI で F1 の実接続を読み取り検証する"
+description = "サインイン済み Azure CLI で F1/F2 の実接続を読み取り検証する"
 depends = ["bindings"]
 env.AZFOUNDRY_LIVE = "1"
 run = "go test ./internal/azurego -run TestLiveAzure -count=1 -v"
@@ -67,6 +67,21 @@ run = ".\\bin\\azfoundry-deck-browser.exe"
 description = "F1全シナリオを一時プロファイルのheadless Edgeで検証する"
 depends = ["build:browser"]
 run = "pwsh -NoProfile -File scripts/Test-F1Browser.ps1"
+
+[tasks."test:f2:ui"]
+description = "F2全シナリオを一時プロファイルのheadless Edgeで検証する"
+depends = ["build:browser"]
+run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1"
+
+[tasks."test:add-model:ui"]
+description = "モデル追加の仮UIと配置先の新規作成をheadlessで検証する"
+depends = ["build:browser"]
+run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -AddModel"
+
+[tasks."test:f2:azure:ui"]
+description = "実AzureのF2モデル候補とエラー表示をheadlessで検証する"
+depends = ["build:browser"]
+run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -Azure"
 
 [tasks."test:azure:ui"]
 description = "実Azureの成功行と合意済み認証エラーをheadlessで検証する"
