@@ -1,0 +1,28 @@
+2026-09-14 / source: 80bd511
+AZFOUNDRY_LIVE=1 go test ./internal/azurego -run TestLiveAzure -count=1 -v
+Selected PASS, SUMMARY and timing output; identifiers omitted.
+
+    provider_live_test.go:204: subscription concurrency=4, account concurrency=8, elapsed=18.168s, first rows=17.236s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+    provider_live_test.go:204: subscription concurrency=4, account concurrency=8, elapsed=3.631s, first rows=2.885s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+    provider_live_test.go:204: subscription concurrency=4, account concurrency=8, elapsed=1.605s, first rows=1.386s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+    provider_live_test.go:204: subscription concurrency=4, account concurrency=8, elapsed=1.625s, first rows=1.388s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+    provider_live_test.go:204: subscription concurrency=4, account concurrency=8, elapsed=8s, first rows=7.886s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+    provider_live_test.go:204: subscription concurrency=1, account concurrency=1, elapsed=8.129s, first rows=7.209s, subscriptions completed=6, account completions=5, successful accounts=5, accounts=unknown, deployments=11, failures=1 (map[azure-cli-not-logged-in:1]), known TPM=10, known RPM=11, progress events=13, parity=true
+--- PASS: TestLiveAzureProvider (41.16s)
+    --- PASS: TestLiveAzureProvider/previous_api_before (18.17s)
+    --- PASS: TestLiveAzureProvider/parallel_cold (3.63s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_1 (1.60s)
+    --- PASS: TestLiveAzureProvider/parallel_refresh_2 (1.63s)
+    --- PASS: TestLiveAzureProvider/previous_api_after (8.00s)
+    --- PASS: TestLiveAzureProvider/serial_cold (8.13s)
+--- PASS: TestLiveAzureModels (8.37s)
+    provider_scope_live_test.go:112: SUMMARY subscriptions=7 discovery_success=5 forbidden_excluded=1 unavailable=1 real_continuations=5 deployment_get_matches=11
+--- PASS: TestLiveAzureScopes (15.22s)
+    --- PASS: TestLiveAzureScopes/scope_1 (0.67s)
+    --- PASS: TestLiveAzureScopes/scope_2 (2.97s)
+    --- PASS: TestLiveAzureScopes/scope_3 (1.62s)
+    --- PASS: TestLiveAzureScopes/scope_4 (1.75s)
+    --- PASS: TestLiveAzureScopes/scope_5 (0.64s)
+    --- PASS: TestLiveAzureScopes/scope_6 (6.13s)
+    --- PASS: TestLiveAzureScopes/scope_7 (1.01s)
+PASS

@@ -80,6 +80,10 @@ async page => {
   assert(await field("モデル").isDisabled(), "取得失敗時に設定を無効化");
   await field("モデル取得の状態").selectOption("success");
   await button("モデル候補を再試行").click();
+  await chooseModel();
+  await button("確認").click();
+  assert((await page.locator(".add-summary").textContent()).includes("contoso-chat-prod（既存"), "デプロイありFoundryの選択確認");
+  await button("変更").click();
   await field("Foundry").selectOption("contoso-first-model");
   await page.getByText("モック：モデル取得の再現", { exact: true }).click();
   await chooseModel();
@@ -95,11 +99,24 @@ async page => {
   assert(await button("確認").isEnabled(), "デプロイ名有効の許可");
   await checkStableValidation("デプロイ名", "chat-prod", "a");
   await chooseModel();
+  await field("バージョン").selectOption("2024-11-20");
+  await field("SKU").selectOption("Standard");
+  await field("Capacity").fill("42");
   await page.screenshot({ path: "docs/verification/add-model-existing.png" });
   await button("確認").click();
   assert((await page.locator(".add-summary").textContent()).includes("contoso-first-model（既存"), "0件Foundryの選択");
   await button("変更").click();
-  assert(await field("デプロイ名").inputValue() === "first-chat", "確認から戻る入力保持");
+  assert(
+    await field("サブスクリプション").inputValue() === "subscription-001" &&
+    await field("リソースグループ").inputValue() === "rg-production" &&
+    await field("Foundry").inputValue() === "contoso-first-model" &&
+    await field("モデル").inputValue() === "gpt-4o" &&
+    await field("バージョン").inputValue() === "2024-11-20" &&
+    await field("SKU").inputValue() === "Standard" &&
+    await field("Capacity").inputValue() === "42" &&
+    await field("デプロイ名").inputValue() === "first-chat",
+    "確認から戻ると全設定（Capacity含む）を保持"
+  );
   await field("サブスクリプション").selectOption("subscription-002");
   assert(await field("リソースグループ").inputValue() === "" && await field("Foundry").inputValue() === "", "上位変更で配置先解除");
   await button("Foundryを新規作成").click();
@@ -123,6 +140,15 @@ async page => {
     await field("新しいリソースグループ名").fill(valid);
     assert(await button("使用").isEnabled(), "RG有効名の許可");
   }
+  await field("新しいリソースグループ名").fill("rg-draft");
+  await button("戻る").click();
+  assert(
+    await field("新しいFoundry名").inputValue() === "new-foundry" &&
+    await field("リソースグループ").inputValue() === "" &&
+    await page.getByRole("option", { name: "rg-draft（新規作成予定）", exact: true }).count() === 0,
+    "RG入力から戻るとFoundry名を保持しRGを作成しない"
+  );
+  await button("リソースグループを新規作成").click();
   await field("新しいリソースグループ名").fill("rg-new");
   await page.screenshot({ path: "docs/verification/add-model-group.png" });
   await button("使用").click();
@@ -151,10 +177,33 @@ async page => {
   await button("Foundryを新規作成").click();
   await button("戻る").click();
   assert(await field("Foundry").inputValue() === "", "キャンセルでFoundryを作らない");
+  await button("Foundryを新規作成").click();
+  await field("新しいFoundry名").fill("discarded-foundry");
+  await button("使用").click();
+  await chooseModel();
+  await field("バージョン").selectOption("2024-11-20");
+  await field("SKU").selectOption("Standard");
+  await field("Capacity").fill("77");
+  await field("デプロイ名").fill("discarded-deploy");
+  await button("キャンセル").click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await button("＋ 新規追加").click();
+  assert(
+    await field("サブスクリプション").inputValue() === "" &&
+    await field("リソースグループ").inputValue() === "" &&
+    await field("Foundry").inputValue() === "" &&
+    await field("モデル").inputValue() === "" &&
+    await field("バージョン").inputValue() === "" &&
+    await field("SKU").inputValue() === "" &&
+    await field("Capacity").inputValue() === "10" &&
+    await field("デプロイ名").inputValue() === "" &&
+    await page.getByRole("option", { name: "rg-direct（新規作成予定）", exact: true }).count() === 0,
+    "追加キャンセル後の再開で入力を破棄"
+  );
   await page.setViewportSize({ width: 1080, height: 720 });
   assert(await page.locator("dialog").evaluate(el => el.scrollWidth <= el.clientWidth), "ダイアログの横はみ出し");
   await page.keyboard.press("Escape");
   assert(await page.getByRole("dialog").count() === 0, "Escapeで閉じる");
   assert(errors.length === 0, errors.join("\n"));
-  return { passed: true, checks: ["model-loading-empty-error-retry-stale", "stable-validation-and-input-mode", "list-button-placement", "model-defaults", "deploy-name-validation", "resource-naming", "empty-foundry", "review-and-back", "subscription-reset", "nested-resource-creation", "mock-completion", "empty-list-entry", "direct-group-creation", "cancel", "responsive-and-escape"], pageErrors: errors };
+  return { passed: true, checks: ["model-loading-empty-error-retry-stale", "stable-validation-and-input-mode", "list-button-placement", "model-defaults", "deploy-name-validation", "resource-naming", "deployed-foundry-review", "empty-foundry", "review-and-back-all-settings", "subscription-reset", "group-cancel-preserves-foundry", "nested-resource-creation", "mock-completion", "empty-list-entry", "direct-group-creation", "cancel-reopen-resets", "cancel", "responsive-and-escape"], pageErrors: errors };
 }
