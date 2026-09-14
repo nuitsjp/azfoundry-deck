@@ -27,6 +27,7 @@
 .deployment-list-actions { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 24px; }
 .deployment-list-actions .primary { padding: 9px 16px; }
 .add-validation { color: #637583; font-size: 12px; height: 4.8em; line-height: 1.6; margin: 12px 0; }
+.add-validation.add-validation-inline { height: 3.2em; margin: 4px 0; align-self: end; }
 .add-validation.add-error { color: #b42318; }
 .add-model-load { height: 32px; overflow: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: #637583; font-size: 12px; }
 .add-model-load progress { width: 120px; height: 8px; accent-color: #166858; }

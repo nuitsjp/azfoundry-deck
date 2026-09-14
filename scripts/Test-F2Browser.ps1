@@ -1,4 +1,4 @@
-param([switch]$Azure, [switch]$AddModel)
+param([switch]$Azure, [switch]$AddModel, [switch]$Attach)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location -LiteralPath $repoRoot
@@ -34,8 +34,15 @@ try {
     }
     if (!$ready -or $serverProcess.HasExited) { throw "Wails server did not start on 127.0.0.1:$port." }
 
-    & node $cli "-s=$session" open "http://127.0.0.1:$port" --config=frontend/tests/browser.config.json
-    if ($LASTEXITCODE -ne 0) { throw 'Headless browser launch failed.' }
+    if ($Attach) {
+        & node $cli "-s=$session" attach --cdp=msedge
+        if ($LASTEXITCODE -ne 0) { throw 'Edge attach failed. Enable remote debugging in the running Edge.' }
+        & node $cli "-s=$session" tab-new "http://127.0.0.1:$port"
+        if ($LASTEXITCODE -ne 0) { throw 'Attached tab did not open.' }
+    } else {
+        & node $cli "-s=$session" open "http://127.0.0.1:$port" --config=frontend/tests/browser.config.json
+        if ($LASTEXITCODE -ne 0) { throw 'Headless browser launch failed.' }
+    }
     $output = & node $cli "-s=$session" --json run-code "--filename=$testFile"
     $output | Set-Content -LiteralPath "docs/verification/$testName-browser-result.json" -Encoding utf8NoBOM
     if ($LASTEXITCODE -ne 0) { throw ($output -join "`n") }
@@ -45,7 +52,12 @@ try {
     if ($result.passed -ne $true) { throw ($output -join "`n") }
     $result | ConvertTo-Json -Depth 10
 } finally {
-    & node $cli "-s=$session" close
+    if ($Attach) {
+        & node $cli "-s=$session" tab-close
+        & node $cli "-s=$session" detach
+    } else {
+        & node $cli "-s=$session" close
+    }
     if ($null -ne $serverProcess -and !$serverProcess.HasExited) {
         Stop-Process -Id $serverProcess.Id
     }

@@ -60,7 +60,7 @@ async page => {
   await field("Foundry").selectOption("contoso-first-model");
   assert(await inputPosition() === positionBeforeLoad, "Foundry特定と読込開始でモデル欄を動かさない");
   await page.getByRole("progressbar", { name: "モデル候補の読込状況" }).waitFor();
-  assert(await field("モデル").isDisabled() && await button("追加内容を確認").isDisabled(), "取得中の設定・確定を無効化");
+  assert(await field("モデル").isDisabled() && await button("確認").isDisabled(), "取得中の設定・確定を無効化");
   await page.getByText("モック：モデル取得の再現", { exact: true }).click();
   await field("モデル取得の状態").selectOption("slow");
   await button("モデル候補を再取得").click();
@@ -87,11 +87,18 @@ async page => {
   await field("SKU").selectOption("Standard");
   await field("モデル").selectOption("text-embedding-3-large");
   assert(await field("バージョン").inputValue() === "1" && await field("SKU").inputValue() === "Standard" && await field("デプロイ名").inputValue() === "text-embedding-3-large", "モデル変更で既定値を再設定");
+  for (const invalid of ["a", "chat production", "日本語", "a".repeat(65), "chat/prod"]) {
+    await field("デプロイ名").fill(invalid);
+    assert(await button("確認").isDisabled(), `デプロイ名不正の拒否: ${invalid}`);
+  }
+  await field("デプロイ名").fill("chat.prod_1-a");
+  assert(await button("確認").isEnabled(), "デプロイ名有効の許可");
+  await checkStableValidation("デプロイ名", "chat-prod", "a");
   await chooseModel();
   await page.screenshot({ path: "docs/verification/add-model-existing.png" });
-  await button("追加内容を確認").click();
+  await button("確認").click();
   assert((await page.locator(".add-summary").textContent()).includes("contoso-first-model（既存"), "0件Foundryの選択");
-  await button("入力内容を変更").click();
+  await button("変更").click();
   assert(await field("デプロイ名").inputValue() === "first-chat", "確認から戻る入力保持");
   await field("サブスクリプション").selectOption("subscription-002");
   assert(await field("リソースグループ").inputValue() === "" && await field("Foundry").inputValue() === "", "上位変更で配置先解除");
@@ -99,37 +106,38 @@ async page => {
   await checkStableValidation("新しいFoundry名", "valid-foundry", "a");
   for (const invalid of ["a", "a".repeat(65), "-foundry", "foundry-", "bad_name", "bad name", "日本語"]) {
     await field("新しいFoundry名").fill(invalid);
-    assert(await button("このFoundryを使用").isDisabled(), `Foundry不正名の拒否: ${invalid}`);
+    assert(await button("使用").isDisabled(), `Foundry不正名の拒否: ${invalid}`);
   }
   for (const valid of ["ab", "A".repeat(64), "valid-foundry"]) {
     await field("新しいFoundry名").fill(valid);
-    assert(await button("このFoundryを使用").isEnabled(), "Foundry有効名の許可");
+    assert(await button("使用").isEnabled(), "Foundry有効名の許可");
   }
   await field("新しいFoundry名").fill("new-foundry");
   await button("リソースグループを新規作成").click();
   await checkStableValidation("新しいリソースグループ名", "valid-rg", "bad name");
   for (const invalid of ["bad name", "name.", "bad/name", "a".repeat(91), "RG-SANDBOX"]) {
     await field("新しいリソースグループ名").fill(invalid);
-    assert(await button("このリソースグループを使用").isDisabled(), `RG不正名・重複の拒否: ${invalid}`);
+    assert(await button("使用").isDisabled(), `RG不正名・重複の拒否: ${invalid}`);
   }
   for (const valid of ["a", "a".repeat(90), "日本語_開発(1)-rg"]) {
     await field("新しいリソースグループ名").fill(valid);
-    assert(await button("このリソースグループを使用").isEnabled(), "RG有効名の許可");
+    assert(await button("使用").isEnabled(), "RG有効名の許可");
   }
   await field("新しいリソースグループ名").fill("rg-new");
   await page.screenshot({ path: "docs/verification/add-model-group.png" });
-  await button("このリソースグループを使用").click();
+  await button("使用").click();
   assert(await field("新しいFoundry名").inputValue() === "new-foundry", "拡張操作から戻る入力保持");
   await page.screenshot({ path: "docs/verification/add-model-foundry.png" });
-  await button("このFoundryを使用").click();
+  await button("使用").click();
   await chooseModel();
-  await button("追加内容を確認").click();
+  await button("確認").click();
   const summary = await page.locator(".add-summary").textContent();
   assert(summary.includes("rg-new（新規") && summary.includes("new-foundry（新規"), "両リソース新規作成");
   await page.screenshot({ path: "docs/verification/add-model-review.png" });
-  await button("モデル追加を再現").click();
+  await button("追加").click();
   await page.getByRole("heading", { name: "モデル追加の再現が完了しました" }).waitFor();
-  await button("一覧に戻る").click();
+  assert(await button("閉じる").count() === 1, "完了画面の閉じるは1つだけ");
+  await button("閉じる").click();
   // The entry remains available when the deployment list itself is empty.
   await page.getByLabel("次回の取得状態", { exact: true }).selectOption("empty");
   await page.getByRole("button", { name: /(?:更新|再取得)$/ }).click();
@@ -138,15 +146,15 @@ async page => {
   await field("サブスクリプション").selectOption("subscription-001");
   await button("リソースグループを新規作成").click();
   await field("新しいリソースグループ名").fill("rg-direct");
-  await button("このリソースグループを使用").click();
+  await button("使用").click();
   assert(await field("リソースグループ").inputValue() === "rg-direct", "配置先欄からの直接作成");
   await button("Foundryを新規作成").click();
-  await button("モデル追加に戻る").click();
+  await button("戻る").click();
   assert(await field("Foundry").inputValue() === "", "キャンセルでFoundryを作らない");
   await page.setViewportSize({ width: 1080, height: 720 });
   assert(await page.locator("dialog").evaluate(el => el.scrollWidth <= el.clientWidth), "ダイアログの横はみ出し");
   await page.keyboard.press("Escape");
   assert(await page.getByRole("dialog").count() === 0, "Escapeで閉じる");
   assert(errors.length === 0, errors.join("\n"));
-  return { passed: true, checks: ["model-loading-empty-error-retry-stale", "stable-validation-and-input-mode", "list-button-placement", "model-defaults", "resource-naming", "empty-foundry", "review-and-back", "subscription-reset", "nested-resource-creation", "mock-completion", "empty-list-entry", "direct-group-creation", "cancel", "responsive-and-escape"], pageErrors: errors };
+  return { passed: true, checks: ["model-loading-empty-error-retry-stale", "stable-validation-and-input-mode", "list-button-placement", "model-defaults", "deploy-name-validation", "resource-naming", "empty-foundry", "review-and-back", "subscription-reset", "nested-resource-creation", "mock-completion", "empty-list-entry", "direct-group-creation", "cancel", "responsive-and-escape"], pageErrors: errors };
 }
