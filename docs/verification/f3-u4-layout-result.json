@@ -1,0 +1,3 @@
+{
+  "result": "{\"passed\":true,\"viewport\":\"1080x720\",\"check\":\"unknown-read-keeps-controls-stable\",\"before\":{\"x\":716.171875,\"y\":624,\"width\":88.828125,\"height\":33},\"after\":{\"x\":716.171875,\"y\":624,\"width\":88.828125,\"height\":33}}"
+}

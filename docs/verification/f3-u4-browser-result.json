@@ -1,0 +1,3 @@
+{
+  "result": "{\"passed\":true,\"checks\":[\"model-loading-empty-error-retry-stale\",\"stable-validation-and-input-mode\",\"list-button-placement\",\"model-defaults\",\"version-sku-capacity-contract\",\"missing-default-and-capacity-data\",\"deploy-name-validation\",\"deployment-conflict-scope\",\"resource-naming\",\"deployed-foundry-review\",\"empty-foundry\",\"review-and-back-all-settings\",\"subscription-reset\",\"group-cancel-preserves-foundry\",\"nested-resource-creation\",\"foundry-setting-proposal\",\"mock-completion\",\"create-result-states\",\"read-only-result-retry\",\"empty-list-entry\",\"direct-group-creation\",\"cancel-reopen-resets\",\"cancel\",\"responsive-and-escape\"],\"pageErrors\":[]}"
+}

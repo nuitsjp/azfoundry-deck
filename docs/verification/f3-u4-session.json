@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-09-15T00:40:53.4990174+09:00",
+  "baseCommit": "722c0e57ced80c060515c1112581db075a271f10",
+  "initialWorkingTree": "clean",
+  "u1Server": {
+    "port": 9250,
+    "processId": 5416,
+    "executable": "D:\\nuitsjp\\azfoundry-deck\\bin\\azfoundry-deck-browser.exe",
+    "sha256": "08BD0AF3B14245EF5ADE592F6C5752D8A70DF4B4F5C2EEA35FBAD93C057935D4"
+  },
+  "subscription": "fc7753ed-2e69-4202-bb66-86ff5798b8d5",
+  "azureWritesPerformed": false
+}

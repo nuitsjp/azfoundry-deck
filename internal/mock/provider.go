@@ -226,7 +226,7 @@ func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.M
 				Scope:       "account",
 				AccountName: accountID,
 				Code:        "account-not-found",
-				Message:     "選択したアカウントをモックデータから特定できません。",
+				Message:     "選択したアカウントが見つかりません。",
 				Action:      "デプロイ一覧に戻って対象アカウントを選び直してください。",
 			}},
 			FetchedAt: nowUTC(),
