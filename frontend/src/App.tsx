@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GetDeployments, GetEnvironment } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/deploymentservice";
-import { GetModels } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/modelservice";
-import { GetModelScenario, GetScenario, SetModelScenario, SetScenario } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/mock/mockservice";
+import { GetModels, GetRegionModels } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/modelservice";
+import { GetDeploymentNames, GetPlacements } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/placementservice";
+import { AddModel as AddModelRequest, CheckOperation } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/creationservice";
+import { GetModelScenario, GetScenario, SetAddModelScenario, SetCreateScenario, SetModelScenario, SetScenario } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/mock/mockservice";
 import { Events } from "@wailsio/runtime";
 import "../bindings/github.com/wailsapp/wails/v3/internal/eventcreate";
 import type { Deployment, DeploymentProgress, DeploymentResult, ModelResult } from "../bindings/github.com/nuitsjp/azfoundry-deck/internal/service/models";
 import { emptyFilters, filterDeployments, formatQuantity, type Filters } from "./deployments";
 import ModelCandidates from "./ModelCandidates";
-import AddModel from "./AddModel";
-import { addModelMock, loadMockModels } from "./addModelMock";
+import AddModel, { type CreateOutcome, type CreateRequest, type ModelTarget } from "./AddModel";
+import { emptyCatalog, modelFailureMessage, toCandidates, toCatalog, type AddModelCatalog, type CreateResultScenario, type ModelLoadScenario } from "./addModelSource";
 
 const scenarios = [
   ["success", "通常 · 複数テナント / 10アカウント"],
@@ -33,6 +35,7 @@ type View = "deployments" | "models";
 
 export default function App() {
   const [addingModel, setAddingModel] = useState(false);
+  const [catalog, setCatalog] = useState<AddModelCatalog>(emptyCatalog);
   const [result, setResult] = useState<DeploymentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +110,62 @@ export default function App() {
         setModelLoading(false);
       }
     }
+  }, []);
+
+  // The placement read is independent of the deployment list so that a resource
+  // group without a Foundry and a Foundry without a deployment stay selectable.
+  useEffect(() => {
+    if (!addingModel) return;
+    let active = true;
+    void GetPlacements().then(placements => {
+      if (!active) return;
+      const deployed = new Set((result?.deployments ?? []).map(row => row.accountId.toLowerCase()));
+      setCatalog(toCatalog(placements, deployed));
+    }).catch(() => {
+      if (active) setCatalog(emptyCatalog);
+    });
+    return () => { active = false; };
+  }, [addingModel, result]);
+
+  const loadAddModelCandidates = useCallback(async (target: ModelTarget, scenario: ModelLoadScenario) => {
+    if (isMock) await SetAddModelScenario(scenario);
+    const candidates = target.foundryId
+      ? await GetModels(target.foundryId)
+      : await GetRegionModels(target.subscription, target.region);
+    const failure = modelFailureMessage(candidates);
+    if (failure) throw new Error(failure);
+    return toCandidates(candidates);
+  }, [isMock]);
+
+  // The creation service reports what it observed. The screen shows that
+  // outcome; it never turns a failed or unknown write into a success.
+  const addModel = useCallback(async (request: CreateRequest): Promise<CreateOutcome> => {
+    const created = await AddModelRequest(request);
+    return {
+      outcome: created.outcome as CreateResultScenario,
+      operationId: created.operationId,
+      createdGroup: created.createdGroup,
+      createdFoundry: created.createdFoundry,
+      detail: created.detail,
+    };
+  }, []);
+
+  const checkAddModel = useCallback(async (operationId: string): Promise<CreateOutcome> => {
+    const checked = await CheckOperation(operationId);
+    return {
+      outcome: checked.outcome as CreateResultScenario,
+      operationId: checked.operationId,
+      createdGroup: checked.createdGroup,
+      createdFoundry: checked.createdFoundry,
+      detail: checked.detail,
+    };
+  }, []);
+
+  const loadAddModelDeploymentNames = useCallback(async (foundryId: string) => {
+    const names = await GetDeploymentNames(foundryId);
+    const failure = names.failures[0];
+    if (failure) throw new Error([failure.message, failure.action].filter(Boolean).join(" "));
+    return names.names;
   }, []);
 
   useEffect(() => {
@@ -238,7 +297,7 @@ export default function App() {
             {failures.map((failure, index) => <article className="error-item" key={`${failure.scope}-${failure.code}-${index}`}><div><strong>{failure.accountName || failure.scope}</strong><span>{[failure.tenantName, failure.subscriptionName].filter(Boolean).join(" / ")}</span></div><div><p><code>{failure.code}</code> {failure.message}</p><p className="error-action">{failure.action}</p></div></article>)}
           </div> : <div className="empty-state"><h3>{loading ? "デプロイを取得しています" : "取得エラーはありません"}</h3><p>{loading ? "完了するまでお待ちください。" : "デプロイ一覧に戻って、取得結果を確認できます。"}</p></div>}
         </section> : <section className="deployments" aria-labelledby="deployments-heading" aria-busy={loading}>
-          <div className="section-heading table-heading"><div className="deployment-list-actions"><h2 id="deployments-heading">デプロイ <span className="result-count">{visible.length}<small>{activeFilters ? ` / ${rows.length}件` : "件"}</small></span></h2>{isMock ? <button className="primary" onClick={() => setAddingModel(true)}>＋ 新規追加</button> : null}</div></div>
+          <div className="section-heading table-heading"><div className="deployment-list-actions"><h2 id="deployments-heading">デプロイ <span className="result-count">{visible.length}<small>{activeFilters ? ` / ${rows.length}件` : "件"}</small></span></h2><button className="primary" onClick={() => setAddingModel(true)}>＋ 新規追加</button></div></div>
           {visible.length ? <div className="table-scroll" tabIndex={0} aria-label="デプロイ一覧のスクロール領域"><table>
               <thead><tr>
                 <th scope="col">テナント</th>
@@ -265,7 +324,7 @@ export default function App() {
             </table></div> : <div className="empty-state"><span className="empty-icon" aria-hidden="true">{loading ? "…" : incomplete || error ? "!" : "≡"}</span><h3>{loading ? "デプロイを取得しています" : error || incomplete && !rows.length ? "取得失敗のため表示できるデプロイがありません" : !result ? "取得結果がありません" : rows.length ? "条件に一致するデプロイがありません" : "デプロイはありません"}</h3><p>{loading ? "完了するまでお待ちください。絞り込み条件は取得中も変更できます。" : error || incomplete && !rows.length ? "「エラー詳細」で原因を確認して、復旧後に更新してください。" : rows.length ? "絞り込み条件を変更するか、すべて解除してください。" : result ? "全対象アカウントの取得に成功し、0件でした。" : "取得状態を確認してください。"}</p></div>}
         </section>}
       </>}
-      {isMock && addingModel ? <AddModel catalog={addModelMock} loadModels={loadMockModels} onClose={() => setAddingModel(false)} /> : null}
+      {addingModel ? <AddModel catalog={catalog} loadModels={loadAddModelCandidates} loadDeploymentNames={loadAddModelDeploymentNames} onCreate={addModel} onCheck={checkAddModel} onRefreshList={refresh} onCreateScenarioChange={scenario => { void SetCreateScenario(scenario); }} mock={isMock} onClose={() => setAddingModel(false)} /> : null}
 
     </main>
   );

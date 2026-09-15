@@ -1,0 +1,10 @@
+subscription selected
+resource group selected: rg-azfoundry-deck-verify
+foundry selected: azfoundry-deck-verify-202609151423
+candidates: 79
+retiring models still offered: none
+version: 2026-03-17 sku: GlobalStandard capacity: 10
+summary: サブスクリプションVisual Studio Enterprise サブスクリプションリソースグループrg-azfoundry-deck-verify（既存）Foundryazfoundry-deck-verify-202609151423（既存 / japaneast）形式 / モデル / バージョンOpenAI / gpt-5.4-nano / 2026-03-17SKU / CapacityGlobalStandard / 10バージョン更新自動更新なし（モデル廃止時に停止）デプロイ名verify-gpt-5-4-nano
+result title: モデルを追加しました
+result description: デプロイ「verify-gpt-5-4-nano」を作成しました。
+pageErrors: 0 

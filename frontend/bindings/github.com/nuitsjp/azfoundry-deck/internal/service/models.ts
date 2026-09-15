@@ -6,6 +6,174 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * CapacityContract is the deployment capacity constraint of one model SKU. Every
+ * field is optional because Azure omits the ones it does not define; the screen
+ * refuses to build a request rather than filling a missing constraint in.
+ */
+export class CapacityContract {
+    "default": number | null;
+    "minimum": number | null;
+    "maximum": number | null;
+    "step": number | null;
+    "allowedValues": number[];
+
+    /** Creates a new CapacityContract instance. */
+    constructor($$source: Partial<CapacityContract> = {}) {
+        if (!("default" in $$source)) {
+            this["default"] = null;
+        }
+        if (!("minimum" in $$source)) {
+            this["minimum"] = null;
+        }
+        if (!("maximum" in $$source)) {
+            this["maximum"] = null;
+        }
+        if (!("step" in $$source)) {
+            this["step"] = null;
+        }
+        if (!("allowedValues" in $$source)) {
+            this["allowedValues"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CapacityContract instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CapacityContract {
+        const $$createField4_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("allowedValues" in $$parsedSource) {
+            $$parsedSource["allowedValues"] = $$createField4_0($$parsedSource["allowedValues"]);
+        }
+        return new CapacityContract($$parsedSource as Partial<CapacityContract>);
+    }
+}
+
+/**
+ * CreateRequest is the confirmed content of one model addition. The screen sends
+ * the exact combination it displayed; the service never rebuilds it.
+ */
+export class CreateRequest {
+    "subscriptionId": string;
+    "resourceGroup": string;
+    "groupIsNew": boolean;
+    "groupRegion": string;
+    "foundryName": string;
+    "foundryIsNew": boolean;
+    "foundryRegion": string;
+    "format": string;
+    "model": string;
+    "version": string;
+    "sku": string;
+    "capacity": number;
+    "deploymentName": string;
+
+    /** Creates a new CreateRequest instance. */
+    constructor($$source: Partial<CreateRequest> = {}) {
+        if (!("subscriptionId" in $$source)) {
+            this["subscriptionId"] = "";
+        }
+        if (!("resourceGroup" in $$source)) {
+            this["resourceGroup"] = "";
+        }
+        if (!("groupIsNew" in $$source)) {
+            this["groupIsNew"] = false;
+        }
+        if (!("groupRegion" in $$source)) {
+            this["groupRegion"] = "";
+        }
+        if (!("foundryName" in $$source)) {
+            this["foundryName"] = "";
+        }
+        if (!("foundryIsNew" in $$source)) {
+            this["foundryIsNew"] = false;
+        }
+        if (!("foundryRegion" in $$source)) {
+            this["foundryRegion"] = "";
+        }
+        if (!("format" in $$source)) {
+            this["format"] = "";
+        }
+        if (!("model" in $$source)) {
+            this["model"] = "";
+        }
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("sku" in $$source)) {
+            this["sku"] = "";
+        }
+        if (!("capacity" in $$source)) {
+            this["capacity"] = 0;
+        }
+        if (!("deploymentName" in $$source)) {
+            this["deploymentName"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CreateRequest instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CreateRequest {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CreateRequest($$parsedSource as Partial<CreateRequest>);
+    }
+}
+
+/**
+ * CreateResult is what the screen shows after one addition attempt. A stage that
+ * succeeded stays succeeded: a later failure never reports it as rolled back.
+ */
+export class CreateResult {
+    "outcome": string;
+    "operationId": string;
+    "createdGroup": boolean;
+    "createdFoundry": boolean;
+    "foundryId": string;
+    "deploymentId": string;
+    "detail": string;
+
+    /** Creates a new CreateResult instance. */
+    constructor($$source: Partial<CreateResult> = {}) {
+        if (!("outcome" in $$source)) {
+            this["outcome"] = "";
+        }
+        if (!("operationId" in $$source)) {
+            this["operationId"] = "";
+        }
+        if (!("createdGroup" in $$source)) {
+            this["createdGroup"] = false;
+        }
+        if (!("createdFoundry" in $$source)) {
+            this["createdFoundry"] = false;
+        }
+        if (!("foundryId" in $$source)) {
+            this["foundryId"] = "";
+        }
+        if (!("deploymentId" in $$source)) {
+            this["deploymentId"] = "";
+        }
+        if (!("detail" in $$source)) {
+            this["detail"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CreateResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): CreateResult {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new CreateResult($$parsedSource as Partial<CreateResult>);
+    }
+}
+
+/**
  * Deployment is a row in the cross-account deployment list.
  */
 export class Deployment {
@@ -82,6 +250,48 @@ export class Deployment {
 }
 
 /**
+ * DeploymentNameResult is the existing deployment names of one Foundry. The
+ * screen rejects a duplicate name only when the read succeeded; a failure must
+ * not be treated as "the name is free".
+ */
+export class DeploymentNameResult {
+    "names": string[];
+    "failures": FetchFailure[];
+    "fetchedAt": string;
+
+    /** Creates a new DeploymentNameResult instance. */
+    constructor($$source: Partial<DeploymentNameResult> = {}) {
+        if (!("names" in $$source)) {
+            this["names"] = [];
+        }
+        if (!("failures" in $$source)) {
+            this["failures"] = [];
+        }
+        if (!("fetchedAt" in $$source)) {
+            this["fetchedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DeploymentNameResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): DeploymentNameResult {
+        const $$createField0_0 = $$createType1;
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("names" in $$parsedSource) {
+            $$parsedSource["names"] = $$createField0_0($$parsedSource["names"]);
+        }
+        if ("failures" in $$parsedSource) {
+            $$parsedSource["failures"] = $$createField1_0($$parsedSource["failures"]);
+        }
+        return new DeploymentNameResult($$parsedSource as Partial<DeploymentNameResult>);
+    }
+}
+
+/**
  * DeploymentProgress is one immutable snapshot of an in-flight deployment
  * read. TotalSubscriptions and TotalAccounts are nil while their respective
  * totals are not known yet.
@@ -126,7 +336,7 @@ export class DeploymentProgress {
      * Creates a new DeploymentProgress instance from a string or object.
      */
     static createFrom($$source: any = {}): DeploymentProgress {
-        const $$createField6_0 = $$createType0;
+        const $$createField6_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("result" in $$parsedSource) {
             $$parsedSource["result"] = $$createField6_0($$parsedSource["result"]);
@@ -172,8 +382,8 @@ export class DeploymentResult {
      * Creates a new DeploymentResult instance from a string or object.
      */
     static createFrom($$source: any = {}): DeploymentResult {
-        const $$createField0_0 = $$createType2;
-        const $$createField1_0 = $$createType4;
+        const $$createField0_0 = $$createType6;
+        const $$createField1_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("deployments" in $$parsedSource) {
             $$parsedSource["deployments"] = $$createField0_0($$parsedSource["deployments"]);
@@ -269,7 +479,7 @@ export class ModelCandidate {
     "version": string;
     "lifecycle": string;
     "isDefaultVersion": boolean;
-    "skus": string[];
+    "skus": ModelSKU[];
 
     /** Creates a new ModelCandidate instance. */
     constructor($$source: Partial<ModelCandidate> = {}) {
@@ -299,7 +509,7 @@ export class ModelCandidate {
      * Creates a new ModelCandidate instance from a string or object.
      */
     static createFrom($$source: any = {}): ModelCandidate {
-        const $$createField5_0 = $$createType5;
+        const $$createField5_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("skus" in $$parsedSource) {
             $$parsedSource["skus"] = $$createField5_0($$parsedSource["skus"]);
@@ -335,8 +545,8 @@ export class ModelResult {
      * Creates a new ModelResult instance from a string or object.
      */
     static createFrom($$source: any = {}): ModelResult {
-        const $$createField0_0 = $$createType7;
-        const $$createField1_0 = $$createType4;
+        const $$createField0_0 = $$createType10;
+        const $$createField1_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("models" in $$parsedSource) {
             $$parsedSource["models"] = $$createField0_0($$parsedSource["models"]);
@@ -348,12 +558,256 @@ export class ModelResult {
     }
 }
 
+/**
+ * ModelSKU is one deployment SKU of a model version together with the capacity
+ * constraint Azure reports for that exact combination.
+ */
+export class ModelSKU {
+    "name": string;
+    "capacity": CapacityContract | null;
+
+    /** Creates a new ModelSKU instance. */
+    constructor($$source: Partial<ModelSKU> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("capacity" in $$source)) {
+            this["capacity"] = null;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ModelSKU instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ModelSKU {
+        const $$createField1_0 = $$createType12;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("capacity" in $$parsedSource) {
+            $$parsedSource["capacity"] = $$createField1_0($$parsedSource["capacity"]);
+        }
+        return new ModelSKU($$parsedSource as Partial<ModelSKU>);
+    }
+}
+
+/**
+ * PendingOperation is one addition whose result is not settled. It survives an
+ * application restart so the same deployment is never sent twice.
+ */
+export class PendingOperation {
+    "id": string;
+    "startedAt": string;
+    "subscriptionId": string;
+    "deploymentId": string;
+    "stage": string;
+    "state": string;
+
+    /** Creates a new PendingOperation instance. */
+    constructor($$source: Partial<PendingOperation> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("startedAt" in $$source)) {
+            this["startedAt"] = "";
+        }
+        if (!("subscriptionId" in $$source)) {
+            this["subscriptionId"] = "";
+        }
+        if (!("deploymentId" in $$source)) {
+            this["deploymentId"] = "";
+        }
+        if (!("stage" in $$source)) {
+            this["stage"] = "";
+        }
+        if (!("state" in $$source)) {
+            this["state"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PendingOperation instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PendingOperation {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PendingOperation($$parsedSource as Partial<PendingOperation>);
+    }
+}
+
+/**
+ * PlacementFoundry is one existing Foundry account a model can be added to.
+ * A Foundry with no deployment is included, so it carries no deployment rows.
+ */
+export class PlacementFoundry {
+    "id": string;
+    "name": string;
+    "resourceGroup": string;
+    "region": string;
+
+    /** Creates a new PlacementFoundry instance. */
+    constructor($$source: Partial<PlacementFoundry> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("resourceGroup" in $$source)) {
+            this["resourceGroup"] = "";
+        }
+        if (!("region" in $$source)) {
+            this["region"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlacementFoundry instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PlacementFoundry {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PlacementFoundry($$parsedSource as Partial<PlacementFoundry>);
+    }
+}
+
+/**
+ * PlacementGroup is one resource group that can hold a new or existing Foundry.
+ */
+export class PlacementGroup {
+    "name": string;
+    "location": string;
+
+    /** Creates a new PlacementGroup instance. */
+    constructor($$source: Partial<PlacementGroup> = {}) {
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("location" in $$source)) {
+            this["location"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlacementGroup instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PlacementGroup {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PlacementGroup($$parsedSource as Partial<PlacementGroup>);
+    }
+}
+
+/**
+ * PlacementResult is one complete read of the places a model can be added to.
+ */
+export class PlacementResult {
+    "subscriptions": PlacementSubscription[];
+    "failures": FetchFailure[];
+    "fetchedAt": string;
+
+    /** Creates a new PlacementResult instance. */
+    constructor($$source: Partial<PlacementResult> = {}) {
+        if (!("subscriptions" in $$source)) {
+            this["subscriptions"] = [];
+        }
+        if (!("failures" in $$source)) {
+            this["failures"] = [];
+        }
+        if (!("fetchedAt" in $$source)) {
+            this["fetchedAt"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlacementResult instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PlacementResult {
+        const $$createField0_0 = $$createType14;
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("subscriptions" in $$parsedSource) {
+            $$parsedSource["subscriptions"] = $$createField0_0($$parsedSource["subscriptions"]);
+        }
+        if ("failures" in $$parsedSource) {
+            $$parsedSource["failures"] = $$createField1_0($$parsedSource["failures"]);
+        }
+        return new PlacementResult($$parsedSource as Partial<PlacementResult>);
+    }
+}
+
+/**
+ * PlacementSubscription is one signed-in subscription with the placements it
+ * offers. Groups and foundries are listed independently so a group without a
+ * Foundry, and a Foundry without a deployment, both remain selectable.
+ */
+export class PlacementSubscription {
+    "id": string;
+    "name": string;
+    "tenantName": string;
+    "groups": PlacementGroup[];
+    "foundries": PlacementFoundry[];
+
+    /** Creates a new PlacementSubscription instance. */
+    constructor($$source: Partial<PlacementSubscription> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            this["name"] = "";
+        }
+        if (!("tenantName" in $$source)) {
+            this["tenantName"] = "";
+        }
+        if (!("groups" in $$source)) {
+            this["groups"] = [];
+        }
+        if (!("foundries" in $$source)) {
+            this["foundries"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PlacementSubscription instance from a string or object.
+     */
+    static createFrom($$source: any = {}): PlacementSubscription {
+        const $$createField3_0 = $$createType16;
+        const $$createField4_0 = $$createType18;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("groups" in $$parsedSource) {
+            $$parsedSource["groups"] = $$createField3_0($$parsedSource["groups"]);
+        }
+        if ("foundries" in $$parsedSource) {
+            $$parsedSource["foundries"] = $$createField4_0($$parsedSource["foundries"]);
+        }
+        return new PlacementSubscription($$parsedSource as Partial<PlacementSubscription>);
+    }
+}
+
 // Private type creation functions
-const $$createType0 = DeploymentResult.createFrom;
-const $$createType1 = Deployment.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = FetchFailure.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = $Create.Array($Create.Any);
-const $$createType6 = ModelCandidate.createFrom;
-const $$createType7 = $Create.Array($$createType6);
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = $Create.Array($Create.Any);
+const $$createType2 = FetchFailure.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = DeploymentResult.createFrom;
+const $$createType5 = Deployment.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = ModelSKU.createFrom;
+const $$createType8 = $Create.Array($$createType7);
+const $$createType9 = ModelCandidate.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = CapacityContract.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);
+const $$createType13 = PlacementSubscription.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = PlacementGroup.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = PlacementFoundry.createFrom;
+const $$createType18 = $Create.Array($$createType17);

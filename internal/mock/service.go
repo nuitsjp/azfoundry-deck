@@ -34,3 +34,27 @@ func (s *MockService) GetModelScenario() string {
 func (s *MockService) SetModelScenario(name string) error {
 	return s.provider.SetModelScenario(name)
 }
+
+// GetAddModelScenario keeps the model addition control in sync on reload.
+func (s *MockService) GetAddModelScenario() string {
+	s.provider.mu.Lock()
+	defer s.provider.mu.Unlock()
+	return s.provider.addScenario
+}
+
+// SetAddModelScenario changes the response used by the next addition read.
+func (s *MockService) SetAddModelScenario(name string) error {
+	return s.provider.SetAddModelScenario(name)
+}
+
+// GetCreateScenario keeps the creation-result control in sync on reload.
+func (s *MockService) GetCreateScenario() string {
+	s.provider.mu.Lock()
+	defer s.provider.mu.Unlock()
+	return s.provider.createScenario
+}
+
+// SetCreateScenario changes the creation result reproduced by the next add.
+func (s *MockService) SetCreateScenario(name string) error {
+	return s.provider.SetCreateScenario(name)
+}

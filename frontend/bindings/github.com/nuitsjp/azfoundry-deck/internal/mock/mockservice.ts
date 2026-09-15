@@ -13,6 +13,20 @@
 import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 /**
+ * GetAddModelScenario keeps the model addition control in sync on reload.
+ */
+export function GetAddModelScenario(): $CancellablePromise<string> {
+    return $Call.ByID(1836044536);
+}
+
+/**
+ * GetCreateScenario keeps the creation-result control in sync on reload.
+ */
+export function GetCreateScenario(): $CancellablePromise<string> {
+    return $Call.ByID(327907264);
+}
+
+/**
  * GetModelScenario keeps the F2 control in sync when the browser reloads.
  */
 export function GetModelScenario(): $CancellablePromise<string> {
@@ -24,6 +38,20 @@ export function GetModelScenario(): $CancellablePromise<string> {
  */
 export function GetScenario(): $CancellablePromise<string> {
     return $Call.ByID(1672750476);
+}
+
+/**
+ * SetAddModelScenario changes the response used by the next addition read.
+ */
+export function SetAddModelScenario(name: string): $CancellablePromise<void> {
+    return $Call.ByID(1029536492, name);
+}
+
+/**
+ * SetCreateScenario changes the creation result reproduced by the next add.
+ */
+export function SetCreateScenario(name: string): $CancellablePromise<void> {
+    return $Call.ByID(2192600564, name);
 }
 
 /**

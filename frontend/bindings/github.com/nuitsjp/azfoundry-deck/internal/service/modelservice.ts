@@ -24,5 +24,16 @@ export function GetModels(accountID: string): $CancellablePromise<$models.ModelR
     });
 }
 
+/**
+ * GetRegionModels obtains the candidates a subscription can deploy in one
+ * region. It serves a Foundry that does not exist yet, so the result is
+ * provisional and must be confirmed against the created account before use.
+ */
+export function GetRegionModels(subscriptionID: string, region: string): $CancellablePromise<$models.ModelResult> {
+    return $Call.ByID(818870930, subscriptionID, region).then(($result: any) => {
+        return $$createType0($result);
+    });
+}
+
 // Private type creation functions
 const $$createType0 = $models.ModelResult.createFrom;

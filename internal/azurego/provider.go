@@ -114,6 +114,14 @@ type subscriptionClient interface {
 	listAccounts(context.Context) ([]*armcognitiveservices.Account, error)
 	listDeployments(context.Context, string, string) ([]*armcognitiveservices.Deployment, error)
 	listModels(context.Context, string, string) ([]*armcognitiveservices.AccountModel, error)
+	listRegionModels(context.Context, string) ([]*armcognitiveservices.Model, error)
+	listResourceGroups(context.Context) ([]resourceGroupInfo, error)
+}
+
+// resourceGroupInfo is the subset of a resource group the placement read needs.
+type resourceGroupInfo struct {
+	name     string
+	location string
 }
 
 type subscriptionInfo struct {
@@ -407,43 +415,12 @@ func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.M
 		return result, nil
 	}
 
-	commandCtx, cancel := context.WithTimeout(ctx, p.cliCommandTimeout)
-	subscriptions, err := p.listSubscriptions(commandCtx)
-	cancel()
+	subscription, client, failure, err := p.resolveSubscriptionClient(ctx, subscriptionID, account)
 	if err != nil {
-		p.retainClients(nil)
-		if ctx.Err() != nil {
-			return result, ctx.Err()
-		}
-		result.Failures = []service.FetchFailure{failureForError("azure-cli", subscriptionInfo{}, account, err)}
-		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
-		return result, nil
+		return result, err
 	}
-	p.retainClients(subscriptions)
-
-	var subscription subscriptionInfo
-	for _, candidate := range subscriptions {
-		if strings.EqualFold(candidate.id, subscriptionID) {
-			subscription = candidate
-			break
-		}
-	}
-	if subscription.id == "" {
-		result.Failures = []service.FetchFailure{{
-			Scope:            "account",
-			SubscriptionName: subscriptionID,
-			AccountName:      accountName,
-			Code:             "subscription-not-available",
-			Message:          "対象アカウントのサブスクリプションを現在の Azure CLI セッションから確認できません。",
-			Action:           "Azure CLI のサインイン先とサブスクリプションへのアクセス権を確認してから再試行してください。",
-		}}
-		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
-		return result, nil
-	}
-
-	client, err := p.subscriptionClient(subscription)
-	if err != nil {
-		result.Failures = []service.FetchFailure{failureForError("account", subscription, account, err)}
+	if failure != nil {
+		result.Failures = []service.FetchFailure{*failure}
 		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
 		return result, nil
 	}
@@ -461,6 +438,268 @@ func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.M
 		return result, nil
 	}
 	result.Models = modelCandidates(models)
+	result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+	return result, nil
+}
+
+// FetchRegionModels reads the candidates a subscription can deploy in one
+// region. It is used before a new Foundry exists, so the result is provisional:
+// the same account-scoped read is repeated after the Foundry is created.
+func (p *Provider) FetchRegionModels(ctx context.Context, subscriptionID, region string) (service.ModelResult, error) {
+	result := emptyModelResult()
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if subscriptionID == "" || region == "" {
+		result.Failures = []service.FetchFailure{{
+			Scope:   "region",
+			Code:    "invalid-region-target",
+			Message: "モデル候補を取得するサブスクリプションとリージョンが指定されていません。",
+			Action:  "配置先を選び直してください。",
+		}}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	subscription, client, failure, err := p.resolveSubscriptionClient(ctx, subscriptionID, discoveredAccount{})
+	if err != nil {
+		return result, err
+	}
+	if failure != nil {
+		result.Failures = []service.FetchFailure{*failure}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	operationCtx, cancel := context.WithTimeout(ctx, p.operationTimeout)
+	models, err := client.listRegionModels(operationCtx, region)
+	cancel()
+	if err != nil {
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+		result.Failures = []service.FetchFailure{failureForError("region", subscription, discoveredAccount{}, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	result.Models = regionModelCandidates(models)
+	result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+	return result, nil
+}
+
+// resolveSubscriptionClient turns a subscription ID into the signed-in
+// subscription and its ARM client. A returned failure is a screen-facing reason
+// for stopping; a returned error is the caller's cancelled context.
+func (p *Provider) resolveSubscriptionClient(ctx context.Context, subscriptionID string, account discoveredAccount) (subscriptionInfo, subscriptionClient, *service.FetchFailure, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, p.cliCommandTimeout)
+	subscriptions, err := p.listSubscriptions(commandCtx)
+	cancel()
+	if err != nil {
+		p.retainClients(nil)
+		if ctx.Err() != nil {
+			return subscriptionInfo{}, nil, nil, ctx.Err()
+		}
+		failure := failureForError("azure-cli", subscriptionInfo{}, account, err)
+		return subscriptionInfo{}, nil, &failure, nil
+	}
+	p.retainClients(subscriptions)
+
+	var subscription subscriptionInfo
+	for _, candidate := range subscriptions {
+		if strings.EqualFold(candidate.id, subscriptionID) {
+			subscription = candidate
+			break
+		}
+	}
+	if subscription.id == "" {
+		failure := service.FetchFailure{
+			Scope:            "account",
+			SubscriptionName: subscriptionID,
+			AccountName:      account.name,
+			Code:             "subscription-not-available",
+			Message:          "対象アカウントのサブスクリプションを現在の Azure CLI セッションから確認できません。",
+			Action:           "Azure CLI のサインイン先とサブスクリプションへのアクセス権を確認してから再試行してください。",
+		}
+		return subscriptionInfo{}, nil, &failure, nil
+	}
+
+	client, err := p.subscriptionClient(subscription)
+	if err != nil {
+		failure := failureForError("account", subscription, account, err)
+		return subscriptionInfo{}, nil, &failure, nil
+	}
+	return subscription, client, nil, nil
+}
+
+// FetchPlacements reads every place a model can be added to: the signed-in
+// subscriptions, their resource groups, and the Foundry accounts in them. A
+// Foundry with no deployment is included, so this read does not go through the
+// deployment list.
+func (p *Provider) FetchPlacements(ctx context.Context) (service.PlacementResult, error) {
+	result := emptyPlacementResult()
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+
+	commandCtx, cancel := context.WithTimeout(ctx, p.cliCommandTimeout)
+	subscriptions, err := p.listSubscriptions(commandCtx)
+	cancel()
+	if err != nil {
+		p.retainClients(nil)
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+		result.Failures = []service.FetchFailure{failureForError("azure-cli", subscriptionInfo{}, discoveredAccount{}, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	p.retainClients(subscriptions)
+
+	reads := make([]placementRead, len(subscriptions))
+	var wait sync.WaitGroup
+	workers := workerCount(p.subscriptionConcurrency, len(subscriptions))
+	jobs := make(chan int)
+	wait.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wait.Done()
+			for index := range jobs {
+				reads[index] = p.readPlacement(ctx, subscriptions[index])
+			}
+		}()
+	}
+	for index := range subscriptions {
+		select {
+		case jobs <- index:
+		case <-ctx.Done():
+		}
+	}
+	close(jobs)
+	wait.Wait()
+	if err := ctx.Err(); err != nil {
+		return emptyPlacementResult(), err
+	}
+
+	for _, read := range reads {
+		if read.err != nil {
+			result.Failures = append(result.Failures, failureForError("subscription", read.subscription, discoveredAccount{}, read.err))
+			continue
+		}
+		result.Subscriptions = append(result.Subscriptions, read.placement)
+	}
+	result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+	return result, nil
+}
+
+type placementRead struct {
+	subscription subscriptionInfo
+	placement    service.PlacementSubscription
+	err          error
+}
+
+func (p *Provider) readPlacement(ctx context.Context, subscription subscriptionInfo) placementRead {
+	read := placementRead{subscription: subscription}
+	client, err := p.subscriptionClient(subscription)
+	if err != nil {
+		read.err = err
+		return read
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, p.operationTimeout)
+	groups, err := client.listResourceGroups(operationCtx)
+	cancel()
+	if err != nil {
+		read.err = err
+		return read
+	}
+	operationCtx, cancel = context.WithTimeout(ctx, p.operationTimeout)
+	accounts, err := client.listAccounts(operationCtx)
+	cancel()
+	if err != nil {
+		read.err = err
+		return read
+	}
+
+	placement := service.PlacementSubscription{
+		ID:         subscription.id,
+		Name:       subscription.name,
+		TenantName: subscription.tenantName,
+		Groups:     make([]service.PlacementGroup, 0, len(groups)),
+		Foundries:  make([]service.PlacementFoundry, 0, len(accounts)),
+	}
+	for _, group := range groups {
+		placement.Groups = append(placement.Groups, service.PlacementGroup{Name: group.name, Location: group.location})
+	}
+	for _, account := range accounts {
+		if account == nil || !isFoundryAccount(account.Kind) {
+			continue
+		}
+		id := value(account.ID)
+		resourceGroup, name := resourceIDAccountParts(id)
+		if id == "" || resourceGroup == "" || name == "" {
+			continue
+		}
+		placement.Foundries = append(placement.Foundries, service.PlacementFoundry{
+			ID:            id,
+			Name:          name,
+			ResourceGroup: resourceGroup,
+			Region:        value(account.Location),
+		})
+	}
+	read.placement = placement
+	return read
+}
+
+// FetchDeploymentNames reads the deployment names of one Foundry. The screen
+// uses it to reject an existing name; a failure is reported instead of being
+// treated as "the name is free".
+func (p *Provider) FetchDeploymentNames(ctx context.Context, accountID string) (service.DeploymentNameResult, error) {
+	result := service.DeploymentNameResult{Names: make([]string, 0), Failures: make([]service.FetchFailure, 0)}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	subscriptionID, resourceGroup, accountName := resourceIDTargetParts(accountID)
+	account := discoveredAccount{id: accountID, name: accountName, resourceGroup: resourceGroup}
+	if subscriptionID == "" || resourceGroup == "" || accountName == "" {
+		result.Failures = []service.FetchFailure{{
+			Scope:       "account",
+			AccountName: accountName,
+			Code:        "invalid-account-id",
+			Message:     "選択したFoundryの ARM リソース ID が不正です。",
+			Action:      "配置先を選び直してください。",
+		}}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	subscription, client, failure, err := p.resolveSubscriptionClient(ctx, subscriptionID, account)
+	if err != nil {
+		return result, err
+	}
+	if failure != nil {
+		result.Failures = []service.FetchFailure{*failure}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+
+	operationCtx, cancel := context.WithTimeout(ctx, p.operationTimeout)
+	deployments, err := client.listDeployments(operationCtx, resourceGroup, accountName)
+	cancel()
+	if err != nil {
+		if ctx.Err() != nil {
+			return result, ctx.Err()
+		}
+		result.Failures = []service.FetchFailure{failureForError("account", subscription, account, err)}
+		result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
+		return result, nil
+	}
+	for _, deployment := range deployments {
+		if deployment == nil {
+			continue
+		}
+		if name := value(deployment.Name); name != "" {
+			result.Names = append(result.Names, name)
+		}
+	}
 	result.FetchedAt = time.Now().UTC().Format(time.RFC3339)
 	return result, nil
 }
@@ -744,6 +983,55 @@ func (c *sdkSubscriptionClient) listModels(ctx context.Context, resourceGroup, a
 	return result, nil
 }
 
+// listResourceGroups reads the resource groups of one subscription. A group is
+// selectable even when it holds no Foundry, so this list is read separately from
+// the account list.
+func (c *sdkSubscriptionClient) listResourceGroups(ctx context.Context) ([]resourceGroupInfo, error) {
+	next := c.client.Endpoint() + "/subscriptions/" + url.PathEscape(c.subscriptionID) +
+		"/resourcegroups?api-version=" + resourcesAPIVersion
+	result := make([]resourceGroupInfo, 0)
+	for next != "" {
+		var page struct {
+			Value []struct {
+				Name     *string `json:"name"`
+				Location *string `json:"location"`
+			} `json:"value"`
+			NextLink *string `json:"nextLink"`
+		}
+		if err := c.getJSON(ctx, next, &page); err != nil {
+			return nil, fmt.Errorf("リソースグループ一覧の取得に失敗しました: %w", err)
+		}
+		for _, group := range page.Value {
+			name := value(group.Name)
+			if name == "" {
+				continue
+			}
+			result = append(result, resourceGroupInfo{name: name, location: value(group.Location)})
+		}
+		next = value(page.NextLink)
+	}
+	return result, nil
+}
+
+// listRegionModels reads the candidates a subscription can deploy in one region.
+// Unlike the account-scoped list it does not require an existing Foundry, so a
+// Foundry that has not been created yet can still be configured.
+func (c *sdkSubscriptionClient) listRegionModels(ctx context.Context, location string) ([]*armcognitiveservices.Model, error) {
+	next := c.client.Endpoint() + "/subscriptions/" + url.PathEscape(c.subscriptionID) +
+		"/providers/Microsoft.CognitiveServices/locations/" + url.PathEscape(location) +
+		"/models?api-version=" + modelsAPIVersion
+	result := make([]*armcognitiveservices.Model, 0)
+	for next != "" {
+		var page armcognitiveservices.ModelListResult
+		if err := c.getJSON(ctx, next, &page); err != nil {
+			return nil, fmt.Errorf("リージョンのモデル一覧の取得に失敗しました: %w", err)
+		}
+		result = append(result, page.Value...)
+		next = value(page.NextLink)
+	}
+	return result, nil
+}
+
 func (c *sdkSubscriptionClient) getJSON(ctx context.Context, requestURL string, target any) error {
 	req, err := runtime.NewRequest(ctx, http.MethodGet, requestURL)
 	if err != nil {
@@ -837,7 +1125,7 @@ func modelCandidates(models []*armcognitiveservices.AccountModel) []service.Mode
 			Name:    value(model.Name),
 			Format:  value(model.Format),
 			Version: value(model.Version),
-			SKUs:    make([]string, 0, len(model.SKUs)),
+			SKUs:    make([]service.ModelSKU, 0, len(model.SKUs)),
 		}
 		if model.LifecycleStatus != nil {
 			candidate.Lifecycle = string(*model.LifecycleStatus)
@@ -858,11 +1146,56 @@ func modelCandidates(models []*armcognitiveservices.AccountModel) []service.Mode
 				continue
 			}
 			seenSKUs[name] = struct{}{}
-			candidate.SKUs = append(candidate.SKUs, name)
+			candidate.SKUs = append(candidate.SKUs, service.ModelSKU{Name: name, Capacity: capacityContract(sku.Capacity)})
 		}
 		result = append(result, candidate)
 	}
 	return result
+}
+
+// regionModelCandidates keeps only the candidates that belong to the account
+// kind this feature creates. The region list also carries other kinds, and the
+// outer skuName describes the account SKU rather than a deployment SKU.
+func regionModelCandidates(models []*armcognitiveservices.Model) []service.ModelCandidate {
+	accountModels := make([]*armcognitiveservices.AccountModel, 0, len(models))
+	for _, model := range models {
+		if model == nil || model.Model == nil || !isFoundryAccount(model.Kind) {
+			continue
+		}
+		accountModels = append(accountModels, model.Model)
+	}
+	return modelCandidates(accountModels)
+}
+
+// capacityContract keeps every constraint Azure reports for one SKU. A missing
+// constraint stays missing so the screen can refuse the combination instead of
+// inventing a capacity value.
+func capacityContract(config *armcognitiveservices.CapacityConfig) *service.CapacityContract {
+	if config == nil {
+		return nil
+	}
+	contract := service.CapacityContract{
+		Default:       cloneInt32Pointer(config.Default),
+		Minimum:       cloneInt32Pointer(config.Minimum),
+		Maximum:       cloneInt32Pointer(config.Maximum),
+		Step:          cloneInt32Pointer(config.Step),
+		AllowedValues: make([]int32, 0, len(config.AllowedValues)),
+	}
+	for _, allowed := range config.AllowedValues {
+		if allowed == nil {
+			continue
+		}
+		contract.AllowedValues = append(contract.AllowedValues, *allowed)
+	}
+	return &contract
+}
+
+func cloneInt32Pointer(source *int32) *int32 {
+	if source == nil {
+		return nil
+	}
+	copied := *source
+	return &copied
 }
 
 func deploymentRow(account discoveredAccount, deployment *armcognitiveservices.Deployment) service.Deployment {
@@ -1040,6 +1373,13 @@ func emptyResult() service.DeploymentResult {
 	return service.DeploymentResult{
 		Deployments: make([]service.Deployment, 0),
 		Failures:    make([]service.FetchFailure, 0),
+	}
+}
+
+func emptyPlacementResult() service.PlacementResult {
+	return service.PlacementResult{
+		Subscriptions: make([]service.PlacementSubscription, 0),
+		Failures:      make([]service.FetchFailure, 0),
 	}
 }
 

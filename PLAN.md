@@ -1,54 +1,127 @@
 # 作業計画と未決事項
 
-本書は引き継ぎ時の進捗と次の作業の正本です。仕様・合意・検証結果は [プロジェクト定義](docs/project.md)、画面実装のルールは [frontend/src/AGENTS.md](frontend/src/AGENTS.md) を参照してください。
+本書は引き継ぎの正本です。新しいセッションは本書だけで作業を再開できます。仕様・合意の根拠と検証の詳細は [プロジェクト定義](docs/project.md)、画面実装のルールは [frontend/src/AGENTS.md](frontend/src/AGENTS.md)、行動指針は [AGENTS.md](AGENTS.md) にあります。
 
 ## 1. 現在の到達点（2026-09-15）
 
-**U1確認用9250番を維持し、U4・U5追加モックを9251番で提示。Global優先のSKU初期選択と本番向け文言の修正を反映し、追加画面headless 24項目が合格。全体動作への明示回答、追加モックと設定案の採用合意、競合防止の外部契約、実作成条件は未確定で、実Azureの作成・削除には進まない。**
+**F3「モデルを追加する」は実処理まで完了しました。** 配置先の探索、モデル候補と容量条件の取得、既存デプロイ名の照会、リソースグループ・Foundry・デプロイの作成をGoサービスで実装し、画面を接続しています。指定サブスクリプションで作成から削除までを実施し、作成した資源はすべて削除済みです。次はF3の変更・削除とF4クォータという新機能か、下記の未検証項目の消化に進みます。
 
-| 機能 | 実装・合意・検証の状態 |
+| 機能 | 状態 |
 | --- | --- |
-| F1：アカウント横断のデプロイ一覧 | モック・実Azure読取を実装済み。2026-09-13に残件を[Issue #1](https://github.com/nuitsjp/azfoundry-deck/issues/1)へ移管してクローズ。2026-09-15、共通フォーカス・選択欄CSS変更後のheadless 13項目を再実行して合格。 |
-| F2：モデル候補参照 | 共通Goサービス・Azure ARM List Models・旧独立画面は実装済み。旧画面のモック9項目・実Azureサービス／画面は過去の実行で合格。今後はモデル追加の選択操作に位置づける。旧独立画面の承認を次の開始条件にしない。 |
-| F3：モデル追加 | RG・Foundry新規入力を含む仮UIのみ実装。モデル候補はフロントエンドの固定データを非同期で返し、既存のGo ModelServiceには未接続。作成・保存・一覧反映は行わない。2026-09-14に確認・完了ダイアログのボタン表記を簡潔化（変更／追加／確認／使用／戻る／閉じる）し、完了画面の右上「閉じる」を削除。同日、デプロイ名に入力検査（2〜64文字の半角英数字・アンダースコア・ハイフン・ピリオド）を追加。15項目は接続Edgeで再実行して合格。同日、利用者はボタン表記・デプロイ名検査・RGの1文字許容を合意。仮UI全体の通し確認は未完。 |
-| F3：既存デプロイの変更・削除 | 未実装。詳細ユースケースも未合意。 |
-| F4：クォータ参照 | 未実装・詳細未合意。 |
+| F1：アカウント横断のデプロイ一覧 | 完了。モックと実Azure読取を実装済み。残件は[Issue #1](https://github.com/nuitsjp/azfoundry-deck/issues/1)。 |
+| F2：モデル候補参照（旧独立画面） | 実装済み。主導線がモデル追加に移ったため、画面を残すかは未判断。 |
+| F3：モデル追加 | 完了。読取・作成とも実装し、実Azureで作成と削除を検証済み。未検証は第3節のU4。 |
+| F3：既存デプロイの変更・削除 | 未着手。ユースケースも未合意。 |
+| F4：クォータ参照 | 未着手。詳細未合意。 |
 
-主ユースケースは「モデルを追加する」。必要時に「Foundryを追加する」が拡張し、それを「リソースグループを追加する」が拡張する。UIでは一覧右上の「＋ 新規追加」からサブスクリプション、RG、Foundryを選び、RGとFoundryはその場で新規入力できる。デプロイ0件のFoundryも対象にする。
+主ユースケースは「モデルを追加する」で、必要時に「Foundryを追加する」が拡張し、それを「リソースグループを追加する」が拡張します。画面では一覧見出し右の「＋ 新規追加」からサブスクリプション・リソースグループ・Foundryを選び、後ろ2つはその場で新規作成できます。デプロイ0件のFoundryも選べます。
 
 ## 2. 次に進める作業
 
-1. **最新版モックを再開して利用者と認識を合わせる（U1）。** 既存Foundryへの追加、空のFoundryへの初回追加、Foundry新規追加、そこからRG新規追加、候補の読込中・失敗・再試行を確認する。指摘に必要な変更と検証を行い、明示的な最終動作合意を記録する。既存の指示を再審議しない。
-2. **実処理へ移す前の設計を具体化する（U4）。** 新規Foundryは未作成なので、現状の「作成予定をまとめて確定する」UIとアカウント単位の候補取得APIをそのまま接続できない。作成タイミング・候補取得の対象・中断時に残るリソースを整理し、必要なUI変更をモックで具体化する。仕様判断用の読取調査は先行可能。
-3. **作成条件を合意する（U4）。** 費用・検証用サブスクリプション／リソース、名前競合、部分成功、タイムアウト後の結果不明、再試行時の重複作成を扱う。既定バージョン・SKU・Capacityの実データ契約も確認する。
-4. **合意後に実処理を接続する。** デプロイ0件でも選べるサブスクリプション・RG・Foundryの探索、既存F2候補取得の再利用、RG・Foundry・モデル作成、完了後の一覧反映を実装・検証する。旧F2独立入口の整理もこの流れで判断する。
-5. **変更・削除、クォータは別途具体化する。** F3追加と混同せず、それぞれのユースケースとモックを確認する。
+1. **U4の未検証を消化する。** プロセス再起動をまたぐ操作記録の再開、送信直後の異常終了、監視URLの失効、外部からの同名作成との実競合。いずれも実装済み機能の検証で、異常系の再現手段づくりが要ります。詳細は第3節。
+2. **旧F2独立画面の扱いを決める。** 利用者判断です。モデル追加が主導線になったため、参照専用の単独画面を残すか、削除して追加画面に一本化するかを確認します。
+3. **F3の変更・削除を具体化する。** 既存デプロイのSKU・Capacity変更と削除。追加とは別のユースケースとして、ヒアリングとモックから始めます。
+4. **F4クォータ参照を具体化する。** 操作入口、欠損値の表示、比較対象を定義するところから。
+5. **Issue #1の残件を扱う。** 実Deployment APIの継続ページと別RBAC構成。後続機能を止める条件にはしません。
 
 ## 3. 未決・未検証事項
 
-| ID | 状態と内容 | 再開条件・扱い |
+| ID | 内容 | 扱い |
 | --- | --- | --- |
-| U1 | モデル追加仮UIは部分合意。2026-09-14のボタン表記・入力規則の合意を維持。2026-09-15、最新版を9250番で起動し、既存／0件Foundry、新規FoundryとRG、読込中・空・失敗・再試行、戻る・入力保持・キャンセルの確認依頼を提示。SKUのGlobal優先と文言修正の依頼を受領し対応済み。全体動作合意は未取得。 | [確認手順と合意状態](docs/project.md#f3-u1-review)に沿って得られた回答を記録する。自動検証の合格を全体動作合意に置き換えない。 |
-| U2 | F1のネイティブWebView2実接続は完了。Windows IMEの実際のOFF切替、高コントラスト表示は未検証。入力モード属性とheadless画面は確認済み。 | ネイティブを操作・観測できる環境で確認。IME OFFを確認済みと報告しない。F1ネイティブ確認の完了記録はIssue #1。 |
-| U3 | F1の実Deployment API複数ページと別権限構成はIssue #1の残件。許容性能は合意済み、TPM/RPMのPortal照合は完了。 | Issueの項目ごとの再開条件に従う。後続機能全体を止める条件にはしない。認証不能サブスクリプションは合意済み異常系で、再ログイン成功を要求しない。 |
-| U4 | [設計案](docs/project.md#f3-u4-design)を具体化済み・未合意。作成順、[操作記録と再開](docs/project.md#f3-operation-record)、[Foundry・モデル・容量の契約](docs/project.md#f3-create-contract)を追記。送信済み段階を自動再送せず、本操作の証拠がない設定一致や404では結果を確定しない。 | 追加モックの動作合意、上書き競合を防ぐ外部契約の確定、設定案の採用、費用・具体的実検証先・作成保持削除条件の合意が必要。永続化・プロセス再起動・実Azure競合は未実装・未検証。 |
-| U5 | [公式調査](docs/project.md#f3-u5-naming)でも正式な長さ・文字規則は未確定。暫定UI規則の合意を維持。同一Foundry内の大小文字を無視した重複拒否と別Foundryの同名許可を追加モックで実装・検証済み。 | 重複拒否・競合時停止の案は動作合意待ち。正式命名規則は公式契約または承認後の境界検証で確定する。Go照会・条件付き作成と実競合は未実装・未検証。RGの1文字許容は再審議しない。 |
+| U2 | Windows IMEの実際のOFF切替と高コントラスト表示が未検証。入力モード属性とheadless画面は確認済み。 | ネイティブを操作・観測できる環境で確認する。IMEのOFFを確認済みと報告しない。 |
+| U3 | F1の実Deployment API複数ページと、別RBAC構成での挙動が未検証。[Issue #1](https://github.com/nuitsjp/azfoundry-deck/issues/1)の残件。 | Issueの再開条件に従う。認証できないサブスクリプションは合意済みの異常系で、再ログイン成功を要求しない。 |
+| U4 | 作成処理の異常系が未検証。(1) 送信直後・応答保存前にプロセスが終了した場合の操作記録、(2) 再起動後に未解決記録を読んで再開する経路、(3) 非同期処理の監視URLが失効した場合、(4) 外部操作が同名デプロイを先に作った場合の競合。 | 正常系と停止条件は実Azureで検証済み。上記は再現手段が要る。実装は `internal/azurego/create.go` と `internal/azurego/operations.go`。 |
+| U5 | デプロイ名の正式な長さ・文字規則が未確定。公式命名表にもOpenAPIにも定義がない。 | 現行の暫定UI規則（2〜64文字の半角英数字・アンダースコア・ハイフン・ピリオド）を維持する。リソースグループ名の1文字許容は再審議しない。 |
 
-## 4. 再開手順と実装の所在
+未決の利用者判断は、上記U4の検証をどこまで行うか、および第2節2の旧F2画面の扱いです。
 
-今回の継続結果（基準 `722c0e5`）：[U4・U5追加モック](docs/project.md#f3-u4-review)を9251番で提示し、型検査・別名Windows serverビルド・追加画面headless 24項目・単体検証が合格しました。旧U1の9250番と既存証跡は保持しています。[SKUと文言の修正依頼](docs/project.md#f3-copy-review)は対応・自動検証済みですが、U1全体の動作合意は未取得です。操作記録保存・再起動後の再開、候補不一致後の同一操作での再選択、実Azure作成・競合・費用検証は未実装または未検証です。F1の残件は再調査していません。
+## 4. 確定済みで再審議しない事項
 
-- 9251番の実体は `bin/azfoundry-deck-u4-browser.exe`。ビルドと一時headlessブラウザーの手順・失敗出力・結果は[今回の正本](docs/project.md#f3-u4-review)を参照。旧9250番を止めて通常ビルドへ置き換えない。
-- 次の利用者判断は、U1全体への回答、追加モックの動作・新規設定案への合意または修正点です。費用・具体的な実検証先・保持期間・削除条件の合意がないため、Azureの作成・削除を開始しません。
+新しいセッションで蒸し返さないための一覧です。根拠は [プロジェクト定義](docs/project.md) にあります。
 
-Issue #1の再試行（2026-09-14〜15）：`80bd511`のWindowsビルド・既存テスト・実Azure読取は合格。項目3のネイティブ実接続と項目5の全11件のPortal TPM/RPM照合が完了し、項目4の現状性能と全対象表示継続も利用者が了承しました。残件は項目1の実継続ページと項目2の別RBAC構成です。2026-09-15、利用者は両項目をIssueに残して先へ進むことを了承しました。次はU1のモデル追加モック確認から再開します。詳細と再開条件は[検証記録](docs/project.md#f1-issue1-retry)を参照してください。Issue最新コメントが参照するF3作成実装・引継ぎファイルは、ローカルとリモートmainには存在しません。以後のF3は現在の作業ツリーを基準に進め、過去コメントの実装・実作成承認や別作業ツリーの復元を前提にしません。
+- **モック操作の合意**: 2026-09-15、利用者がモデル追加の画面操作全体に合意済み（[記録](docs/project.md#f3-u1-review)）。再確認を前提にしない。
+- **外部競合の方針**: 条件付き作成ヘッダーは公開OpenAPIにも固定SDKにも存在しない。送信直前の再照会と競合時停止だけを根拠とし、再照会から送信までの間に外部が同名を作った場合は上書き更新になる限界を受け入れる（[根拠](docs/project.md#f3-external-contract)）。409等で自動改名や更新へ切り替えない。
+- **新規Foundryの作成値**: `kind=AIServices`、SKU `S0`、`publicNetworkAccess=Enabled`、ネットワーク既定Allow、`disableLocalAuth=true`、`identity=SystemAssigned`、`customSubDomainName` はFoundry名、プロジェクト・ストレージ・Key Vault・検索・ロール割当は作成しない、デプロイは `versionUpgradeOption=NoAutoUpgrade`（[契約](docs/project.md#f3-create-contract)）。実作成結果がこの値と一致することを確認済み。
+- **容量条件の規則**: `allowedValues` があればその集合、なければ `maximum` があれば入力可能。下限は `minimum`、提示がなければアプリの制限として1。刻みは提示されたときだけ適用する。実測では全SKUに `maximum` があり、`minimum`/`step` は予約容量SKUのみ、`allowedValues` は皆無だった（[経緯](docs/project.md#f3-create-implementation)）。欠損を0や10で補完しない。
+- **廃止予定モデル**: `Deprecating` と `Deprecated` は追加の候補から除外する。作成を要求してもリソースプロバイダーが `ServiceModelDeprecating` で拒否する。F2の参照表示は除外しない。
+- **書込の自動再試行**: `policy.RetryOptions.MaxRetries` に負値を設定して無効化する。`0` は既定の3回になるため使わない。
+- **操作記録**: 送信前に記録し、同期・置換を確認してから一度だけ送る。記録に失敗したら送信しない。トークン・キー・応答本文は保存しない。SDKの `ResumeToken` は形式が不透明なため永続化しない。
 
-- 標準起動：`mise run mock:browser` → `http://127.0.0.1:9245`。引き継ぎ時の最新版提示は別ポート `http://127.0.0.1:9250` で起動中。プロセスはセッション終了後も存在するとは限らない。
-- 9250番で再開する場合：`mise run build:browser` 後、PowerShellで `$env:AZFOUNDRY_MOCK='1'`、`$env:WAILS_SERVER_HOST='127.0.0.1'`、`$env:WAILS_SERVER_PORT='9250'` を設定し、`.\bin\azfoundry-deck-browser.exe` を実行する。
-- Windowsでは起動中の実行ファイルを上書きできない。ビルド前にポートとプロセスの実体を確認し、対象のモックだけを停止する。別プロセスを一括終了しない。今回9250番のサーバーは利用者確認用に残した。
-- モック選択例：`Contoso Production` → `rg-production` → `contoso-first-model`（デプロイ0件）。状態再現は追加フォーム末尾の「モック：モデル取得の再現」。
-- 画面：[AddModel.tsx](frontend/src/AddModel.tsx)、[App.tsx](frontend/src/App.tsx)、[style.css](frontend/src/style.css)。追加用固定候補と遅延境界：[addModelMock.ts](frontend/src/addModelMock.ts)。
-- 既存F2取得：[共通サービス](internal/service/models.go)、[Azure境界](internal/azurego/provider.go)。新しい追加フォームとの接続は未実装。
-- 検証：`mise run test`。追加画面は `pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -AddModel`。一覧は `mise run test:ui`（再ビルドするため提示サーバーの実体を確認して終了する）。
-- 過去にはEdge 153のPlaywright起動が終了コード3221225477で失敗したが、2026-09-15の追加画面と一覧のheadless起動は成功した。原因・解消理由は未特定。自動検証は既存ユーザーセッションを使わずheadlessを既定とする。今回の既存Edge接続は `Could not connect to msedge` / `ECONNREFUSED ::1:9222` で失敗したが、自動検証を止めていない。提示サーバーを残したまま再ビルドせず検証する場合は `pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -AddModel`、一覧は `pwsh -NoProfile -File scripts/Test-F1Browser.ps1 -Port 9249` を使う。
-- 2026-09-15、現行ソースの型検査・Windows serverビルド、追加画面18項目、一覧13項目、`mise run test`が合格。[確認結果](docs/project.md#f3-u1-review)。実Azureは指定サブスクリプションの認証とモデル候補の読取調査のみ実施し、作成・削除していない。
+## 5. 実装の所在
+
+| 対象 | 場所 |
+| --- | --- |
+| 画面 | [AddModel.tsx](frontend/src/AddModel.tsx)、[App.tsx](frontend/src/App.tsx)、[ModelCandidates.tsx](frontend/src/ModelCandidates.tsx)、[style.css](frontend/src/style.css) |
+| Goサービス結果の画面向け変換 | [addModelSource.ts](frontend/src/addModelSource.ts)（候補のグループ化、容量条件、廃止予定の除外、配置先の組み立て） |
+| 共通サービス | [モデル候補](internal/service/models.go)、[配置先とデプロイ名](internal/service/placements.go)、[作成](internal/service/creation.go)、[デプロイ一覧](internal/service/deployments.go) |
+| Azure境界 | [読取](internal/azurego/provider.go)、[作成](internal/azurego/create.go)、[操作記録](internal/azurego/operations.go) |
+| モック固定データ | [追加画面用](internal/mock/addmodel.go)（配置先・候補・取得状態・作成結果）、[F1/F2用](internal/mock/data.go) |
+| 生成バインディング | `frontend/bindings/`（`mise run bindings` で再生成。Goサービスを変更したら必ず実行する） |
+| 操作記録の実体 | `%APPDATA%\AzFoundryDeck\operations\<操作ID>.json`。アプリは自動削除しない。 |
+
+モックの選択例：`Contoso Production` → `rg-production` → `contoso-first-model`（デプロイ0件）。同一Foundryの重複拒否は `contoso-chat-prod` の既存名 `chat-production` で確認できます。取得状態と作成結果は追加フォーム末尾の「モック：〜の再現」で切り替えます。
+
+## 6. 実行と検証の手順
+
+すべてリポジトリのルートで実行します。初回は `mise trust`、`mise install`、`mise run setup` を先に行ってください。
+
+### 単体検査
+
+```powershell
+mise run check
+mise run test
+```
+
+`mise run check` はバインディング生成・`go vet`・TypeScript検査を行います。Git Bashでは `mise run bindings` 内の `node -e` が失敗するため、PowerShellで実行してください。失敗する場合は `mise exec -- wails3 generate bindings -ts -d frontend/bindings` を直接実行します。
+
+### モックの起動
+
+```powershell
+mise run mock:browser
+```
+
+`http://127.0.0.1:9245` で開きます。別ポートで起動する場合は `mise run build:browser` の後に `AZFOUNDRY_MOCK=1`、`WAILS_SERVER_HOST=127.0.0.1`、`WAILS_SERVER_PORT=<ポート>` を設定して `.\bin\azfoundry-deck-browser.exe` を実行します。実Azure接続は `AZFOUNDRY_MOCK=0` です。Windowsは起動中の実行ファイルを上書きできないため、ビルド前に対象ポートのプロセスだけを停止します。他のプロセスを一括終了しないでください。
+
+### 画面のheadless検証
+
+`scripts/Test-F1Browser.ps1` と `scripts/Test-F2Browser.ps1` はPlaywright CLIでEdgeを起動しますが、**この環境ではEdge 152が終了コード `3221225477` で落ちて使えません**。同梱Chromiumを直接起動する [run-suite.mjs](frontend/tests/run-suite.mjs) を使ってください。サーバーを任意のポートで起動してから実行します。
+
+```powershell
+node frontend/tests/run-suite.mjs http://127.0.0.1:9252 frontend/tests/add-model.browser.js docs/verification/add-model-result.json
+```
+
+- 一覧は `frontend/tests/f1.browser.js`、旧F2画面は `frontend/tests/f2.browser.js`。f2のシナリオはポート **9246** を前提にしています。
+- シナリオの状態選択はサーバー側に残ります。一覧の初期24件を前提にするf1の前には**サーバーを再起動**してください。
+- 各シナリオは `docs/verification/` へスクリーンショットを上書き保存します。既存の証跡を残したい場合は実行前に退避するか、実行後に `git checkout -- docs/verification` で戻してください。
+- 既存のEdgeやログイン済みプロファイルには接続しません。
+
+### 実Azureの検証
+
+読取は `mise run test:azure`。追加の配置先読取は次のとおりです。
+
+```powershell
+$env:AZFOUNDRY_LIVE='1'; go test ./internal/azurego -run TestLiveAzurePlacements -count=1 -v
+```
+
+書込を伴う検証は既存デプロイを保護する停止条件の確認だけが自動化されています。対象を明示したうえで実行してください。
+
+```powershell
+$env:AZFOUNDRY_LIVE_WRITE='1'
+$env:AZFOUNDRY_LIVE_SUBSCRIPTION='<サブスクリプションID>'
+$env:AZFOUNDRY_LIVE_GROUP='<リソースグループ>'
+$env:AZFOUNDRY_LIVE_FOUNDRY='<Foundry名>'
+$env:AZFOUNDRY_LIVE_DEPLOYMENT='<既存のデプロイ名>'
+go test ./internal/azurego -run TestLiveAzureCreate -count=1 -v
+```
+
+実Azureへ資源を作成する検証は、費用・対象・保持期間・削除条件について利用者の明示承認を得てから行います。2026-09-15の検証では承認のうえで作成し、すべて削除しました。
+
+### 文書の確認
+
+変更後は `git diff HEAD --check` と、本書および [プロジェクト定義](docs/project.md) の相対リンク・明示アンカーの整合を確認します。`docs/project.md` の[参照資料](docs/project.md#references)にある外部の絶対パスは検査対象外です。
+
+## 7. 環境上の注意
+
+- **Edgeのheadless起動が失敗します。** Edge 152.0.4191.66 で `3221225477`（アクセス違反）が出ます。原因は未特定です。同梱Chromiumは正常に起動するため、第6節の手順で検証できます。Playwright CLIのセッションデーモンは、Chromium設定では応答が返らないため使いません。
+- **Git Bashのヒアドキュメントはバックスラッシュを畳みます。** `\\n` が改行に化けるため、`\` を含むスクリプトをヒアドキュメントで渡さず、ファイルに書いてから実行してください。
+- **`bin/` の実行ファイルは使い捨てです。** Git管理外で、`mise run build` と `mise run build:browser` が生成します。過去のセッションで利用者確認用に保持していた `bin/azfoundry-deck-browser.exe`（9250番）と `bin/azfoundry-deck-u4-browser.exe`（9251番）は、その確認が完了して[記録](docs/project.md#f3-u4-review)に残ったため、もう保持する必要はありません。標準タスクで上書きしてかまいません。

@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    "success-and-display",
+    "search",
+    "empty",
+    "back-preserves-f1",
+    "failure",
+    "retry",
+    "loading",
+    "loading-and-stale",
+    "responsive"
+  ],
+  "pageErrors": [],
+  "httpErrors": [],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.7778.56 Safari/537.36"
+}

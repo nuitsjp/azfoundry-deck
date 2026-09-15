@@ -22,6 +22,7 @@ import (
 type legacySDKClient struct {
 	accounts    *armcognitiveservices.AccountsClient
 	deployments *armcognitiveservices.DeploymentsClient
+	models      *armcognitiveservices.ModelsClient
 }
 
 func newLegacySDKClient(sub subscriptionInfo) (subscriptionClient, error) {
@@ -33,7 +34,24 @@ func newLegacySDKClient(sub subscriptionInfo) (subscriptionClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &legacySDKClient{accounts: factory.NewAccountsClient(), deployments: factory.NewDeploymentsClient()}, nil
+	return &legacySDKClient{accounts: factory.NewAccountsClient(), deployments: factory.NewDeploymentsClient(), models: factory.NewModelsClient()}, nil
+}
+
+func (c *legacySDKClient) listResourceGroups(context.Context) ([]resourceGroupInfo, error) {
+	return nil, nil
+}
+
+func (c *legacySDKClient) listRegionModels(ctx context.Context, location string) ([]*armcognitiveservices.Model, error) {
+	var models []*armcognitiveservices.Model
+	pager := c.models.NewListPager(location, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, page.Value...)
+	}
+	return models, nil
 }
 
 func (c *legacySDKClient) listAccounts(ctx context.Context) ([]*armcognitiveservices.Account, error) {

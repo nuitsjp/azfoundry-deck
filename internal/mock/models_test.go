@@ -22,8 +22,24 @@ func TestModelSuccessFixturePreservesVersionsSKUsAndUnknowns(t *testing.T) {
 	if result.Models[0].Name != "gpt-4o" || result.Models[1].Version != "2024-11-20" || !result.Models[1].IsDefaultVersion {
 		t.Fatalf("gpt-4o versions/default marker = %+v", result.Models[:2])
 	}
-	if len(result.Models[0].SKUs) != 2 || result.Models[0].SKUs[1] != "Standard" {
+	if len(result.Models[0].SKUs) != 2 || result.Models[0].SKUs[1].Name != "Standard" {
 		t.Fatalf("gpt-4o SKUs = %v, want both SKU names", result.Models[0].SKUs)
+	}
+	globalStandard := result.Models[0].SKUs[0]
+	if globalStandard.Capacity == nil || globalStandard.Capacity.Default == nil || *globalStandard.Capacity.Default != 10 {
+		t.Fatalf("GlobalStandard capacity = %+v, want a default of 10", globalStandard.Capacity)
+	}
+	standard := result.Models[0].SKUs[1]
+	if standard.Capacity == nil || standard.Capacity.Default != nil || standard.Capacity.Minimum == nil || *standard.Capacity.Minimum != 1 {
+		t.Fatalf("Standard capacity = %+v, want a range without a default", standard.Capacity)
+	}
+	embedding := result.Models[3]
+	if len(embedding.SKUs) != 1 || len(embedding.SKUs[0].Capacity.AllowedValues) != 3 {
+		t.Fatalf("embedding capacity = %+v, want three allowed values", embedding.SKUs)
+	}
+	preview := result.Models[4]
+	if len(preview.SKUs) != 1 || preview.SKUs[0].Capacity != nil {
+		t.Fatalf("preview SKU capacity = %+v, want a missing capacity contract", preview.SKUs)
 	}
 	unknown := result.Models[len(result.Models)-1]
 	if unknown.Format != "" || unknown.Version != "" || unknown.Lifecycle != "" || unknown.SKUs == nil {

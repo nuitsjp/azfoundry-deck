@@ -248,10 +248,12 @@ async page => {
     await page.screenshot({ path: `docs/verification/f3-copy-result-${resultCase.value}.png` });
     if (resultCase.value === "unknown" || resultCase.value === "interrupted") {
       await button("状態を確認").click();
+      await page.getByText("まだ作成結果を確認できません。時間をおいて、もう一度確認してください。", { exact: true }).waitFor();
       assert(await page.getByText("まだ作成結果を確認できません。時間をおいて、もう一度確認してください。", { exact: true }).count() === 1, `${resultCase.value}: 読取再試行後も未知を維持`);
     } else if (resultCase.value === "list-failure") {
       await button("一覧を再取得").click();
-      assert(await page.getByText("一覧を取得できませんでした。時間をおいて、もう一度お試しください。", { exact: true }).count() === 1, "一覧更新失敗: 一覧の読取だけを再試行");
+      await page.getByText("一覧を更新しました。", { exact: true }).waitFor();
+      assert(await page.getByText("一覧を更新しました。", { exact: true }).count() === 1, "一覧更新失敗: 一覧の読取だけを再試行");
     }
     assert(await button("追加").count() === 0 && await button("再送").count() === 0, `${resultCase.value}: 再追加・再送ボタンなし`);
     await button("閉じる").click();

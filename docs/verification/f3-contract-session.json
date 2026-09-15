@@ -1,0 +1,121 @@
+{
+  "checkedAt": "2026-09-15T13:00:00+09:00",
+  "baseCommit": "a39218c71dc80205c4a36d7e25889627755bf65f",
+  "initialWorkingTree": [
+    "M PLAN.md",
+    "M docs/project.md"
+  ],
+  "preservedBinaries": [
+    {
+      "port": 9250,
+      "executable": "D:\nuitsjp\u0007zfoundry-deck\bin\u0007zfoundry-deck-browser.exe",
+      "sha256": "08BD0AF3B14245EF5ADE592F6C5752D8A70DF4B4F5C2EEA35FBAD93C057935D4",
+      "matchesEarlierRecord": true,
+      "listening": false,
+      "hashUnchangedAtEnd": true
+    },
+    {
+      "port": 9251,
+      "executable": "D:\nuitsjp\u0007zfoundry-deck\bin\u0007zfoundry-deck-u4-browser.exe",
+      "sha256": "25AC3D3B33128A13928983279BFB52BBC35687A41FE2B313F1335A0B8F01344A",
+      "listening": false,
+      "hashUnchangedAtEnd": true
+    }
+  ],
+  "azureWritesPerformed": false,
+  "azureReadsPerformed": false,
+  "azureReadBlocker": {
+    "subscription": "fc7753ed-2e69-4202-bb66-86ff5798b8d5",
+    "tenant": "fe689afa-3572-4db9-8e8a-0f81d5a9d253",
+    "error": "AADSTS700082: The refresh token has expired due to inactivity.",
+    "resolution": "利用者による対象テナントへの az login が必要"
+  },
+  "inspectedContracts": {
+    "openapi": "azure-rest-api-specs 6bbb6daca7175b2cab69b20b2dd01094e3c6a534 / cognitiveservices 2025-09-01",
+    "sdk": [
+      "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices/v3 v3.0.0",
+      "github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1"
+    ]
+  },
+  "findings": {
+    "conditionalCreateDeclared": false,
+    "capacityConfigFields": [
+      "minimum",
+      "maximum",
+      "step",
+      "default",
+      "allowedValues"
+    ],
+    "regionScopedModelsClient": "ModelsClient.NewListPager(location)",
+    "disableWriteRetry": "policy.RetryOptions.MaxRetries を負値にする（0 は既定の3回）",
+    "resumeTokenOpaque": true,
+    "armresourcesDependency": false
+  },
+  "readServiceImplementation": {
+    "verificationBinary": "bin/azfoundry-deck-f3read-browser.exe (port 9252, stopped after the check)",
+    "goVet": "pass",
+    "goTest": "pass",
+    "typecheck": "pass",
+    "frontendUnit": "pass (3)",
+    "bindings": "4 services / 10 methods / 14 models",
+    "viteBuild": "pass",
+    "serverBuild": "pass",
+    "playwrightHeadless": "msedge channel fails with exit 3221225477 (Edge 152.0.4191.66); bundled Chromium headless used instead",
+    "headlessSuites": {
+      "add-model": "24/24",
+      "f1": "13/13",
+      "f2": "9/9",
+      "pageErrors": 0
+    }
+  },
+  "screenWiring": {
+    "addDialogAvailableInAzureMode": true,
+    "createPath": "not implemented; the review screen stops and the add button is disabled outside mock mode",
+    "removedFixture": "frontend/src/addModelMock.ts (moved to internal/mock/addmodel.go)",
+    "bindings": "4 services / 12 methods / 14 models",
+    "headlessSuites": {
+      "add-model": "24/24",
+      "f1": "13/13",
+      "f2": "9/9",
+      "pageErrors": 0
+    },
+    "liveRead": {
+      "test": "TestLiveAzurePlacements (AZFOUNDRY_LIVE=1, read-only)",
+      "subscriptionsRead": 10,
+      "failuresReported": 2,
+      "note": "the designated subscription's tenant is among the two failures (expired refresh token)"
+    },
+    "liveScreenRead": "add dialog listed real subscriptions, resource groups, Foundries and 129 model candidates; no create or delete performed"
+  },
+  "creation": {
+    "implemented": [
+      "resource group",
+      "foundry",
+      "deployment",
+      "operation record",
+      "status check"
+    ],
+    "writeRetry": "policy.RetryOptions.MaxRetries = -1 (zero would mean the default of three attempts)",
+    "operationRecordDir": "%APPDATA%/AzFoundryDeck/operations",
+    "liveRun": {
+      "subscription": "fc7753ed-2e69-4202-bb66-86ff5798b8d5",
+      "resourceGroup": "rg-azfoundry-deck-verify (japaneast, created then deleted)",
+      "foundry": "azfoundry-deck-verify-202609151423 (AIServices/S0, created then deleted and purged)",
+      "rejectedDeployment": "gpt-4o-mini 2024-07-18 -> ServiceModelDeprecating (400)",
+      "createdDeployment": "verify-gpt-5-4-nano / gpt-5.4-nano 2026-03-17 / GlobalStandard / capacity 10 / NoAutoUpgrade / Succeeded",
+      "conflictStop": "pre-send re-query returned conflict and never updated the existing deployment",
+      "cleanup": "az group exists = false; az cognitiveservices account list-deleted = empty"
+    },
+    "contractChanges": {
+      "capacity": "a maximum alone makes capacity enterable; lower bound falls back to 1 when Azure reports none",
+      "lifecycle": "Deprecating and Deprecated models are excluded from the addition candidates"
+    },
+    "capacityCoverageJapanEast": {
+      "skuEntries": 193,
+      "withMaximum": 193,
+      "withMinimumAndStep": 45,
+      "withAllowedValues": 0,
+      "withDefault": 148
+    }
+  }
+}

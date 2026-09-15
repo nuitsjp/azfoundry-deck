@@ -65,7 +65,7 @@ export default function ModelCandidates({ account, result, loading, error, searc
           <td>{displayValue(candidate.version)}</td>
           <td><span className="model-lifecycle">{displayValue(candidate.lifecycle)}</span></td>
           <td>{candidate.isDefaultVersion ? <span className="model-default">既定</span> : <span className="model-unknown">—</span>}</td>
-          <td><div className="model-sku-list">{candidate.skus.length > 0 ? candidate.skus.map((sku, skuIndex) => <span className="sku model-sku" key={`${sku}-${skuIndex}`}>{sku}</span>) : <span className="model-unknown">不明</span>}</div></td>
+          <td><div className="model-sku-list">{candidate.skus.length > 0 ? candidate.skus.map((sku, skuIndex) => <span className="sku model-sku" key={`${sku.name}-${skuIndex}`}>{sku.name}</span>) : <span className="model-unknown">不明</span>}</div></td>
         </tr>)}</tbody>
       </table></div> : <div className="empty-state model-empty-state"><span className="empty-icon" aria-hidden="true">{loading ? "…" : errorCount > 0 ? "!" : "≡"}</span><h3>{loading ? "モデル候補を取得しています" : errorCount > 0 ? "モデル候補を表示できません" : result && models.length > 0 ? "条件に一致するモデル候補がありません" : "モデル候補はありません"}</h3><p>{loading ? "完了するまでお待ちください。" : errorCount > 0 ? "エラーの原因を確認してから更新してください。" : result && models.length > 0 ? "検索条件を変更してください。" : "対象アカウントで利用可能なモデル候補はありません。"}</p></div>}
     </section>

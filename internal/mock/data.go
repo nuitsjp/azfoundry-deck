@@ -204,6 +204,30 @@ func modelResultForScenario(account mockAccount, scenario string) service.ModelR
 	return result
 }
 
+func regionModelResultForScenario(subscriptionID, region, scenario string) service.ModelResult {
+	if _, ok := validModelScenarios[scenario]; !ok {
+		panic("invalid mock model scenario: " + scenario)
+	}
+	result := service.ModelResult{
+		Models:   make([]service.ModelCandidate, 0),
+		Failures: make([]service.FetchFailure, 0),
+	}
+	switch scenario {
+	case ModelScenarioSuccess, ModelScenarioDelayed, ModelScenarioLoading:
+		result.Models = modelCandidates()
+	case ModelScenarioFailure:
+		result.Failures = []service.FetchFailure{{
+			Scope:            "region",
+			SubscriptionName: subscriptionID,
+			AccountName:      region,
+			Code:             "region-catalog-forbidden",
+			Message:          "現在の権限ではリージョンのモデル候補を読み取れません。",
+			Action:           "サブスクリプションの読み取り権限を確認して再試行してください。",
+		}}
+	}
+	return result
+}
+
 func modelCandidates() []service.ModelCandidate {
 	return []service.ModelCandidate{
 		{
@@ -212,7 +236,7 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "2024-05-13",
 			Lifecycle:        "GenerallyAvailable",
 			IsDefaultVersion: false,
-			SKUs:             []string{"GlobalStandard", "Standard"},
+			SKUs:             []service.ModelSKU{modelSKU("GlobalStandard", 10, 1, 100, 1), modelSKU("Standard", 0, 1, 100, 1)},
 		},
 		{
 			Name:             "gpt-4o",
@@ -220,7 +244,7 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "2024-11-20",
 			Lifecycle:        "Deprecating",
 			IsDefaultVersion: true,
-			SKUs:             []string{"GlobalStandard"},
+			SKUs:             []service.ModelSKU{modelSKU("GlobalStandard", 20, 1, 100, 1)},
 		},
 		{
 			Name:             "gpt-5.4-mini",
@@ -228,7 +252,7 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "2025-04-14",
 			Lifecycle:        "GenerallyAvailable",
 			IsDefaultVersion: true,
-			SKUs:             []string{"GlobalStandard", "DataZoneStandard"},
+			SKUs:             []service.ModelSKU{modelSKU("GlobalStandard", 10, 1, 100, 1), modelSKU("DataZoneStandard", 10, 1, 50, 1)},
 		},
 		{
 			Name:             "text-embedding-3-large",
@@ -236,7 +260,7 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "1",
 			Lifecycle:        "GenerallyAvailable",
 			IsDefaultVersion: true,
-			SKUs:             []string{"Standard"},
+			SKUs:             []service.ModelSKU{allowedValuesSKU("Standard", 1, 1, 5, 10)},
 		},
 		{
 			Name:             "o3-mini",
@@ -244,7 +268,7 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "2025-01-31",
 			Lifecycle:        "Preview",
 			IsDefaultVersion: false,
-			SKUs:             []string{},
+			SKUs:             []service.ModelSKU{{Name: "GlobalStandard"}},
 		},
 		{
 			Name:             "custom-model",
@@ -252,9 +276,30 @@ func modelCandidates() []service.ModelCandidate {
 			Version:          "",
 			Lifecycle:        "",
 			IsDefaultVersion: false,
-			SKUs:             []string{},
+			SKUs:             []service.ModelSKU{},
 		},
 	}
+}
+
+// modelSKU builds one SKU whose capacity is expressed as a range. A zero default
+// means Azure did not report one for that SKU.
+func modelSKU(name string, defaultCapacity, minimum, maximum, step int32) service.ModelSKU {
+	capacity := service.CapacityContract{
+		Minimum:       &minimum,
+		Maximum:       &maximum,
+		Step:          &step,
+		AllowedValues: []int32{},
+	}
+	if defaultCapacity > 0 {
+		capacity.Default = &defaultCapacity
+	}
+	return service.ModelSKU{Name: name, Capacity: &capacity}
+}
+
+// allowedValuesSKU builds one SKU whose capacity is an explicit value set.
+func allowedValuesSKU(name string, defaultCapacity int32, allowed ...int32) service.ModelSKU {
+	capacity := service.CapacityContract{Default: &defaultCapacity, AllowedValues: allowed}
+	return service.ModelSKU{Name: name, Capacity: &capacity}
 }
 
 func partialFailures() []service.FetchFailure {

@@ -63,18 +63,22 @@ var (
 // scenario at the beginning of Fetch, so changing the scenario while a read
 // is in flight cannot change that read's response.
 type Provider struct {
-	mu            sync.Mutex
-	scenario      string
-	modelScenario string
-	wait          sleeper
+	mu             sync.Mutex
+	scenario       string
+	modelScenario  string
+	addScenario    string
+	createScenario string
+	wait           sleeper
 }
 
 // NewProvider creates a provider in the normal successful state.
 func NewProvider() *Provider {
 	return &Provider{
-		scenario:      ScenarioSuccess,
-		modelScenario: ModelScenarioSuccess,
-		wait:          waitContext,
+		scenario:       ScenarioSuccess,
+		modelScenario:  ModelScenarioSuccess,
+		addScenario:    AddScenarioSuccess,
+		createScenario: service.OutcomeSuccess,
+		wait:           waitContext,
 	}
 }
 
@@ -98,6 +102,68 @@ func (p *Provider) SetModelScenario(name string) error {
 	p.modelScenario = name
 	p.mu.Unlock()
 	return nil
+}
+
+// SetAddModelScenario selects the response used by the next model addition read.
+func (p *Provider) SetAddModelScenario(name string) error {
+	if _, ok := validAddScenarios[name]; !ok {
+		return fmt.Errorf("unknown mock add-model scenario %q", name)
+	}
+	p.mu.Lock()
+	p.addScenario = name
+	p.mu.Unlock()
+	return nil
+}
+
+// SetCreateScenario selects the creation result reproduced by the next add.
+func (p *Provider) SetCreateScenario(name string) error {
+	if _, ok := validCreateScenarios[name]; !ok {
+		return fmt.Errorf("unknown mock create scenario %q", name)
+	}
+	p.mu.Lock()
+	p.createScenario = name
+	p.mu.Unlock()
+	return nil
+}
+
+// CreateModelDeployment reproduces one creation result. It never contacts Azure
+// and never stores an operation record.
+func (p *Provider) CreateModelDeployment(ctx context.Context, request service.CreateRequest) (service.CreateResult, error) {
+	p.mu.Lock()
+	scenario := p.createScenario
+	wait := p.wait
+	p.mu.Unlock()
+
+	if err := wait(ctx, 600*time.Millisecond); err != nil {
+		return service.CreateResult{}, err
+	}
+	result := service.CreateResult{
+		Outcome:      scenario,
+		OperationID:  "mock-operation",
+		FoundryID:    request.FoundryName,
+		DeploymentID: request.DeploymentName,
+	}
+	// A stage that succeeded before the failure stays created.
+	result.CreatedGroup = request.GroupIsNew
+	result.CreatedFoundry = request.FoundryIsNew && scenario != service.OutcomeGroupFailure
+	return result, nil
+}
+
+// CheckCreateOperation reproduces a read-only status check.
+func (p *Provider) CheckCreateOperation(ctx context.Context, operationID string) (service.CreateResult, error) {
+	p.mu.Lock()
+	scenario := p.createScenario
+	wait := p.wait
+	p.mu.Unlock()
+	if err := wait(ctx, 400*time.Millisecond); err != nil {
+		return service.CreateResult{}, err
+	}
+	return service.CreateResult{Outcome: scenario, OperationID: operationID}, nil
+}
+
+// PendingCreateOperations has nothing to resume: the mock stores no record.
+func (p *Provider) PendingCreateOperations(context.Context) ([]service.PendingOperation, error) {
+	return []service.PendingOperation{}, nil
 }
 
 // Fetch returns one deterministic F1 read result and reports each response
@@ -218,6 +284,9 @@ func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.M
 	if err := ctx.Err(); err != nil {
 		return emptyModelResult(), err
 	}
+	if foundry, isAddTarget := addFoundryByID(accountID); isAddTarget {
+		return p.fetchAddModelCandidates(ctx, foundry.name)
+	}
 	account, ok := accountByResourceID(accountID)
 	if !ok {
 		return service.ModelResult{
@@ -248,6 +317,109 @@ func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.M
 	}
 
 	result := modelResultForScenario(account, scenario)
+	result.FetchedAt = nowUTC()
+	return result, nil
+}
+
+// FetchRegionModels returns deterministic candidates for a region, which is the
+// read a Foundry that does not exist yet needs. The same scenario control as
+// FetchModels selects the response.
+func (p *Provider) FetchRegionModels(ctx context.Context, subscriptionID, region string) (service.ModelResult, error) {
+	p.mu.Lock()
+	scenario := p.modelScenario
+	wait := p.wait
+	p.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return emptyModelResult(), err
+	}
+	if subscriptionID == "" || region == "" {
+		return service.ModelResult{
+			Models: make([]service.ModelCandidate, 0),
+			Failures: []service.FetchFailure{{
+				Scope:   "region",
+				Code:    "invalid-region-target",
+				Message: "モデル候補を取得するサブスクリプションとリージョンが指定されていません。",
+				Action:  "配置先を選び直してください。",
+			}},
+			FetchedAt: nowUTC(),
+		}, nil
+	}
+
+	_ = scenario
+	_ = wait
+	return p.fetchAddModelCandidates(ctx, region)
+}
+
+// fetchAddModelCandidates serves the model addition screen. Its scenario control
+// is separate from F2 because the screen reproduces different states.
+func (p *Provider) fetchAddModelCandidates(ctx context.Context, target string) (service.ModelResult, error) {
+	p.mu.Lock()
+	scenario := p.addScenario
+	wait := p.wait
+	p.mu.Unlock()
+
+	delay := 800 * time.Millisecond
+	if scenario == AddScenarioSlow {
+		delay = 8 * time.Second
+	}
+	if err := wait(ctx, delay); err != nil {
+		return emptyModelResult(), err
+	}
+	if err := ctx.Err(); err != nil {
+		return emptyModelResult(), err
+	}
+	result := addModelResultForScenario(target, scenario)
+	result.FetchedAt = nowUTC()
+	return result, nil
+}
+
+// FetchPlacements returns the deterministic subscriptions, resource groups and
+// Foundries a model can be added to.
+func (p *Provider) FetchPlacements(ctx context.Context) (service.PlacementResult, error) {
+	p.mu.Lock()
+	wait := p.wait
+	p.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return service.PlacementResult{}, err
+	}
+	if err := wait(ctx, 250*time.Millisecond); err != nil {
+		return service.PlacementResult{}, err
+	}
+	result := placementResult()
+	result.FetchedAt = nowUTC()
+	return result, nil
+}
+
+// FetchDeploymentNames returns the deployment names of one mock Foundry. An
+// unknown Foundry is reported as a failure so the screen does not treat the
+// missing answer as a free name.
+func (p *Provider) FetchDeploymentNames(ctx context.Context, accountID string) (service.DeploymentNameResult, error) {
+	p.mu.Lock()
+	wait := p.wait
+	p.mu.Unlock()
+
+	result := service.DeploymentNameResult{Names: make([]string, 0), Failures: make([]service.FetchFailure, 0)}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if err := wait(ctx, 250*time.Millisecond); err != nil {
+		return result, err
+	}
+	names, known := deploymentNamesForAccount(accountID)
+	if !known {
+		result.Failures = []service.FetchFailure{{
+			Scope:       "account",
+			AccountName: accountID,
+			Code:        "account-not-found",
+			Message:     "選択したFoundryが見つかりません。",
+			Action:      "配置先を選び直してください。",
+		}}
+		result.FetchedAt = nowUTC()
+		return result, nil
+	}
+	result.Names = names
 	result.FetchedAt = nowUTC()
 	return result, nil
 }

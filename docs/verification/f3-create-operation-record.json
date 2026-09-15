@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "id": "20260915T052443Z-verify-gpt-4o-mini",
+  "startedAt": "2026-09-15T05:24:43Z",
+  "updatedAt": "2026-09-15T05:25:24Z",
+  "subscriptionId": "fc7753ed-2e69-4202-bb66-86ff5798b8d5",
+  "request": {
+    "subscriptionId": "fc7753ed-2e69-4202-bb66-86ff5798b8d5",
+    "resourceGroup": "rg-azfoundry-deck-verify",
+    "groupIsNew": true,
+    "groupRegion": "japaneast",
+    "foundryName": "azfoundry-deck-verify-202609151423",
+    "foundryIsNew": true,
+    "foundryRegion": "japaneast",
+    "format": "OpenAI",
+    "model": "gpt-4o-mini",
+    "version": "2024-07-18",
+    "sku": "GlobalStandard",
+    "capacity": 10,
+    "deploymentName": "verify-gpt-4o-mini"
+  },
+  "groupId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify",
+  "foundryId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify/providers/Microsoft.CognitiveServices/accounts/azfoundry-deck-verify-202609151423",
+  "deploymentId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify/providers/Microsoft.CognitiveServices/accounts/azfoundry-deck-verify-202609151423/deployments/verify-gpt-4o-mini",
+  "stages": [
+    {
+      "name": "resource-group",
+      "state": "succeeded",
+      "targetId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify",
+      "observedAt": "2026-09-15T05:24:46Z"
+    },
+    {
+      "name": "foundry",
+      "state": "succeeded",
+      "targetId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify/providers/Microsoft.CognitiveServices/accounts/azfoundry-deck-verify-202609151423",
+      "observedAt": "2026-09-15T05:25:23Z"
+    },
+    {
+      "name": "deployment",
+      "state": "failed",
+      "targetId": "/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify/providers/Microsoft.CognitiveServices/accounts/azfoundry-deck-verify-202609151423/deployments/verify-gpt-4o-mini",
+      "requestId": "eec9a51f-6b48-48d5-9ce6-6c22c5fce903",
+      "detail": "デプロイを作成できませんでした: PUT https://management.azure.com/subscriptions/fc7753ed-2e69-4202-bb66-86ff5798b8d5/resourceGroups/rg-azfoundry-deck-verify/providers/Microsoft.CognitiveServices/accounts/azfoundry-deck-verify-202609151423/deployments/verify-gpt-4o-mini\n--------------------------------------------------------------------------------\nRESPONSE 400: 400 Bad Request\nERROR CODE: ServiceModelDeprecating\n--------------------------------------------------------------------------------\n{\n  \"error\": {\n    \"code\": \"ServiceModelDeprecating\",\n    \"message\": \"The model 'Format:OpenAI,Name:gpt-4o-mini,Version:2024-07-18' is in deprecating state and cannot be used for new deployments.\"\n  }\n}\n--------------------------------------------------------------------------------\n"
+    }
+  ],
+  "outcome": "deployment-failure"
+}

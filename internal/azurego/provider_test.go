@@ -20,6 +20,17 @@ type fakeSubscriptionClient struct {
 	deploymentErrors map[string]error
 	models           map[string][]*armcognitiveservices.AccountModel
 	modelErrors      map[string]error
+	regionModels     map[string][]*armcognitiveservices.Model
+	regionModelErrs  map[string]error
+	groups           []resourceGroupInfo
+	groupsErr        error
+}
+
+func (c *fakeSubscriptionClient) listResourceGroups(ctx context.Context) ([]resourceGroupInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return c.groups, c.groupsErr
 }
 
 func (c *fakeSubscriptionClient) listAccounts(ctx context.Context) ([]*armcognitiveservices.Account, error) {
@@ -37,6 +48,16 @@ func (c *fakeSubscriptionClient) listDeployments(ctx context.Context, _, account
 		return nil, err
 	}
 	return c.deployments[accountName], nil
+}
+
+func (c *fakeSubscriptionClient) listRegionModels(ctx context.Context, location string) ([]*armcognitiveservices.Model, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := c.regionModelErrs[location]; err != nil {
+		return nil, err
+	}
+	return c.regionModels[location], nil
 }
 
 func (c *fakeSubscriptionClient) listModels(ctx context.Context, _, accountName string) ([]*armcognitiveservices.AccountModel, error) {
@@ -193,7 +214,7 @@ func TestFetchModelsTargetsSelectedAccountAndPreservesOptionalFields(t *testing.
 	client := &fakeSubscriptionClient{
 		models: map[string][]*armcognitiveservices.AccountModel{
 			"account-a": {
-				{Name: stringPointer("gpt-4o"), Format: stringPointer("OpenAI"), Version: stringPointer("2024-11-20"), LifecycleStatus: &lifecycle, IsDefaultVersion: &defaultVersion, SKUs: []*armcognitiveservices.ModelSKU{{Name: stringPointer("GlobalStandard")}, {Name: stringPointer("Standard")}}},
+				{Name: stringPointer("gpt-4o"), Format: stringPointer("OpenAI"), Version: stringPointer("2024-11-20"), LifecycleStatus: &lifecycle, IsDefaultVersion: &defaultVersion, SKUs: []*armcognitiveservices.ModelSKU{{Name: stringPointer("GlobalStandard"), Capacity: &armcognitiveservices.CapacityConfig{Default: int32Pointer(10), Minimum: int32Pointer(1), Maximum: int32Pointer(100), Step: int32Pointer(1), AllowedValues: []*int32{int32Pointer(1), nil, int32Pointer(10)}}}, {Name: stringPointer("Standard")}}},
 				{Name: stringPointer("unknown-model")},
 				nil,
 			},
@@ -212,11 +233,128 @@ func TestFetchModelsTargetsSelectedAccountAndPreservesOptionalFields(t *testing.
 	if result.Models[0].Name != "gpt-4o" || result.Models[0].Format != "OpenAI" || result.Models[0].Version != "2024-11-20" || result.Models[0].Lifecycle != "GenerallyAvailable" || !result.Models[0].IsDefaultVersion {
 		t.Fatalf("mapped model = %+v", result.Models[0])
 	}
-	if len(result.Models[0].SKUs) != 2 || result.Models[0].SKUs[1] != "Standard" {
+	if len(result.Models[0].SKUs) != 2 || result.Models[0].SKUs[1].Name != "Standard" {
 		t.Fatalf("mapped SKUs = %v", result.Models[0].SKUs)
+	}
+	capacity := result.Models[0].SKUs[0].Capacity
+	if capacity == nil || *capacity.Default != 10 || *capacity.Minimum != 1 || *capacity.Maximum != 100 || *capacity.Step != 1 {
+		t.Fatalf("mapped capacity = %+v, want every reported constraint", capacity)
+	}
+	if len(capacity.AllowedValues) != 2 || capacity.AllowedValues[1] != 10 {
+		t.Fatalf("mapped allowed values = %v, want the two reported values", capacity.AllowedValues)
+	}
+	if result.Models[0].SKUs[1].Capacity != nil {
+		t.Fatalf("Standard capacity = %+v, want no contract when Azure omits it", result.Models[0].SKUs[1].Capacity)
 	}
 	if result.Models[1].Format != "" || result.Models[1].Version != "" || result.Models[1].Lifecycle != "" || result.Models[1].SKUs == nil {
 		t.Fatalf("mapped unknown fields = %+v", result.Models[1])
+	}
+}
+
+func TestFetchPlacementsKeepsGroupsWithoutFoundriesAndReportsSubscriptionFailures(t *testing.T) {
+	kind := "AIServices"
+	other := "SpeechServices"
+	location := "japaneast"
+	accountID := "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.CognitiveServices/accounts/account-a"
+	otherID := "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.CognitiveServices/accounts/speech-a"
+	good := &fakeSubscriptionClient{
+		groups: []resourceGroupInfo{{name: "rg-a", location: "japaneast"}, {name: "rg-empty", location: "eastus"}},
+		accounts: []*armcognitiveservices.Account{
+			{ID: &accountID, Kind: &kind, Location: &location},
+			{ID: &otherID, Kind: &other, Location: &location},
+			nil,
+		},
+	}
+	bad := &fakeSubscriptionClient{groupsErr: errors.New("resource groups unavailable")}
+	p := testProvider(t, []cliSubscription{
+		{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"},
+		{ID: "sub-b", Name: "Subscription B", TenantID: "tenant-b", TenantDisplayName: "Tenant B", CloudName: azureCloudName, State: "Enabled"},
+	}, map[string]subscriptionClient{"sub-a": good, "sub-b": bad})
+
+	result, err := p.FetchPlacements(context.Background())
+	if err != nil {
+		t.Fatalf("FetchPlacements returned error: %v", err)
+	}
+	if len(result.Subscriptions) != 1 || len(result.Failures) != 1 || result.FetchedAt == "" {
+		t.Fatalf("placement result = %+v, want one subscription and one reported failure", result)
+	}
+	placement := result.Subscriptions[0]
+	if placement.ID != "sub-a" || len(placement.Groups) != 2 || placement.Groups[1].Name != "rg-empty" {
+		t.Fatalf("groups = %+v, want the group without a Foundry kept", placement)
+	}
+	if len(placement.Foundries) != 1 || placement.Foundries[0].Name != "account-a" || placement.Foundries[0].ResourceGroup != "rg-a" {
+		t.Fatalf("foundries = %+v, want only the Foundry-kind account", placement.Foundries)
+	}
+}
+
+func TestFetchDeploymentNamesReportsFailureInsteadOfAFreeName(t *testing.T) {
+	client := &fakeSubscriptionClient{
+		deployments: map[string][]*armcognitiveservices.Deployment{
+			"account-a": {{Name: stringPointer("chat-production")}, nil, {Name: stringPointer("")}},
+		},
+		deploymentErrors: map[string]error{"account-b": errors.New("deployments unavailable")},
+	}
+	p := testProvider(t, []cliSubscription{{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"}}, map[string]subscriptionClient{"sub-a": client})
+
+	result, err := p.FetchDeploymentNames(context.Background(), "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.CognitiveServices/accounts/account-a")
+	if err != nil {
+		t.Fatalf("FetchDeploymentNames returned error: %v", err)
+	}
+	if len(result.Names) != 1 || result.Names[0] != "chat-production" || len(result.Failures) != 0 {
+		t.Fatalf("names = %+v, want only the named deployment", result)
+	}
+
+	failed, err := p.FetchDeploymentNames(context.Background(), "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.CognitiveServices/accounts/account-b")
+	if err != nil {
+		t.Fatalf("FetchDeploymentNames returned error: %v", err)
+	}
+	if len(failed.Names) != 0 || len(failed.Failures) != 1 {
+		t.Fatalf("failed read = %+v, want no names and one failure", failed)
+	}
+
+	invalid, err := p.FetchDeploymentNames(context.Background(), "/subscriptions/sub-a/not-an-account")
+	if err != nil || len(invalid.Failures) != 1 || invalid.Failures[0].Code != "invalid-account-id" {
+		t.Fatalf("invalid target result = %+v, err = %v", invalid, err)
+	}
+}
+
+func TestFetchRegionModelsKeepsFoundryKindsAndRejectsMissingTarget(t *testing.T) {
+	lifecycle := armcognitiveservices.ModelLifecycleStatusGenerallyAvailable
+	aiServices := "AIServices"
+	speech := "SpeechServices"
+	accountSKU := "S0"
+	client := &fakeSubscriptionClient{
+		regionModels: map[string][]*armcognitiveservices.Model{
+			"japaneast": {
+				{Kind: &aiServices, SKUName: &accountSKU, Model: &armcognitiveservices.AccountModel{
+					Name: stringPointer("gpt-4o"), Format: stringPointer("OpenAI"), Version: stringPointer("2024-11-20"),
+					LifecycleStatus: &lifecycle,
+					SKUs: []*armcognitiveservices.ModelSKU{{Name: stringPointer("GlobalStandard"),
+						Capacity: &armcognitiveservices.CapacityConfig{Default: int32Pointer(10), Minimum: int32Pointer(1), Maximum: int32Pointer(100), Step: int32Pointer(1)}}},
+				}},
+				{Kind: &speech, Model: &armcognitiveservices.AccountModel{Name: stringPointer("speech-model")}},
+				{Kind: &aiServices},
+				nil,
+			},
+		},
+	}
+	p := testProvider(t, []cliSubscription{{ID: "sub-a", Name: "Subscription A", TenantID: "tenant-a", TenantDisplayName: "Tenant A", CloudName: azureCloudName, State: "Enabled"}}, map[string]subscriptionClient{"sub-a": client})
+
+	result, err := p.FetchRegionModels(context.Background(), "sub-a", "japaneast")
+	if err != nil {
+		t.Fatalf("FetchRegionModels returned error: %v", err)
+	}
+	if len(result.Models) != 1 || len(result.Failures) != 0 || result.FetchedAt == "" {
+		t.Fatalf("region result = %+v, want only the Foundry-kind candidate", result)
+	}
+	candidate := result.Models[0]
+	if candidate.Name != "gpt-4o" || len(candidate.SKUs) != 1 || candidate.SKUs[0].Capacity == nil || *candidate.SKUs[0].Capacity.Default != 10 {
+		t.Fatalf("mapped region candidate = %+v", candidate)
+	}
+
+	missing, err := p.FetchRegionModels(context.Background(), "sub-a", "")
+	if err != nil || len(missing.Failures) != 1 || missing.Failures[0].Code != "invalid-region-target" {
+		t.Fatalf("missing region result = %+v, err = %v", missing, err)
 	}
 }
 
@@ -462,3 +600,5 @@ func TestDescribeErrorClassifiesAzureCLITokenFailure(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func int32Pointer(value int32) *int32 { return &value }

@@ -137,6 +137,11 @@ func TestModelServiceNormalizesCandidatesAndPassesAccountID(t *testing.T) {
 			t.Fatalf("account ID = %q, want account-id", accountID)
 		}
 		return ModelResult{Models: []ModelCandidate{{Name: "model"}}}, nil
+	}, func(_ context.Context, subscriptionID, region string) (ModelResult, error) {
+		if subscriptionID != "subscription-id" || region != "japaneast" {
+			t.Fatalf("region target = %q / %q, want subscription-id / japaneast", subscriptionID, region)
+		}
+		return ModelResult{Models: []ModelCandidate{{Name: "region-model"}}}, nil
 	}, true)
 
 	result, err := serviceUnderTest.GetModels(context.Background(), "account-id")
@@ -146,11 +151,21 @@ func TestModelServiceNormalizesCandidatesAndPassesAccountID(t *testing.T) {
 	if result.Models == nil || result.Failures == nil || result.Models[0].SKUs == nil {
 		t.Fatal("model result arrays must be empty arrays, not nil")
 	}
+
+	regionResult, err := serviceUnderTest.GetRegionModels(context.Background(), "subscription-id", "japaneast")
+	if err != nil {
+		t.Fatalf("GetRegionModels returned error: %v", err)
+	}
+	if regionResult.Models[0].Name != "region-model" || regionResult.Models[0].SKUs == nil || regionResult.Failures == nil {
+		t.Fatalf("region result = %+v, want the region candidates with empty arrays", regionResult)
+	}
 }
 
 func TestModelServicePassesErrorThrough(t *testing.T) {
 	wantErr := errors.New("model fetch failed")
 	serviceUnderTest := NewModelService(func(context.Context, string) (ModelResult, error) {
+		return ModelResult{}, wantErr
+	}, func(context.Context, string, string) (ModelResult, error) {
 		return ModelResult{}, wantErr
 	}, false)
 
