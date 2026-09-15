@@ -18,12 +18,6 @@ const (
 	ScenarioAllAccountsFailed = "all-accounts-failed"
 	ScenarioLoading           = "loading"
 	ScenarioDelayed           = "delayed"
-
-	ModelScenarioSuccess = "success"
-	ModelScenarioEmpty   = "empty"
-	ModelScenarioFailure = "failure"
-	ModelScenarioLoading = "loading"
-	ModelScenarioDelayed = "delayed"
 )
 
 var validScenarios = map[string]struct{}{
@@ -35,14 +29,6 @@ var validScenarios = map[string]struct{}{
 	ScenarioAllAccountsFailed: {},
 	ScenarioLoading:           {},
 	ScenarioDelayed:           {},
-}
-
-var validModelScenarios = map[string]struct{}{
-	ModelScenarioSuccess: {},
-	ModelScenarioEmpty:   {},
-	ModelScenarioFailure: {},
-	ModelScenarioLoading: {},
-	ModelScenarioDelayed: {},
 }
 
 type sleeper func(context.Context, time.Duration) error
@@ -59,13 +45,12 @@ var (
 	accountOrder   = [...]int{6, 0, 8, 2, 9, 4, 1, 7, 3, 5}
 )
 
-// Provider is the Azure boundary for the F1/F2 mock. It snapshots the selected
+// Provider is the Azure boundary for the mock. It snapshots the selected
 // scenario at the beginning of Fetch, so changing the scenario while a read
 // is in flight cannot change that read's response.
 type Provider struct {
 	mu             sync.Mutex
 	scenario       string
-	modelScenario  string
 	addScenario    string
 	createScenario string
 	wait           sleeper
@@ -75,7 +60,6 @@ type Provider struct {
 func NewProvider() *Provider {
 	return &Provider{
 		scenario:       ScenarioSuccess,
-		modelScenario:  ModelScenarioSuccess,
 		addScenario:    AddScenarioSuccess,
 		createScenario: service.OutcomeSuccess,
 		wait:           waitContext,
@@ -89,17 +73,6 @@ func (p *Provider) SetScenario(name string) error {
 	}
 	p.mu.Lock()
 	p.scenario = name
-	p.mu.Unlock()
-	return nil
-}
-
-// SetModelScenario selects the response used by the next FetchModels call.
-func (p *Provider) SetModelScenario(name string) error {
-	if _, ok := validModelScenarios[name]; !ok {
-		return fmt.Errorf("unknown mock model scenario %q", name)
-	}
-	p.mu.Lock()
-	p.modelScenario = name
 	p.mu.Unlock()
 	return nil
 }
@@ -161,9 +134,24 @@ func (p *Provider) CheckCreateOperation(ctx context.Context, operationID string)
 	return service.CreateResult{Outcome: scenario, OperationID: operationID}, nil
 }
 
-// PendingCreateOperations has nothing to resume: the mock stores no record.
+// PendingCreateOperations reproduces what an earlier run left unresolved. The
+// mock stores no record, so it reports one only while the unknown result is
+// selected: that is the state a process death leaves behind.
 func (p *Provider) PendingCreateOperations(context.Context) ([]service.PendingOperation, error) {
-	return []service.PendingOperation{}, nil
+	p.mu.Lock()
+	scenario := p.createScenario
+	p.mu.Unlock()
+	if scenario != service.OutcomeUnknown {
+		return []service.PendingOperation{}, nil
+	}
+	return []service.PendingOperation{{
+		ID:             "mock-operation",
+		StartedAt:      "2026-09-15T02:14:00Z",
+		SubscriptionID: "00000000-0000-0000-0000-000000000001",
+		DeploymentID:   "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/rg-production/providers/Microsoft.CognitiveServices/accounts/contoso-chat-prod/deployments/chat-production-2",
+		Stage:          "deployment",
+		State:          "sent",
+	}}, nil
 }
 
 // Fetch returns one deterministic F1 read result and reports each response
@@ -272,64 +260,33 @@ func (p *Provider) Fetch(ctx context.Context, report func(service.DeploymentProg
 	return result, nil
 }
 
-// FetchModels returns deterministic F2 candidates for an account selected in
-// the F1 result. The scenario is captured before the wait so a response cannot
-// change when the control is changed during an in-flight read.
+// FetchModels returns deterministic candidates for an existing Foundry. An
+// unknown Foundry is reported as a failure so the screen does not read the
+// missing answer as an empty candidate list.
 func (p *Provider) FetchModels(ctx context.Context, accountID string) (service.ModelResult, error) {
-	p.mu.Lock()
-	scenario := p.modelScenario
-	wait := p.wait
-	p.mu.Unlock()
-
 	if err := ctx.Err(); err != nil {
 		return emptyModelResult(), err
 	}
-	if foundry, isAddTarget := addFoundryByID(accountID); isAddTarget {
-		return p.fetchAddModelCandidates(ctx, foundry.name)
-	}
-	account, ok := accountByResourceID(accountID)
-	if !ok {
+	foundry, known := addFoundryByID(accountID)
+	if !known {
 		return service.ModelResult{
 			Models: make([]service.ModelCandidate, 0),
 			Failures: []service.FetchFailure{{
 				Scope:       "account",
 				AccountName: accountID,
 				Code:        "account-not-found",
-				Message:     "選択したアカウントが見つかりません。",
-				Action:      "デプロイ一覧に戻って対象アカウントを選び直してください。",
+				Message:     "選択したFoundryが見つかりません。",
+				Action:      "配置先を選び直してください。",
 			}},
 			FetchedAt: nowUTC(),
 		}, nil
 	}
-
-	delay := 250 * time.Millisecond
-	switch scenario {
-	case ModelScenarioLoading:
-		delay = 30 * time.Second
-	case ModelScenarioDelayed:
-		delay = 2 * time.Second
-	}
-	if err := wait(ctx, delay); err != nil {
-		return emptyModelResult(), err
-	}
-	if err := ctx.Err(); err != nil {
-		return emptyModelResult(), err
-	}
-
-	result := modelResultForScenario(account, scenario)
-	result.FetchedAt = nowUTC()
-	return result, nil
+	return p.fetchAddModelCandidates(ctx, foundry.name)
 }
 
 // FetchRegionModels returns deterministic candidates for a region, which is the
-// read a Foundry that does not exist yet needs. The same scenario control as
-// FetchModels selects the response.
+// read a Foundry that does not exist yet needs.
 func (p *Provider) FetchRegionModels(ctx context.Context, subscriptionID, region string) (service.ModelResult, error) {
-	p.mu.Lock()
-	scenario := p.modelScenario
-	wait := p.wait
-	p.mu.Unlock()
-
 	if err := ctx.Err(); err != nil {
 		return emptyModelResult(), err
 	}
@@ -346,13 +303,10 @@ func (p *Provider) FetchRegionModels(ctx context.Context, subscriptionID, region
 		}, nil
 	}
 
-	_ = scenario
-	_ = wait
 	return p.fetchAddModelCandidates(ctx, region)
 }
 
-// fetchAddModelCandidates serves the model addition screen. Its scenario control
-// is separate from F2 because the screen reproduces different states.
+// fetchAddModelCandidates serves the model addition screen.
 func (p *Provider) fetchAddModelCandidates(ctx context.Context, target string) (service.ModelResult, error) {
 	p.mu.Lock()
 	scenario := p.addScenario

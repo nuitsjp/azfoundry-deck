@@ -30,6 +30,16 @@ export type CreateRequest = {
   deploymentName: string;
 };
 
+// PendingOperation is one addition an earlier run left unresolved. It is read
+// after a restart so the user can check what happened instead of adding again.
+export type PendingOperation = {
+  id: string;
+  startedAt: string;
+  deploymentId: string;
+  stage: string;
+  state: string;
+};
+
 export type CreateOutcome = {
   outcome: CreateResultScenario;
   operationId: string;
@@ -44,6 +54,7 @@ type Props = {
   loadDeploymentNames: (foundryId: string) => Promise<string[]>;
   onCreate: (request: CreateRequest) => Promise<CreateOutcome>;
   onCheck: (operationId: string) => Promise<CreateOutcome>;
+  pendingOperations: PendingOperation[];
   onRefreshList: () => Promise<void>;
   onCreateScenarioChange: (scenario: CreateResultScenario) => void;
   mock: boolean;
@@ -138,7 +149,7 @@ function getCapacityHint(contract?: CapacityContract): string {
   return parts.join(" / ");
 }
 
-export default function AddModel({ catalog, loadModels, loadDeploymentNames, onCreate, onCheck, onRefreshList, onCreateScenarioChange, mock, onClose }: Props) {
+export default function AddModel({ catalog, loadModels, loadDeploymentNames, onCreate, onCheck, pendingOperations, onRefreshList, onCreateScenarioChange, mock, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const modelRequest = useRef(0);
@@ -168,6 +179,8 @@ export default function AddModel({ catalog, loadModels, loadDeploymentNames, onC
   const [creating, setCreating] = useState(false);
   const [followup, setFollowup] = useState("");
   const [checking, setChecking] = useState(false);
+  const [pendingChecking, setPendingChecking] = useState("");
+  const [pendingResults, setPendingResults] = useState<Record<string, string>>({});
 
   useEffect(() => () => { modelRequest.current += 1; }, []);
   useEffect(() => { dialog.current?.showModal(); }, []);
@@ -254,6 +267,22 @@ export default function AddModel({ catalog, loadModels, loadDeploymentNames, onC
     } finally {
       setCreating(false);
       setScreen("done");
+    }
+  }
+
+  // An addition an earlier run left unresolved is re-read here. Like the
+  // result screen's check, this only reads: nothing is sent again.
+  async function checkPending(operationId: string) {
+    if (pendingChecking) return;
+    setPendingChecking(operationId);
+    try {
+      const checked = await onCheck(operationId);
+      const message = [RESULT_TITLES[checked.outcome], checked.detail].filter(Boolean).join(" · ");
+      setPendingResults(current => ({ ...current, [operationId]: message }));
+    } catch (cause) {
+      setPendingResults(current => ({ ...current, [operationId]: String(cause instanceof Error ? cause.message : cause) }));
+    } finally {
+      setPendingChecking("");
     }
   }
 
@@ -413,7 +442,28 @@ export default function AddModel({ catalog, loadModels, loadDeploymentNames, onC
         <div><h2 id="add-title" ref={heading} tabIndex={-1}>{screen === "done" ? resultTitle : screen === "model" ? "モデルを追加する" : screen === "foundry" ? "Foundryを追加する" : screen === "group" ? "リソースグループを追加する" : "追加内容の確認"}</h2></div>
         {screen === "done" ? null : <button type="button" className="back-button" onClick={onClose} aria-label="モデル追加を閉じる">閉じる</button>}
       </header>
-      <p className="add-notice">{mock ? "MOCK · Azureへの作成・保存は行いません" : "読み取り専用 · 作成処理は未実装のため、Azureへ書き込みません"}</p>
+      <p className="add-notice">{mock ? "MOCK · Azureへの作成・保存は行いません" : "実Azureに接続しています · 「追加」を押すとAzureにリソースを作成します"}</p>
+
+      {screen === "model" && pendingOperations.length > 0 ? (
+        <section className="add-pending" aria-labelledby="add-pending-title">
+          <h3 id="add-pending-title">結果が確定していない追加が残っています</h3>
+          <p>前回の操作はAzureで続いているか、既に完了している可能性があります。同じデプロイを追加し直さず、状態を確認してください。</p>
+          <ul>
+            {pendingOperations.map(operation => (
+              <li key={operation.id}>
+                <div className="add-pending-row">
+                  <span className="add-pending-name">{operation.deploymentId.split("/").pop()}</span>
+                  <small>{operation.startedAt} · {operation.stage} · {operation.state}</small>
+                  <button type="button" className="back-button" disabled={pendingChecking !== ""} onClick={() => void checkPending(operation.id)}>
+                    {pendingChecking === operation.id ? "確認しています…" : "状態を確認"}
+                  </button>
+                </div>
+                <p className="add-pending-result" aria-live="polite">{pendingResults[operation.id] ?? ""}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {screen === "model" ? (
         <form onSubmit={handleModelSubmit}>

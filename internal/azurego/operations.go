@@ -24,7 +24,6 @@ type operationStage struct {
 	State        string `json:"state"`
 	TargetID     string `json:"targetId"`
 	RequestID    string `json:"requestId,omitempty"`
-	OperationURL string `json:"operationUrl,omitempty"`
 	ObservedAt   string `json:"observedAt,omitempty"`
 	Detail       string `json:"detail,omitempty"`
 }
@@ -78,18 +77,30 @@ func (s *operationStore) path(id string) string {
 // lock keeps a single Go process writing operation records for this Windows
 // user. It does not prevent a write made from the Azure Portal or another
 // machine.
+//
+// The owning process holds the lock file open until it releases it. Windows
+// refuses to delete a file another process still holds, so a lock left behind
+// by a process that died mid-operation can be deleted and taken over, while a
+// lock held by a running addition cannot. Without this, one killed process
+// would block every later addition until the file was removed by hand. The
+// unresolved records, not this lock, are what stop a request being sent twice.
 func (s *operationStore) lock() (func(), error) {
 	path := filepath.Join(s.dir, "write.lock")
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		if errors.Is(err, os.ErrExist) {
+	if errors.Is(err, os.ErrExist) {
+		if removeErr := os.Remove(path); removeErr != nil {
 			return nil, errors.New("別のモデル追加が進行中です。完了を待つか、状態を確認してから再試行してください。")
 		}
+		file, err = os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("操作記録の排他制御に失敗しました: %w", err)
 	}
 	_, _ = file.WriteString(time.Now().UTC().Format(time.RFC3339))
-	_ = file.Close()
-	return func() { _ = os.Remove(path) }, nil
+	return func() {
+		_ = file.Close()
+		_ = os.Remove(path)
+	}, nil
 }
 
 // save writes the record and flushes it before the caller sends a request. A

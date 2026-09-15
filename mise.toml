@@ -68,20 +68,10 @@ description = "F1全シナリオを一時プロファイルのheadless Edgeで�
 depends = ["build:browser"]
 run = "pwsh -NoProfile -File scripts/Test-F1Browser.ps1"
 
-[tasks."test:f2:ui"]
-description = "F2全シナリオを一時プロファイルのheadless Edgeで検証する"
-depends = ["build:browser"]
-run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1"
-
 [tasks."test:add-model:ui"]
-description = "モデル追加の仮UIと配置先の新規作成をheadlessで検証する"
+description = "モデル追加と配置先の新規作成をheadlessで検証する"
 depends = ["build:browser"]
-run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -AddModel"
-
-[tasks."test:f2:azure:ui"]
-description = "実AzureのF2モデル候補とエラー表示をheadlessで検証する"
-depends = ["build:browser"]
-run = "pwsh -NoProfile -File scripts/Test-F2Browser.ps1 -Azure"
+run = "pwsh -NoProfile -File scripts/Test-AddModelBrowser.ps1"
 
 [tasks."test:azure:ui"]
 description = "実Azureの成功行と合意済み認証エラーをheadlessで検証する"

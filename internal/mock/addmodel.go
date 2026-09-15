@@ -7,7 +7,7 @@ import (
 )
 
 // The model addition screen has its own fixture. It is deliberately separate
-// from the F1/F2 deployment fixture: the placement read reaches resource groups
+// from the F1 deployment fixture: the placement read reaches resource groups
 // without a Foundry and Foundries without a deployment, which never appear in
 // the deployment list.
 

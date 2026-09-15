@@ -1,4 +1,4 @@
-// Package azurego contains the Azure boundary used by the F1 and F2 screens.
+// Package azurego contains the Azure boundary used by the screens.
 //
 // Azure CLI is used only for the already signed-in account list and for token
 // acquisition through AzureCLICredential. Resource reads are sent directly to
@@ -44,7 +44,7 @@ const (
 	modelsAPIVersion      = "2025-09-01" // Matches armcognitiveservices/v3 v3.0.0.
 )
 
-// Provider is the real Azure boundary for F1/F2. It discovers subscriptions from
+// Provider is the real Azure boundary. It discovers subscriptions from
 // the signed-in Azure CLI account list, then reads accounts and deployments
 // with the ARM SDK. Each request carries its own tenant and subscription.
 type Provider struct {
@@ -54,6 +54,7 @@ type Provider struct {
 	cliCommandTimeout       time.Duration
 	runCommand              commandRunner
 	newClient               subscriptionClientFactory
+	newWriter               deploymentWriterFactory
 	clientsMu               sync.Mutex
 	clients                 map[subscriptionClientKey]subscriptionClient
 }
@@ -65,6 +66,7 @@ type providerOptions struct {
 	cliCommandTimeout       time.Duration
 	runCommand              commandRunner
 	newClient               subscriptionClientFactory
+	newWriter               deploymentWriterFactory
 }
 
 // NewProvider creates the real Azure provider without making a network call.
@@ -92,6 +94,9 @@ func newProvider(options providerOptions) *Provider {
 	if options.newClient == nil {
 		options.newClient = newSDKSubscriptionClient
 	}
+	if options.newWriter == nil {
+		options.newWriter = newWriteClient
+	}
 	return &Provider{
 		subscriptionConcurrency: options.subscriptionConcurrency,
 		accountConcurrency:      options.accountConcurrency,
@@ -99,6 +104,7 @@ func newProvider(options providerOptions) *Provider {
 		cliCommandTimeout:       options.cliCommandTimeout,
 		runCommand:              options.runCommand,
 		newClient:               options.newClient,
+		newWriter:               options.newWriter,
 		clients:                 make(map[subscriptionClientKey]subscriptionClient),
 	}
 }
@@ -106,6 +112,8 @@ func newProvider(options providerOptions) *Provider {
 type commandRunner func(context.Context, ...string) ([]byte, []byte, error)
 
 type subscriptionClientFactory func(subscriptionInfo) (subscriptionClient, error)
+
+type deploymentWriterFactory func(subscriptionInfo) (deploymentWriter, error)
 
 // subscriptionClient is deliberately smaller than the SDK client. It keeps
 // the screen-facing service independent of SDK model types while allowing the

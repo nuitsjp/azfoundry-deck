@@ -39,7 +39,8 @@ type ModelResult struct {
 	FetchedAt string           `json:"fetchedAt"`
 }
 
-// ModelService is the screen-facing service for F2 model candidates. The
+// ModelService is the screen-facing service for model candidates, read by the
+// model addition screen. The
 // fetch function is the boundary to Azure (or the deterministic mock).
 type ModelService struct {
 	fetch       func(context.Context, string) (ModelResult, error)

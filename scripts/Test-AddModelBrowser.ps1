@@ -1,11 +1,11 @@
-param([switch]$Azure, [switch]$AddModel, [switch]$Attach)
+param([switch]$Attach)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location -LiteralPath $repoRoot
 $cli = Join-Path $repoRoot 'frontend/node_modules/@playwright/cli/playwright-cli.js'
-$testName = if ($AddModel) { 'add-model' } elseif ($Azure) { 'f2-azure' } else { 'f2' }
-$port = if ($Azure) { 9248 } else { 9246 }
-$testFile = if ($AddModel) { 'frontend/tests/add-model.browser.js' } elseif ($Azure) { 'frontend/tests/f2.azure.browser.js' } else { 'frontend/tests/f2.browser.js' }
+$testName = 'add-model'
+$port = 9246
+$testFile = 'frontend/tests/add-model.browser.js'
 $session = "$testName-ui-$PID"
 $serverProcess = $null
 $previousEnvironment = @{}
@@ -17,7 +17,7 @@ try {
     if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
         throw "Port $port is in use. Close its server before running this test."
     }
-    $env:AZFOUNDRY_MOCK = if ($Azure) { '0' } else { '1' }
+    $env:AZFOUNDRY_MOCK = '1'
     $env:WAILS_SERVER_HOST = '127.0.0.1'
     $env:WAILS_SERVER_PORT = "$port"
     $serverProcess = Start-Process -FilePath (Join-Path $repoRoot 'bin/azfoundry-deck-browser.exe') -WorkingDirectory $repoRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput "bin/$testName-test-server-stdout.log" -RedirectStandardError "bin/$testName-test-server-stderr.log"

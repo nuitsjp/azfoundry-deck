@@ -260,6 +260,46 @@ async page => {
     await page.getByRole("dialog").waitFor({ state: "detached" });
   }
 
+  // An addition that an earlier run left unresolved is offered for a state
+  // check as soon as the dialog opens, instead of staying hidden until the same
+  // name is sent again. The mock reports one while the unknown result is
+  // selected.
+  await configureExisting();
+  await page.getByText("モック：作成結果の再現", { exact: true }).click();
+  await field("作成結果の状態").selectOption("unknown");
+  await button("モデル追加を閉じる").click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await button("＋ 新規追加").click();
+  const pending = page.locator(".add-pending");
+  await pending.waitFor();
+  const pendingText = await pending.textContent();
+  assert(pendingText.includes("chat-production-2"), "未解決の追加を対象名で示す");
+  assert(!/再送|やり直/.test(pendingText), "未解決の通知から再送を促さない");
+  assert(await pending.getByRole("button", { name: "追加" }).count() === 0, "未解決の通知に追加操作を置かない");
+  await pending.getByRole("button", { name: "状態を確認", exact: true }).click();
+  await pending.getByText("作成結果を確認できません", { exact: false }).waitFor();
+  await page.setViewportSize({ width: 1080, height: 720 });
+  await page.screenshot({ path: "docs/verification/f3-copy-pending-operation.png" });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // The reopened dialog shows the default selection again while the mock still
+  // holds the unknown result, so the notice is cleared by selecting a different
+  // result rather than the one already displayed.
+  await page.getByText("モック：作成結果の再現", { exact: true }).click();
+  await field("作成結果の状態").selectOption("deployment-failure");
+  await button("モデル追加を閉じる").click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  // The mock records the selected result without the screen waiting for it, so
+  // the dialog is reopened until that selection is in effect. Only the mock
+  // round trip is retried; the notice itself is read once per open.
+  let cleared = false;
+  for (let attempt = 0; attempt < 20 && !cleared; attempt += 1) {
+    await button("＋ 新規追加").click();
+    cleared = await page.locator(".add-pending").count() === 0;
+    await button("モデル追加を閉じる").click();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+  }
+  assert(cleared, "未解決がなければ通知を出さない");
+
   // The entry remains available when the deployment list itself is empty.
   await page.getByLabel("次回の取得状態", { exact: true }).selectOption("empty");
   await page.getByRole("button", { name: /(?:更新|再取得)$/ }).click();

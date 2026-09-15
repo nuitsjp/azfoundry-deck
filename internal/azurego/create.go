@@ -72,7 +72,7 @@ func (p *Provider) CreateModelDeployment(ctx context.Context, request service.Cr
 	if failure != nil {
 		return stopped(result, service.OutcomeInterrupted, failure.Message+" "+failure.Action), nil
 	}
-	writer, err := newWriteClient(subscription)
+	writer, err := p.newWriter(subscription)
 	if err != nil {
 		return stopped(result, service.OutcomeInterrupted, err.Error()), nil
 	}
@@ -160,7 +160,8 @@ func (p *Provider) CreateModelDeployment(ctx context.Context, request service.Cr
 	requestID, err := writer.createDeployment(ctx, request)
 	stage.RequestID = requestID
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		var unconfirmed *acceptedRequestError
+		if errors.As(err, &unconfirmed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			stage.State = stateUnknown
 			stage.Detail = err.Error()
 			record.Outcome = service.OutcomeUnknown
@@ -223,12 +224,28 @@ func (p *Provider) CheckCreateOperation(ctx context.Context, operationID string)
 		if deployment.Properties != nil && deployment.Properties.ProvisioningState != nil {
 			state = string(*deployment.Properties.ProvisioningState)
 		}
-		record.stage(stageDeployment).State = stateSucceeded
+		// A deployment that exists is not by itself a created deployment. Only
+		// the state Azure reports settles the operation, and a state that is
+		// still moving leaves the record unresolved.
 		record.stage(stageDeployment).Detail = state
-		record.Outcome = service.OutcomeSuccess
-		_ = store.save(record)
-		result.Outcome = service.OutcomeSuccess
 		result.Detail = "Azure上の状態: " + state
+		switch {
+		case strings.EqualFold(state, "Succeeded"):
+			record.stage(stageDeployment).State = stateSucceeded
+			record.stage(stageDeployment).ObservedAt = time.Now().UTC().Format(time.RFC3339)
+			record.Outcome = service.OutcomeSuccess
+			result.Outcome = service.OutcomeSuccess
+		case strings.EqualFold(state, "Failed"), strings.EqualFold(state, "Canceled"):
+			record.stage(stageDeployment).State = stateFailed
+			record.Outcome = service.OutcomeDeploymentFailure
+			result.Outcome = service.OutcomeDeploymentFailure
+		default:
+			record.stage(stageDeployment).State = stateUnknown
+			record.Outcome = service.OutcomeUnknown
+			result.Outcome = service.OutcomeUnknown
+			result.Detail += "。作成が続いています。"
+		}
+		_ = store.save(record)
 		return result, nil
 	}
 	result.Detail = "対象のデプロイはまだ見つかりません。作成が続いている可能性があります。"
@@ -305,6 +322,15 @@ func capacityMismatch(capacity int32, contract *service.CapacityContract) string
 	return ""
 }
 
+// deploymentWriter is the write side of the Azure boundary. It is separate from
+// subscriptionClient because a write must never be resent by the SDK, and
+// because the recorded-then-sent order has to be verifiable without live Azure.
+type deploymentWriter interface {
+	createResourceGroup(ctx context.Context, name, region string) error
+	createAccount(ctx context.Context, request service.CreateRequest) error
+	createDeployment(ctx context.Context, request service.CreateRequest) (string, error)
+}
+
 // writeClient sends the create requests. Its retry policy differs from the read
 // clients: the SDK must never resend a write on its own.
 type writeClient struct {
@@ -314,7 +340,7 @@ type writeClient struct {
 	raw            *arm.Client
 }
 
-func newWriteClient(subscription subscriptionInfo) (*writeClient, error) {
+func newWriteClient(subscription subscriptionInfo) (deploymentWriter, error) {
 	credential, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{
 		Subscription: subscription.id,
 	})
@@ -338,6 +364,15 @@ func newWriteClient(subscription subscriptionInfo) (*writeClient, error) {
 		raw:            raw,
 	}, nil
 }
+
+// acceptedRequestError marks an error that happened after Azure accepted the
+// request. The caller must report it as an unknown result rather than a
+// failure, and must not send the request again.
+type acceptedRequestError struct{ err error }
+
+func (e *acceptedRequestError) Error() string { return e.err.Error() }
+
+func (e *acceptedRequestError) Unwrap() error { return e.err }
 
 func stopped(result service.CreateResult, outcome, detail string) service.CreateResult {
 	result.Outcome = outcome
@@ -440,7 +475,10 @@ func (c *writeClient) createDeployment(ctx context.Context, request service.Crea
 		return requestID, fmt.Errorf("デプロイを作成できませんでした: %w", err)
 	}
 	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return requestID, fmt.Errorf("デプロイの作成が完了しませんでした: %w", err)
+		// Azure took the request. Whatever goes wrong while waiting - an
+		// expired monitor URL, a dropped connection - the deployment may still
+		// be created, so this is an unknown result and never a failed creation.
+		return requestID, &acceptedRequestError{err: fmt.Errorf("デプロイの作成結果を確認できませんでした: %w", err)}
 	}
 	return requestID, nil
 }
