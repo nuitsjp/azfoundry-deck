@@ -399,7 +399,7 @@ U4に残っていた4件の異常系を検証しました。実Azureで異常を
 | --- | --- |
 | 静的検査・生成・ビルド | `go vet ./...`、`tsc --noEmit`、バインディング生成（5サービス・17メソッド・17モデル、差分なし）、`npm run build`、`server,production` ビルドが合格。`mise run check` は本環境で `bindings` タスクの `node -e` が構文エラーで落ちるため、生成を直接実行した。 |
 | 単体 | `go test ./...` 全パッケージ合格。U4の4項目と、生きている所有者がロックを保持し続けることの確認を追加した。`npm --prefix frontend test` 3項目合格。 |
-| 画面 | 一時headless Chromiumで追加画面24項目・一覧13項目・旧F2画面9項目が合格、JavaScript実行エラー0件。未解決通知の表示・状態確認・非表示を追加画面のシナリオに加えた。証跡は[追加画面](verification/add-model-result.json)、[一覧](verification/f1-result.json)、[旧F2](verification/f2-result.json)、画面例は[未解決の追加](verification/f3-copy-pending-operation.png)。 |
+| 画面 | 一時headless Chromiumで追加画面24項目・一覧13項目・旧F2画面9項目が合格、JavaScript実行エラー0件。未解決通知の表示・状態確認・非表示を追加画面のシナリオに加えた。証跡は[追加画面](verification/add-model-result.json)と[一覧](verification/f1-result.json)、画面例は[未解決の追加](verification/f3-copy-pending-operation.png)。旧F2画面の証跡は、同日その画面を削除したため残していない（[記録](#f2-screen-removal)）。 |
 | 未実施 | 実Azureでの異常系再現。監視URLの失効や送信中のプロセス終了をAzure側で意図的に起こす手段がなく、再現には課金対象の資源作成と利用者の承認が要る。ネイティブWebView2も未検証のまま。 |
 
 <a id="post-u4-decisions"></a>
