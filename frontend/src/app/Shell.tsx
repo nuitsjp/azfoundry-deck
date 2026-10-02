@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
 import { useIsMutating, useQuery } from '@tanstack/react-query';
-import { Alert, AppShell, Badge, Button, Group, Modal, NavLink, Stack, Text } from '@mantine/core';
+import { Alert, AppShell, Button, Group, Modal, NavLink, Stack, Text } from '@mantine/core';
 import { appInfo, confirmQuit, ready, subscribeClose } from '../features/application/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { ExitProvider, useExit } from '../shared/ExitContext';
@@ -42,11 +42,6 @@ function Content() {
           <Group gap="xs" wrap="nowrap">
             <AppIcon />
             <Text fw={700}>AzFoundryDeck</Text>
-            {__MOCK__ && (
-              <Badge size="xs" color="orange" variant="light">
-                モック
-              </Badge>
-            )}
           </Group>
           <AccountBadge />
         </Group>

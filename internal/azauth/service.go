@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+
 	"azfoundrydeck/internal/fault"
 )
 
@@ -27,20 +29,20 @@ type Status struct {
 	Account *Account `json:"account,omitempty"`
 }
 
-// Authenticator is the only boundary to Azure SDK and the mock composition point.
-type Authenticator interface {
-	Authenticate(ctx context.Context) (Account, error)
+// RecordStore saves the account identity that a later start uses to restore sign-in.
+type RecordStore interface {
+	Save(record azidentity.AuthenticationRecord) error
 }
 
 type Service struct {
 	mu     sync.Mutex
 	status Status
-	auth   Authenticator
+	store  RecordStore
 	logger *slog.Logger
 }
 
-func New(auth Authenticator, logger *slog.Logger) *Service {
-	return &Service{status: Status{Phase: SignedOut}, auth: auth, logger: logger}
+func New(store RecordStore, logger *slog.Logger) *Service {
+	return &Service{status: Status{Phase: SignedOut}, store: store, logger: logger}
 }
 
 func (s *Service) GetStatus() Status {
@@ -49,8 +51,9 @@ func (s *Service) GetStatus() Status {
 	return s.status
 }
 
-// Login succeeds only when the authenticator has acquired a token. On failure
-// the state returns to SignedOut and never becomes a substituted success.
+// Login succeeds only when the token, the tenant name and the saved record are
+// all in place. On failure the state returns to SignedOut and never becomes a
+// substituted success.
 func (s *Service) Login(ctx context.Context) (Status, error) {
 	s.mu.Lock()
 	if s.status.Phase == SigningIn {
@@ -60,7 +63,10 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 	s.status = Status{Phase: SigningIn}
 	s.mu.Unlock()
 
-	account, err := s.auth.Authenticate(ctx)
+	account, record, err := signIn(ctx)
+	if err == nil {
+		err = s.store.Save(record)
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

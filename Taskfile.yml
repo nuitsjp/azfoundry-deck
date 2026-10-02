@@ -33,13 +33,6 @@ tasks:
     cmds:
       - task: build:server
       - node scripts/build.mjs run-server
-  # Mock is enabled only in this non-production server build (WAILS_FRONTEND_MODE=mock).
-  server:mock:
-    cmds:
-      - task: generate
-      - npm --prefix frontend run build:dev
-      - node scripts/build.mjs server-mock
-      - node scripts/build.mjs run-server-mock
   package:
     cmds:
       - task: build

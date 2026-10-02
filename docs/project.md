@@ -34,7 +34,13 @@
 <a id="design"></a>
 ## 4. 確認した事実
 
-未確認。ログイン情報の保存先として使う SDK の永続キャッシュと Windows 資格情報マネージャーの関係は、段階4の前に SDK のソースで確認して記録する。
+ログイン情報の保存手段（確認日 2026-10-02。情報源は Go モジュールキャッシュ内のソースで、対象版は `azidentity` v1.14.1、`azidentity/cache` v0.4.0、`microsoft-authentication-extensions-for-go/cache` v0.1.1、`microsoft-authentication-library-for-go` v1.8.0、`zalando/go-keyring` v0.2.6。確認範囲は Windows の保存処理）:
+
+- `azidentity/cache` の永続キャッシュは、Windows では `%LOCALAPPDATA%\.IdentityService\<Name>`（CAE 用は `<Name>.cae`）に DPAPI（`CryptProtectData`）で暗号化したファイルとして保存する。資格情報マネージャーは使わない。`Name` の既定は `msal.cache` で他アプリと共有され得る。
+- `azidentity.Cache` は内部型の別名で、外部モジュールからは `cache.New` 以外で作れない（`azidentity/internal` の import は `use of internal package ... not allowed` でビルドできないことを実測）。そのため `InteractiveBrowserCredential` のトークン保存先を資格情報マネージャーへ差し替えられず、リフレッシュトークンも取り出せない。
+- MSAL はトークン取得時に永続キャッシュへ書き込み、書き込みの失敗をトークン取得の失敗として返す（`apps/internal/base/base.go` の `AuthResultFromToken`）。
+- `AuthenticationRecord` は authority、clientId、homeAccountId、tenantId、username、version の6項目の JSON で、秘密情報を含まない。
+- `go-keyring` は Windows で `danieljoos/wincred` の汎用資格情報を使い、対象名は `<service>:<user>`、保存値が 2560 バイトを超えると `ErrSetDataTooBig` を返す。本アプリの `AzFoundryDeck:AuthenticationRecord` へ試験用レコード（283 バイト）を書き込み、`cmdkey /list` での表示、読み出しと一致確認、削除を実機で確認した。
 
 - **確認した事実**: 外部仕様や既存コードの調査結果（情報源、対象版、確認日、確認範囲）。仮定と明確に区別します。外部システムの実測応答を保存する場合は `reference/` に配置して参照します。
 
@@ -46,15 +52,13 @@
 | 目的 | コマンド・設定 | 成功確認 |
 | --- | --- | --- |
 | 環境構築 | `mise trust`、`mise run setup`、`mise run setup:browser` | `frontend/bindings/azfoundrydeck/internal/azauth/` が生成される |
-| モック起動（ブラウザー確認） | `mise run server:mock` | `http://127.0.0.1:34115/` のヘッダーでアプリ名の右に「モック」バッジが表示され、サーバーの出力に `mock authenticator enabled` が出る |
-| モックの失敗再現 | `$env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL='1'; mise run server:mock`（確認後 `Remove-Item Env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL`） | 起動時に開くログインのモーダルで「Azureにログイン」を押して約3秒後に、モーダル内に `LOGIN_FAILED` と理由が表示され、モーダルは開いたままボタンが再び押せる状態に戻る |
-| モック起動（デスクトップ） | `mise run dev:mock` | ウィンドウのヘッダーに「モック」バッジが表示される（未検証） |
-| 実処理起動 | `mise run server`（ブラウザー確認、URL は同上）、`mise run dev`（デスクトップ） | 「モック」バッジがなく、ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）に `mock authenticator enabled` が出ない |
+| 起動（ブラウザー確認） | `mise run server` | `http://127.0.0.1:34115/` を開くと、Home を背景にログインのモーダルが表示される |
+| 起動（デスクトップ） | `mise run dev` | ウィンドウにログインのモーダルが表示される（未検証） |
+| ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck`（CAE 用は `azfoundrydeck.cae`）が作成される（実 Azure でのサインインは未検証） |
+| 保存したログイン情報の削除 | `cmdkey /delete:AzFoundryDeck:AuthenticationRecord`、`Remove-Item "$env:LOCALAPPDATA\.IdentityService\azfoundrydeck*"` | `cmdkey /list:AzFoundryDeck:AuthenticationRecord` が「なし」を表示する |
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |
 
-- **モックの範囲**: 合成点は `main.go` で `internal/azauth` の `Authenticator` を選ぶ1箇所です。モックの `Fixed` は約3秒待ってから固定のアカウント名 `operator@contoso.onmicrosoft.com` とテナント名 `Contoso` を返します。Azure への接続と OS のクレデンシャルマネージャーへの保存は行いません。
-- **モック有効の条件**: `production` タグなしのビルドで、環境変数 `WAILS_FRONTEND_MODE=mock` のときだけ有効です。`server:mock` と `dev:mock` がこの値を設定します。`production` タグ付きのビルド（`server`、`build`、`package`）は環境変数に関係なく実処理（`azidentity.InteractiveBrowserCredential`）を使います。
-- **実処理への切り替え**: `server:mock` を終了し、`mise run server` または `mise run dev` で起動します。
-- **フォールバックしないことの確認**: `mise run server` で作成した `bin\azfoundrydeck-server.exe` を、`WAILS_FRONTEND_MODE=mock` と接続できないプロキシ（`HTTPS_PROXY=http://127.0.0.1:9`）を設定して起動し、「Azureにログイン」を押すと `LOGIN_FAILED` が表示され、ログイン済みにならないことを確認しました。ログには `operation_failed` と接続失敗の原因が記録されます。
+- **保存するもの**: アカウント識別情報（`azidentity.AuthenticationRecord` の JSON）を Windows 資格情報マネージャーの汎用資格情報 `AzFoundryDeck:AuthenticationRecord`（ユーザー名 `AuthenticationRecord`）に、トークンを `azidentity/cache` の永続キャッシュ（名前 `azfoundrydeck`）に保存します。
+- **失敗時の確認**: `mise run server` で作成した `bin\azfoundrydeck-server.exe` を、接続できないプロキシ（`HTTPS_PROXY=http://127.0.0.1:9`）を設定して起動し、「Azureにログイン」を押すと、モーダル内に `LOGIN_FAILED` と理由が表示され、ボタンが再び押せる状態に戻り、ログイン済みにならないことを確認しました。ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）には `operation_failed` と接続失敗の原因が記録されます。
 
 環境構築、作業ディレクトリ、実行コマンド、設定、期待結果を明記します。自動テストと実機確認の対象・条件を示し、最新コードで再実行できる手順を維持します。モック利用時は、起動・終了、モック有効/無効の確認、実処理への切り替え手順を記述します（接続失敗時にモックへフォールバックしないことの確認を含む）。

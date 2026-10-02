@@ -89,13 +89,7 @@ func run() error {
 		}
 	}
 	controls := &desktop.Controls{Emit: emit}
-	// The only mock composition point. Production builds always use Azure SDK.
-	var authenticator azauth.Authenticator = azauth.Browser{}
-	if !production && os.Getenv("WAILS_FRONTEND_MODE") == "mock" {
-		authenticator = azauth.Fixed{Fail: os.Getenv("AZFOUNDRYDECK_MOCK_LOGIN_FAIL") == "1"}
-		logger.Warn("mock authenticator enabled")
-	}
-	authService := azauth.New(authenticator, logger)
+	authService := azauth.New(azauth.CredentialManager{}, logger)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
 	options := application.Options{
