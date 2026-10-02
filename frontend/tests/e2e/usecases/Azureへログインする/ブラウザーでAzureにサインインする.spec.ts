@@ -12,7 +12,9 @@ const tenantId = 'e2e-tenant';
 const recordFile = (app: IsolatedApp) => join(app.dataDir, 'e2e-authentication-record.json');
 
 function parts(page: Page) {
-  const dialog = page.getByRole('dialog');
+  const dialog = page
+    .getByRole('dialog')
+    .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) });
   return {
     header: page.getByRole('banner'),
     dialog,

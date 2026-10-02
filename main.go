@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"embed"
 	"encoding/json"
@@ -20,6 +21,7 @@ import (
 	"azfoundrydeck/internal/desktop"
 	"azfoundrydeck/internal/diagnostics"
 	"azfoundrydeck/internal/fault"
+	"azfoundrydeck/internal/foundry"
 )
 
 //go:embed all:frontend/dist
@@ -33,6 +35,10 @@ type appConfig struct {
 	Name       string `json:"name"`
 	Executable string `json:"executable"`
 	Version    string `json:"version"`
+}
+
+func init() {
+	application.RegisterEvent[foundry.Progress](foundry.ProgressEvent)
 }
 
 func main() {
@@ -89,13 +95,24 @@ func run() error {
 		}
 	}
 	controls := &desktop.Controls{Emit: emit}
-	authService := azauth.New(recordStore(dir), logger)
+	authStore := recordStore(dir)
+	authService := azauth.New(authStore, logger)
+	foundryService := foundry.New(func() (foundry.Source, error) { return foundrySource(authStore) }, func(ctx context.Context) error {
+		status, err := authService.GetStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if status.Phase != azauth.SignedIn {
+			return fault.New("NOT_SIGNED_IN", "ログインしていません。")
+		}
+		return nil
+	}, filepath.Join(dir, "foundry-state.json"), logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
 	options := application.Options{
 		Name: cfg.Name, Description: "Azure Foundry 管理用デスクトップアプリ", Logger: logger,
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
-		Services:     []application.Service{application.NewService(authService), application.NewService(appService)},
+		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService)},
 		MarshalError: fault.Marshal,
 		ShouldQuit:   controls.ShouldQuit,
 		Server:       application.ServerOptions{Host: "127.0.0.1", Port: port},

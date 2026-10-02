@@ -24,6 +24,7 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => Auth.Logout(),
     onSuccess: (status) => {
+      client.removeQueries({ queryKey: ['foundry'] });
       client.setQueryData(statusKey, status);
     },
   });

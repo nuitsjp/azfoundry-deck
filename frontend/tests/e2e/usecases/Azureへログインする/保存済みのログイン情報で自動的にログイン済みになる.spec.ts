@@ -31,7 +31,9 @@ function parts(page: Page) {
   const header = page.getByRole('banner');
   return {
     header,
-    dialog: page.getByRole('dialog'),
+    dialog: page
+      .getByRole('dialog')
+      .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) }),
     avatar: header.locator('.mantine-Avatar-root'),
     loaders: page.locator('.mantine-Loader-root'),
   };

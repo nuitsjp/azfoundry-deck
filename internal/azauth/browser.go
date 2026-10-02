@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache"
@@ -13,6 +14,11 @@ import (
 )
 
 const armScope = "https://management.azure.com/.default"
+
+// NewSilentCredential uses the signed-in account without opening a browser.
+func NewSilentCredential(record azidentity.AuthenticationRecord) (azcore.TokenCredential, error) {
+	return credential(record, true)
+}
 
 // credential uses the persistent token cache. With a record and silent set, it
 // only reads or refreshes cached tokens and fails instead of opening a browser.
@@ -37,7 +43,8 @@ func signIn(ctx context.Context) (Account, azidentity.AuthenticationRecord, erro
 	if err != nil {
 		return Account{}, record, err
 	}
-	record, err = cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: []string{armScope}})
+	// ARM clients request CAE tokens, which use a separate cache from non-CAE tokens.
+	record, err = cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: []string{armScope}, EnableCAE: true})
 	if err != nil {
 		return Account{}, record, err
 	}
@@ -52,7 +59,7 @@ func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord)
 	if err != nil {
 		return Account{}, err
 	}
-	if _, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{armScope}}); err != nil {
+	if _, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{armScope}, EnableCAE: true}); err != nil {
 		return Account{}, err
 	}
 	return tenantAccount(ctx, cred, record)
