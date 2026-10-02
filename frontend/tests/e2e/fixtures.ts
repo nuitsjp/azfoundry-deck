@@ -11,10 +11,11 @@ const root = resolve(import.meta.dirname, '../../..');
 const { executable } = JSON.parse(readFileSync(join(root, 'build/app.json'), 'utf8')) as {
   executable: string;
 };
+// Built with the e2e tag, which fixes the Entra ID / ARM and Credential Manager boundaries.
 const server = join(
   root,
   'bin',
-  executable.slice(0, -4) + '-server' + (process.platform === 'win32' ? '.exe' : ''),
+  executable.slice(0, -4) + '-server-e2e' + (process.platform === 'win32' ? '.exe' : ''),
 );
 
 export interface IsolatedApp {
@@ -32,10 +33,10 @@ async function freePort() {
   return port;
 }
 
-export const test = base.extend<{ app: IsolatedApp }>({
-  // Playwright requires an object pattern even when no fixture is used.
-  // eslint-disable-next-line no-empty-pattern
-  app: async ({}, provide) => {
+export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, string> }>({
+  /** Extra environment for the server, e.g. AZFOUNDRYDECK_E2E_FAIL to inject a failure. */
+  serverEnv: [{}, { option: true }],
+  app: async ({ serverEnv }, provide) => {
     const dataDir = await mkdtemp(join(tmpdir(), 'wails-e2e-'));
     let child: ChildProcess | undefined;
     let output = '';
@@ -44,7 +45,12 @@ export const test = base.extend<{ app: IsolatedApp }>({
       const running = spawn(server, [], {
         cwd: root,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: String(port) },
+        env: {
+          ...process.env,
+          ...serverEnv,
+          WAILS_DATA_DIR: dataDir,
+          WAILS_SERVER_PORT: String(port),
+        },
       });
       child = running;
       running.stdout?.on('data', (chunk) => {

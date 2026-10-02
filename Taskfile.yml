@@ -29,6 +29,11 @@ tasks:
       - task: generate
       - npm --prefix frontend run build
       - node scripts/build.mjs server
+  build:server:e2e:
+    cmds:
+      - task: generate
+      - npm --prefix frontend run build
+      - node scripts/build.mjs server-e2e
   server:
     cmds:
       - task: build:server
@@ -49,6 +54,7 @@ tasks:
       - go test ./internal/...
       - go vet ./...
       - go vet -tags server ./...
+      - go vet -tags server,production,e2e ./...
       - python {{.DOC_CHECK}} .
-      - task: build:server
+      - task: build:server:e2e
       - npm --prefix frontend run test:e2e

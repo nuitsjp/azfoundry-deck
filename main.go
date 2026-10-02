@@ -89,7 +89,7 @@ func run() error {
 		}
 	}
 	controls := &desktop.Controls{Emit: emit}
-	authService := azauth.New(azauth.CredentialManager{}, logger)
+	authService := azauth.New(recordStore(dir), logger)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
 	options := application.Options{
