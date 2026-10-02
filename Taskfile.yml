@@ -54,6 +54,14 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-foundry-change
+  server:review:foundry-refresh:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-foundry-refresh
+  server:review:deployment-refresh:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-deployment-refresh
   server:review:foundry-revisit:
     cmds:
       - task: build:server:e2e

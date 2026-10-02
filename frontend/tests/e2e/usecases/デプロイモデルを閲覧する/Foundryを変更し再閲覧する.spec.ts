@@ -38,11 +38,15 @@ const original: InitialFoundryView = {
   foundries,
   selectedFoundryId: foundries[0].id,
   deployments: deployments(0, oldModels),
+  foundriesFetchedAt: '2001-02-03T13:05:06+09:00',
+  deploymentsFetchedAt: '2001-02-03T13:05:07+09:00',
 };
 const expected: InitialFoundryView = {
   foundries,
   selectedFoundryId: foundries[1].id,
   deployments: deployments(1, targetModels),
+  foundriesFetchedAt: original.foundriesFetchedAt,
+  deploymentsFetchedAt: '2001-02-03T13:05:08+09:00',
 };
 const labels = foundries.map(
   (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
@@ -150,8 +154,15 @@ test('Foundryを変更し再閲覧する', async ({ page, app }) => {
     );
     mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    writeFileSync(cacheFiles[0], JSON.stringify(original.deployments, null, 2) + '\n');
-    writeFileSync(cacheFiles[1], JSON.stringify(expected.deployments, null, 2) + '\n');
+    for (const [index, view] of [original, expected].entries())
+      writeFileSync(
+        cacheFiles[index],
+        JSON.stringify(
+          { fetchedAt: view.deploymentsFetchedAt, deployments: view.deployments },
+          null,
+          2,
+        ) + '\n',
+      );
     for (const file of cacheFiles)
       utimesSync(file, new Date('2001-02-03T04:05:06Z'), new Date('2001-02-03T04:05:06Z'));
     originalCaches = cacheFiles.map(fileIdentity);

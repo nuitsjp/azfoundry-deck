@@ -46,11 +46,14 @@ const original: InitialFoundryView = {
   foundries,
   selectedFoundryId: foundries[0].id,
   deployments: deployments(0, oldModels),
+  foundriesFetchedAt: '2001-02-03T13:05:06+09:00',
+  deploymentsFetchedAt: '2001-02-03T13:05:07+09:00',
 };
-const expected: InitialFoundryView = {
+const expected: Omit<InitialFoundryView, 'deploymentsFetchedAt'> = {
   foundries,
   selectedFoundryId: foundries[1].id,
   deployments: deployments(1, newModels),
+  foundriesFetchedAt: original.foundriesFetchedAt,
 };
 const labels = foundries.map(
   (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
@@ -72,7 +75,12 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     join(viewDir, 'foundry-models', `${createHash('sha256').update(id).digest('hex')}.json`);
   const oldFile = cacheFile(foundries[0].id);
   const targetFile = cacheFile(foundries[1].id);
-  const oldText = JSON.stringify(original.deployments, null, 2) + '\n';
+  const oldText =
+    JSON.stringify(
+      { fetchedAt: original.deploymentsFetchedAt, deployments: original.deployments },
+      null,
+      2,
+    ) + '\n';
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -168,8 +176,14 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await expect(selected).toBeEnabled();
     await expect(selected).toHaveText(labels[1]);
     await assertModels(newModels);
-    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual(expected);
-    expect(JSON.parse(readFileSync(targetFile, 'utf8'))).toEqual(expected.deployments);
+    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual({
+      ...expected,
+      deploymentsFetchedAt: expect.any(String),
+    });
+    expect(JSON.parse(readFileSync(targetFile, 'utf8'))).toEqual({
+      fetchedAt: expect.any(String),
+      deployments: expected.deployments,
+    });
     expect(readFileSync(oldFile, 'utf8')).toBe(oldText);
   });
 
@@ -224,6 +238,9 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     expect(
       paths.map((path) => ({ text: readFileSync(path, 'utf8'), mtimeMs: statSync(path).mtimeMs })),
     ).toEqual(unchanged);
-    expect(JSON.parse(readFileSync(oldFile, 'utf8'))).toEqual(original.deployments);
+    expect(JSON.parse(readFileSync(oldFile, 'utf8'))).toEqual({
+      fetchedAt: original.deploymentsFetchedAt,
+      deployments: original.deployments,
+    });
   });
 });

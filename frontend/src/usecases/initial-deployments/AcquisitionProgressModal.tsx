@@ -18,12 +18,15 @@ function Status({ phase, runningLabel }: { phase: AcquisitionPhase; runningLabel
 export function AcquisitionProgressModal({
   opened,
   progress,
-  modelsOnly = false,
+  mode = 'initial',
 }: {
   opened: boolean;
   progress: FoundryProgress;
-  modelsOnly?: boolean;
+  mode?: 'initial' | 'change' | 'refresh' | 'deployments';
 }) {
+  const modelsOnly = mode === 'change' || mode === 'deployments';
+  // A refresh fetches models only when the selected Foundry disappeared from the list.
+  const showModels = mode !== 'refresh' || progress.selectedFoundryName !== '';
   const completed = progress.subscriptions.filter(
     (subscription) => subscription.phase === 'completed',
   ).length;
@@ -50,7 +53,13 @@ export function AcquisitionProgressModal({
       <Modal.Overlay />
       <Modal.Content>
         <Modal.Header role="presentation">
-          <Modal.Title>デプロイモデルを取得しています</Modal.Title>
+          <Modal.Title>
+            {mode === 'refresh'
+              ? 'Foundry一覧を更新しています'
+              : mode === 'deployments'
+                ? 'デプロイモデルを更新しています'
+                : 'デプロイモデルを取得しています'}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Stack gap="md">
@@ -108,19 +117,23 @@ export function AcquisitionProgressModal({
               </>
             )}
             <Stack gap="xs" pt="xs" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+              {showModels && (
+                <>
+                  <Group justify="space-between">
+                    <Text fw={600} size="sm">
+                      デプロイモデルの取得
+                    </Text>
+                    <Status phase={progress.modelPhase} runningLabel="取得中" />
+                  </Group>
+                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                    {progress.selectedFoundryName || '選択先のFoundryを探しています。'}
+                  </Text>
+                  <Text size="sm" c="dimmed" mb="xs">
+                    取得したモデル {progress.modelCount} 件
+                  </Text>
+                </>
+              )}
               <Group justify="space-between">
-                <Text fw={600} size="sm">
-                  デプロイモデルの取得
-                </Text>
-                <Status phase={progress.modelPhase} runningLabel="取得中" />
-              </Group>
-              <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                {progress.selectedFoundryName || '選択先のFoundryを探しています。'}
-              </Text>
-              <Text size="sm" c="dimmed">
-                取得したモデル {progress.modelCount} 件
-              </Text>
-              <Group justify="space-between" mt="xs">
                 <Text fw={600} size="sm">
                   ファイルへの保存
                 </Text>

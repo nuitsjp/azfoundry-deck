@@ -97,7 +97,7 @@ func TestInitialViewStartsModelsBeforeDiscoveryEndsAndSavesAllResults(t *testing
 	if got.err != nil {
 		t.Fatal(got.err)
 	}
-	want := InitialFoundryView{Foundries: []Foundry{first, second}, SelectedFoundryID: first.ID, Deployments: models}
+	want := InitialFoundryView{Foundries: []Foundry{first, second}, SelectedFoundryID: first.ID, Deployments: models, FoundriesFetchedAt: got.view.FoundriesFetchedAt, DeploymentsFetchedAt: got.view.DeploymentsFetchedAt}
 	if !reflect.DeepEqual(got.view, want) {
 		t.Fatalf("view = %#v, want %#v", got.view, want)
 	}
@@ -249,7 +249,7 @@ func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing
 	if got.err != nil {
 		t.Fatal(got.err)
 	}
-	want := InitialFoundryView{Foundries: previous.Foundries, SelectedFoundryID: target.ID, Deployments: models}
+	want := InitialFoundryView{Foundries: previous.Foundries, SelectedFoundryID: target.ID, Deployments: models, DeploymentsFetchedAt: got.view.DeploymentsFetchedAt}
 	if !reflect.DeepEqual(got.view, want) {
 		t.Fatalf("view = %#v, want %#v", got.view, want)
 	}
@@ -269,12 +269,12 @@ func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		var savedModels []Deployment
-		if err := json.Unmarshal(data, &savedModels); err != nil {
+		var saved savedModels
+		if err := json.Unmarshal(data, &saved); err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(savedModels, wantModels) {
-			t.Fatalf("archived %s models = %#v, want %#v", id, savedModels, wantModels)
+		if !reflect.DeepEqual(saved.Deployments, wantModels) {
+			t.Fatalf("archived %s models = %#v, want %#v", id, saved.Deployments, wantModels)
 		}
 	}
 	first, last := events[0], events[len(events)-1]
@@ -307,7 +307,7 @@ func TestChangeFoundryReusesSavedModelsAndDoesNotSaveSameSelection(t *testing.T)
 			}
 			selectedID := target.ID
 			cachePath := modelsPath(path, target.ID)
-			cacheData, err := json.Marshal(models)
+			cacheData, err := json.Marshal(savedModels{FetchedAt: "2024-01-01T09:00:00+09:00", Deployments: models})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -340,7 +340,7 @@ func TestChangeFoundryReusesSavedModelsAndDoesNotSaveSameSelection(t *testing.T)
 			}
 			want := previous
 			if !sameSelection {
-				want.SelectedFoundryID, want.Deployments = target.ID, models
+				want.SelectedFoundryID, want.Deployments, want.DeploymentsFetchedAt = target.ID, models, "2024-01-01T09:00:00+09:00"
 			}
 			if !reflect.DeepEqual(view, want) {
 				t.Fatalf("view = %#v, want %#v", view, want)
@@ -428,11 +428,11 @@ func TestChangeFoundryArchiveSaveFailureKeepsPreviousSelectionAndModels(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	var oldModels []Deployment
+	var oldModels savedModels
 	if err := json.Unmarshal(archive, &oldModels); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(oldModels, previous.Deployments) {
-		t.Fatalf("old model archive = %#v, want %#v", oldModels, previous.Deployments)
+	if !reflect.DeepEqual(oldModels.Deployments, previous.Deployments) {
+		t.Fatalf("old model archive = %#v, want %#v", oldModels.Deployments, previous.Deployments)
 	}
 }
