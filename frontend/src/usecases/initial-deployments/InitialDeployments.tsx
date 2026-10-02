@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   Combobox,
@@ -10,6 +10,7 @@ import {
   Tooltip,
   useCombobox,
 } from '@mantine/core';
+import { changeFoundry, foundryChangeEnabled } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
@@ -22,12 +23,19 @@ function foundryLabel(foundry: Foundry) {
 
 export function InitialDeployments() {
   const [progress, setProgress] = useState<FoundryProgress | null>(null);
+  const [changeProgress, setChangeProgress] = useState<FoundryProgress | null>(null);
+  const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
     queryFn: () => loadInitialView(setProgress),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
+  });
+  const change = useMutation({
+    mutationFn: ({ view, id }: { view: NonNullable<typeof initial.data>; id: string }) =>
+      changeFoundry(view, id, setChangeProgress),
+    onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
@@ -43,11 +51,26 @@ export function InitialDeployments() {
 
   return (
     <Stack gap="lg">
-      <Combobox store={combobox} onOptionSubmit={() => combobox.closeDropdown()} withinPortal>
+      {changeProgress && (
+        <AcquisitionProgressModal opened={change.isPending} progress={changeProgress} modelsOnly />
+      )}
+      <ErrorNotice error={change.error} />
+      <Combobox
+        store={combobox}
+        onOptionSubmit={(id) => {
+          combobox.closeDropdown();
+          if (foundryChangeEnabled && id !== view.selectedFoundryId) {
+            setChangeProgress(null);
+            change.mutate({ view, id });
+          }
+        }}
+        withinPortal
+      >
         <Combobox.Target targetType="button" withExpandedAttribute>
           <InputBase
             component="button"
             type="button"
+            disabled={change.isPending}
             label="Foundry"
             aria-label="Foundry"
             rightSection={<Combobox.Chevron />}

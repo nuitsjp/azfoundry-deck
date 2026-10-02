@@ -18,9 +18,11 @@ function Status({ phase, runningLabel }: { phase: AcquisitionPhase; runningLabel
 export function AcquisitionProgressModal({
   opened,
   progress,
+  modelsOnly = false,
 }: {
   opened: boolean;
   progress: FoundryProgress;
+  modelsOnly?: boolean;
 }) {
   const completed = progress.subscriptions.filter(
     (subscription) => subscription.phase === 'completed',
@@ -52,53 +54,59 @@ export function AcquisitionProgressModal({
         </Modal.Header>
         <Modal.Body>
           <Stack gap="md">
-            <Group gap="sm">
-              {searching && <Loader size="sm" />}
-              <Text fw={600}>
-                {searching ? 'サブスクリプションを検索中' : 'サブスクリプションの検索完了'}
-              </Text>
-              <Text size="sm" c="dimmed">
-                発見 {progress.subscriptions.length} 件
-              </Text>
-            </Group>
-            <Stack gap={4}>
-              <Text size="sm" role="status">
-                完了 {completed} / 発見 {progress.subscriptions.length} 件
-                {searching ? '（検索中のため総数は未確定）' : ''}
-              </Text>
-              <Text size="sm" c="dimmed">
-                待機中 {waiting} 件・Foundry取得中 {running} 件
-              </Text>
-            </Stack>
-            <ScrollArea.Autosize mah={300} type="auto">
-              <Table aria-label="サブスクリプションの取得状況" verticalSpacing="xs">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>サブスクリプション</Table.Th>
-                    <Table.Th>状態</Table.Th>
-                    <Table.Th ta="right">Foundry</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {pending.map((subscription) => (
-                    <Table.Tr key={subscription.id}>
-                      <Table.Td style={{ overflowWrap: 'anywhere' }}>{subscription.name}</Table.Td>
-                      <Table.Td>
-                        <Status phase={subscription.phase} runningLabel="Foundry取得中" />
-                      </Table.Td>
-                      <Table.Td ta="right">{subscription.foundryCount} 件</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-              {pending.length === 0 && (
-                <Text size="sm" c="dimmed" py="md">
-                  {searching
-                    ? 'サブスクリプションの発見を待っています。'
-                    : 'すべてのサブスクリプションの取得が完了しました。'}
-                </Text>
-              )}
-            </ScrollArea.Autosize>
+            {!modelsOnly && (
+              <>
+                <Group gap="sm">
+                  {searching && <Loader size="sm" />}
+                  <Text fw={600}>
+                    {searching ? 'サブスクリプションを検索中' : 'サブスクリプションの検索完了'}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    発見 {progress.subscriptions.length} 件
+                  </Text>
+                </Group>
+                <Stack gap={4}>
+                  <Text size="sm" role="status">
+                    完了 {completed} / 発見 {progress.subscriptions.length} 件
+                    {searching ? '（検索中のため総数は未確定）' : ''}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    待機中 {waiting} 件・Foundry取得中 {running} 件
+                  </Text>
+                </Stack>
+                <ScrollArea.Autosize mah={300} type="auto">
+                  <Table aria-label="サブスクリプションの取得状況" verticalSpacing="xs">
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>サブスクリプション</Table.Th>
+                        <Table.Th>状態</Table.Th>
+                        <Table.Th ta="right">Foundry</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {pending.map((subscription) => (
+                        <Table.Tr key={subscription.id}>
+                          <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                            {subscription.name}
+                          </Table.Td>
+                          <Table.Td>
+                            <Status phase={subscription.phase} runningLabel="Foundry取得中" />
+                          </Table.Td>
+                          <Table.Td ta="right">{subscription.foundryCount} 件</Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                  {pending.length === 0 && (
+                    <Text size="sm" c="dimmed" py="md">
+                      {searching
+                        ? 'サブスクリプションの発見を待っています。'
+                        : 'すべてのサブスクリプションの取得が完了しました。'}
+                    </Text>
+                  )}
+                </ScrollArea.Autosize>
+              </>
+            )}
             <Stack gap="xs" pt="xs" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
               <Group justify="space-between">
                 <Text fw={600} size="sm">
