@@ -11,9 +11,7 @@
 /frontend/coverage/
 *.syso
 *.log
-*.private-key
 /build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 /.test-data/
-/.release-test/
 
 build/windows/nsis/app.nsh

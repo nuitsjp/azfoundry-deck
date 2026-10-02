@@ -28,17 +28,6 @@ export default defineConfig(({ command, mode }) => {
     ],
     resolve: {
       alias: [
-        {
-          find: '@notes-service',
-          replacement: fileURLToPath(
-            new URL(
-              mock
-                ? './tests/fixtures/notes.ts'
-                : './bindings/azfoundrydeck/internal/notes/service.ts',
-              import.meta.url,
-            ),
-          ),
-        },
         { find: '@bindings', replacement: fileURLToPath(new URL('./bindings', import.meta.url)) },
       ],
     },

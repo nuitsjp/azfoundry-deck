@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
-import { useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { Alert, Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { appInfo, confirmQuit, ready, subscribeClose } from '../features/application/queries';
-import { subscribeNotes } from '../features/notes/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { ExitProvider, useExit } from '../shared/ExitContext';
 import styles from './Shell.module.css';
 
 function Content() {
-  const client = useQueryClient();
   const info = useQuery(appInfo());
   const { dirty } = useExit();
   const busy = useIsMutating() > 0;
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  useEffect(() => subscribeNotes(client), [client]);
   useEffect(() => {
     const off = subscribeClose(() => setClosing(true));
     void ready().catch(setError);
@@ -32,25 +29,19 @@ function Content() {
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <Text size="xs" fw={700} c="dimmed" className={styles.eyebrow}>
-          WAILS TEMPLATE
+          AZFOUNDRYDECK
         </Text>
         <Title order={3} mt="xs">
-          ユースケースから
+          Azure Foundry
           <br />
-          実装へ。
+          を管理する。
         </Title>
         <Text size="sm" c="dimmed" mt="md">
-          対話はReact、機能はGo。境界を確認できる参照アプリ。
+          Microsoft Foundry とモデルデプロイを管理するデスクトップアプリ。
         </Text>
         <nav className={styles.navigation} aria-label="メインナビゲーション">
-          <Link to="/notes" activeProps={{ className: styles.active }}>
-            {'01　メモの編集'}
-          </Link>
-          <Link to="/import" activeProps={{ className: styles.active }}>
-            {'02　一括取り込み'}
-          </Link>
-          <Link to="/updates" activeProps={{ className: styles.active }}>
-            {'03　アプリの更新'}
+          <Link to="/" activeProps={{ className: styles.active }}>
+            {'01　Azureへのログイン'}
           </Link>
         </nav>
         <div className={styles.footer}>
@@ -61,15 +52,14 @@ function Content() {
         </div>
       </aside>
       <main className={styles.main}>
-        <Group justify="space-between" mb="xl">
-          <Text size="sm" c="dimmed">
-            REFERENCE IMPLEMENTATION
-          </Text>
-          {__MOCK__ && <Badge color="orange">試験用モック</Badge>}
-        </Group>
+        {__MOCK__ && (
+          <Group justify="flex-end" mb="xl">
+            <Badge color="orange">試験用モック</Badge>
+          </Group>
+        )}
         {__MOCK__ && (
           <Alert color="orange" mb="lg">
-            固定データによる試験用の再現です。保存・取り込みは実データへ反映されません。
+            固定データによる試験用の再現です。Azure へは接続しません。
           </Alert>
         )}
         <ErrorNotice error={info.error || error} />

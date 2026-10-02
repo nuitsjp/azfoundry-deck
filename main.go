@@ -16,11 +16,10 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"azfoundrydeck/internal/appstate"
+	"azfoundrydeck/internal/azauth"
 	"azfoundrydeck/internal/desktop"
 	"azfoundrydeck/internal/diagnostics"
 	"azfoundrydeck/internal/fault"
-	"azfoundrydeck/internal/notes"
-	"azfoundrydeck/internal/updates"
 )
 
 //go:embed all:frontend/dist
@@ -30,12 +29,10 @@ var webAssets embed.FS
 var configJSON []byte
 
 type appConfig struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Executable      string `json:"executable"`
-	Version         string `json:"version"`
-	UpdateSource    string `json:"updateSource"`
-	UpdatePublicKey string `json:"updatePublicKey"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Executable string `json:"executable"`
+	Version    string `json:"version"`
 }
 
 func main() {
@@ -52,9 +49,6 @@ func run() error {
 	}
 	if cfg.ID == "" || cfg.Name == "" {
 		return fmt.Errorf("build/app.json: id and name are required")
-	}
-	if _, err := updates.CompareVersion(cfg.Version, "0.0.0"); err != nil {
-		return err
 	}
 	dir := os.Getenv("WAILS_DATA_DIR")
 	if dir == "" {
@@ -95,22 +89,19 @@ func run() error {
 		}
 	}
 	controls := &desktop.Controls{Emit: emit}
-	noteService, err := notes.New(dir, logger, state, emit)
-	if err != nil {
-		return err
+	// The only mock composition point. Production builds always use Azure SDK.
+	var authenticator azauth.Authenticator = azauth.Browser{}
+	if !production && os.Getenv("WAILS_FRONTEND_MODE") == "mock" {
+		authenticator = azauth.Fixed{Fail: os.Getenv("AZFOUNDRYDECK_MOCK_LOGIN_FAIL") == "1"}
+		logger.Warn("mock authenticator enabled")
 	}
-	// Also clean up if application construction or startup fails.
-	defer noteService.ServiceShutdown()
-	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, UpdateConfigured: cfg.UpdateSource != "" && cfg.UpdatePublicKey != "", DiagnosticsAvailable: diagnosticsAvailable}
+	authService := azauth.New(authenticator, logger)
+	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
-	updateService := updates.New(updates.Config{
-		AppID: cfg.ID, Version: cfg.Version, Arch: runtime.GOARCH, Source: cfg.UpdateSource, PublicKey: cfg.UpdatePublicKey,
-		CacheDir: filepath.Join(dir, "updates"), Enabled: runtime.GOOS == "windows" && !serverMode,
-	}, state, logger, emit, updates.LaunchInstaller, controls.ApproveQuit)
 	options := application.Options{
-		Name: cfg.Name, Description: "Wails用のユースケース駆動テンプレート", Logger: logger,
+		Name: cfg.Name, Description: "Azure Foundry 管理用デスクトップアプリ", Logger: logger,
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
-		Services:     []application.Service{application.NewService(noteService), application.NewService(appService), application.NewService(updateService)},
+		Services:     []application.Service{application.NewService(authService), application.NewService(appService)},
 		MarshalError: fault.Marshal,
 		ShouldQuit:   controls.ShouldQuit,
 		Server:       application.ServerOptions{Host: "127.0.0.1", Port: port},

@@ -14,8 +14,7 @@
     "types": ["vite/client", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@bindings/*": ["bindings/*"],
-      "@notes-service": ["bindings/azfoundrydeck/internal/notes/service.ts"]
+      "@bindings/*": ["bindings/*"]
     }
   },
   "include": [

@@ -10,6 +10,7 @@ const app = JSON.parse(readFileSync('build/app.json', 'utf8'));
 const arch = process.env.GOARCH || (process.arch === 'arm64' ? 'arm64' : 'amd64');
 const target = resolve('bin', app.executable);
 const server = resolve('bin', app.executable.slice(0, -4) + '-server' + (windows ? '.exe' : ''));
+const serverMock = resolve('bin', app.executable.slice(0, -4) + '-server-mock' + (windows ? '.exe' : ''));
 function run(cmd, args, extra = {}) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', ...extra });
   if (result.error) throw result.error;
@@ -37,8 +38,10 @@ try {
     run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', '-H windowsgui', '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
   } else if (command === 'server') {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (command === 'run' || command === 'run-server') {
-    run(command === 'run' ? target : server, []);
+  } else if (command === 'server-mock') {
+    run('go', ['build', '-trimpath', '-tags', 'server', '-o', serverMock, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
+  } else if (command === 'run' || command === 'run-server' || command === 'run-server-mock') {
+    run({ run: target, 'run-server': server, 'run-server-mock': serverMock }[command], []);
   } else if (command === 'package') {
     if (!windows) throw new Error('NSIS packaging must be run on Windows.');
     const include = [

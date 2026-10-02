@@ -36,14 +36,14 @@ run = "node scripts/run.mjs package"
 description = "Go実処理を使うブラウザ確認用サーバーを起動する"
 run = "node scripts/run.mjs server"
 
+[tasks."server:mock"]
+description = "試験用固定データでブラウザ確認用サーバーを起動する（Azureへ接続しない）"
+run = "node scripts/run.mjs server:mock"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"
 
 [tasks."test:core"]
-description = "Goの機能・保存・更新検証を実行する"
+description = "Goの機能検証を実行する"
 run = "node scripts/run.mjs test:core"
-
-[tasks.release]
-description = "更新用の鍵生成と署名済み更新情報の作成（引数はrelease以降に指定）"
-run = "node scripts/run.mjs release"

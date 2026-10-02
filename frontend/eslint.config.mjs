@@ -34,7 +34,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@bindings/**/service', '@bindings/**/service.ts', '@notes-service'],
+              group: ['@bindings/**/service', '@bindings/**/service.ts'],
               message: 'Use the feature access functions. Generated model types are allowed.',
             },
           ],
