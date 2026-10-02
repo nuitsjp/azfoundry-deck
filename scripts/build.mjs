@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,12 +43,17 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit'].includes(command)) {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
     const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
-    const dataDir = join(tmpdir(), `${app.id}-${foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const deploymentRefreshReview = command === 'run-server-review-deployment-refresh';
+    // The deployment refresh review reuses the Foundry refresh fixture.
+    const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview;
+    const dataDir = join(tmpdir(), `${app.id}-${deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    // The refresh review resets its saved state on each launch.
+    if (foundryRefreshReview) rmSync(dataDir, { recursive: true, force: true });
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
@@ -72,12 +77,41 @@ try {
       mkdirSync(modelsDir, { recursive: true });
       for (const [index, foundry] of foundries.entries()) {
         const hash = createHash('sha256').update(foundry.id).digest('hex');
-        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify(models[index], null, 2));
+        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt: '2026-09-01T09:00:00+09:00', deployments: models[index] }, null, 2));
       }
-      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({ foundries, selectedFoundryId: foundries[0].id, deployments: models[0] }, null, 2));
+      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
+        foundries, selectedFoundryId: foundries[0].id, deployments: models[0],
+        foundriesFetchedAt: '2026-09-01T09:00:00+09:00', deploymentsFetchedAt: '2026-09-01T09:00:00+09:00',
+      }, null, 2));
+    }
+    if (foundryRefreshReview) {
+      // File boundary only: a saved state with past fetch times and a Legacy Foundry
+      // that the e2e fixed source no longer returns. Other IDs match the fixed source.
+      const foundries = [
+        { id: '/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast', name: 'contoso-foundry-production-japaneast', subscriptionName: 'Contoso AI Production Subscription', resourceGroupName: 'rg-ai-production-japaneast' },
+        { id: '/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development', name: 'contoso-foundry-development', subscriptionName: 'Contoso Development', resourceGroupName: 'rg-ai-development' },
+        { id: '/subscriptions/review-legacy/resourceGroups/rg-ai-legacy/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-legacy', name: 'contoso-foundry-legacy', subscriptionName: 'Contoso Legacy', resourceGroupName: 'rg-ai-legacy' },
+      ];
+      // Saved model files exist for Production and Legacy.
+      const owners = [foundries[0], foundries[2]];
+      const models = [
+        // One fewer than the fixed source returns, so a model refresh visibly changes them.
+        [['chat-production', 'gpt-4.1', '2025-04-14'], ['chat-mini', 'gpt-4.1-mini', '2025-04-14']],
+        [['legacy-chat', 'gpt-4o', '2024-11-20']],
+      ].map((rows, index) => rows.map(([deploymentName, modelName, version]) => ({ id: `${owners[index].id}/deployments/${deploymentName}`, deploymentName, modelName, version })));
+      const fetchedAt = '2026-09-01T09:00:00+09:00';
+      const modelsDir = join(dataDir, 'foundry-models');
+      mkdirSync(modelsDir, { recursive: true });
+      for (const [index, deployments] of models.entries()) {
+        const hash = createHash('sha256').update(owners[index].id).digest('hex');
+        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt, deployments }, null, 2));
+      }
+      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
+        foundries, selectedFoundryId: foundries[0].id, deployments: models[0], foundriesFetchedAt: fetchedAt, deploymentsFetchedAt: fetchedAt,
+      }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

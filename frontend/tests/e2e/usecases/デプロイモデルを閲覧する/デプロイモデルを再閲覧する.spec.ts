@@ -38,6 +38,8 @@ const view: InitialFoundryView = {
     modelName,
     version,
   })),
+  foundriesFetchedAt: '2030-05-06T07:08:09+09:00',
+  deploymentsFetchedAt: '2030-05-06T07:08:10+09:00',
 };
 const labels = foundries.map(
   (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
