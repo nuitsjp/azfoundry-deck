@@ -76,6 +76,11 @@ jobs:
       PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Clean generated files while keeping dependencies
+        working-directory: .
+        run: git clean -ffdx -e frontend/node_modules/ -e reference/frontend/node_modules/
       - name: Read tool versions
         id: tools
         run: |
@@ -120,7 +125,7 @@ jobs:
           Copy-Item $cachedCLI .tools/wails3.exe
           go env GOMODCACHE GOCACHE
       - name: Dependencies
-        run: node scripts/run.mjs setup:dependencies
+        run: node scripts/run.mjs setup:dependencies --reuse-node-modules
       - name: Browser
         working-directory: ${{ matrix.directory }}/frontend
         run: npx playwright install --only-shell chromium

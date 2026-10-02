@@ -55,19 +55,34 @@ tasks:
       - node scripts/build.mjs package
   ci:
     cmds:
-      - task: verify
-      - task: build
+      - task: verify:prepare
+      - task: ci:finish
+  ci:finish:
+    deps: [test:e2e, build]
   test:core:
     cmds: [go test ./internal/...]
-  verify:
+  lint:
+    cmds: [npm --prefix frontend run lint]
+  format:check:
+    cmds: [npm --prefix frontend run format:check]
+  test:frontend:
+    cmds: [npm --prefix frontend run test]
+  check:docs:
+    cmds:
+      - python {{.DOC_CHECK}} .
+  test:e2e:
+    cmds: [npm --prefix frontend run test:e2e]
+  verify:prepare:
     cmds:
       - task: generate
-      - npm --prefix frontend run lint
-      - npm --prefix frontend run format:check
-      - npm --prefix frontend run test
-      - go test ./internal/...
+      - task: verify:prepared
+  verify:prepared:
+    deps: [frontend:build, lint, format:check, test:frontend, test:core, check:docs]
+    cmds:
       - go vet -tags production ./...
       - go vet -tags server,production,e2e ./...
-      - python {{.DOC_CHECK}} .
       - task: build:server:e2e
-      - npm --prefix frontend run test:e2e
+  verify:
+    cmds:
+      - task: verify:prepare
+      - task: test:e2e

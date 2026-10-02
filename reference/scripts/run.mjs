@@ -1,6 +1,7 @@
 // The only public command entry. Build order lives in Taskfile.yml.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, delimiter, resolve } from 'node:path';
@@ -43,7 +44,19 @@ try {
     // Install exactly the committed go.sum and package-lock.json without rewriting them.
     run('go', ['mod', 'download']);
     run('go', ['mod', 'verify']);
-    run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
+    const reuse = command === 'setup:dependencies' && process.argv.includes('--reuse-node-modules');
+    const installKey = createHash('sha256').update(JSON.stringify([
+      process.version, process.platform, process.arch, 'npm ci --no-audit --no-fund',
+      readFileSync('frontend/package.json', 'utf8'), readFileSync('frontend/package-lock.json', 'utf8'),
+    ])).digest('hex');
+    const marker = resolve('frontend/node_modules/.ci-install-key');
+    if (reuse && existsSync(marker) && readFileSync(marker, 'utf8') === installKey) {
+      console.log('Reusing node_modules: installation inputs unchanged.');
+    } else {
+      rmSync(marker, { force: true });
+      run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
+      if (reuse) writeFileSync(marker, installKey);
+    }
     if (command === 'setup') run(cli, ['task', 'generate']);
   } else if (command === 'help') {
     console.log('node scripts/run.mjs setup | dev | dev:mock | build | package | server | verify | test:core | release <args>');
