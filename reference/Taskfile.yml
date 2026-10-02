@@ -6,9 +6,15 @@ vars:
 
 tasks:
   generate:
+    run: once
     cmds:
       - wails3 generate bindings -ts -i -names -f '-tags=server' -d frontend/bindings .
       - npm --prefix frontend run routes
+  frontend:build:
+    run: once
+    cmds:
+      - task: generate
+      - npm --prefix frontend run build:prepared
   frontend:dev:
     dir: frontend
     cmds: [npm run dev]
@@ -21,13 +27,11 @@ tasks:
     cmds: [node scripts/build.mjs run]
   build:
     cmds:
-      - task: generate
-      - npm --prefix frontend run build
+      - task: frontend:build
       - node scripts/build.mjs desktop
   build:server:
     cmds:
-      - task: generate
-      - npm --prefix frontend run build
+      - task: frontend:build
       - node scripts/build.mjs server
   server:
     cmds:
@@ -36,13 +40,19 @@ tasks:
   package:
     cmds:
       - task: build
+      - task: package:prepared
+  package:prepared:
+    cmds:
       - node scripts/build.mjs package
+  ci:
+    cmds:
+      - task: verify
+      - task: build
   test:core:
     cmds: [go test ./internal/... ./cmd/release/...]
   verify:
     cmds:
       - task: generate
-      - npm --prefix frontend run typecheck
       - npm --prefix frontend run lint
       - npm --prefix frontend run format:check
       - npm --prefix frontend run test

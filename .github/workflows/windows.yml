@@ -72,38 +72,68 @@ jobs:
         working-directory: ${{ matrix.directory }}
     env:
       CI: 'true'
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4
+      - name: Read tool versions
+        id: tools
+        run: |
+          @'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tools = tomllib.loads(Path('mise.toml').read_text(encoding='utf-8'))['tools']
+          wails = re.search(r'github.com/wailsapp/wails/v3 (\S+)', Path('go.mod').read_text(encoding='utf-8')).group(1)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f"go={tools['go']}\npython={tools['python']}\nwails={wails}\nimage={os.environ['ImageOS']}\n")
+          '@ | python -
+      - uses: actions/setup-node@v6
         with:
-          version: '2026.9.5'
-          working_directory: ${{ matrix.directory }}
-      - run: mise trust
+          node-version-file: ${{ matrix.directory }}/.nvmrc
+          package-manager-cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ steps.tools.outputs.python }}
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ steps.tools.outputs.go }}
+          cache: false
+      - name: Restore Wails CLI
+        id: wails-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.directory }}/.tools/wails3.exe
+          key: wails-cli-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ steps.tools.outputs.wails }}-${{ matrix.directory }}
+      - name: Install Wails CLI
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        run: node scripts/run.mjs cli:install
       - name: Go cache paths
         id: go-cache
         run: |
           "modules=$(go env GOMODCACHE)" >> $env:GITHUB_OUTPUT
           "build=$(go env GOCACHE)" >> $env:GITHUB_OUTPUT
-          "version=$(go env GOVERSION)" >> $env:GITHUB_OUTPUT
       - name: Restore Go cache
         uses: actions/cache@v4
         with:
           path: |
             ${{ steps.go-cache.outputs.modules }}
             ${{ steps.go-cache.outputs.build }}
-          key: go-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ steps.go-cache.outputs.version }}-${{ matrix.directory }}-${{ hashFiles(format('{0}/go.sum', matrix.directory)) }}
+          key: go-app-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ matrix.directory }}-${{ hashFiles(format('{0}/go.sum', matrix.directory)) }}
           restore-keys: |
-            go-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ steps.go-cache.outputs.version }}-${{ matrix.directory }}-
-      - name: Dependencies and generated sources
-        run: mise run setup
+            go-app-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ matrix.directory }}-
+      - name: Dependencies
+        run: node scripts/run.mjs setup:dependencies
       - name: Browser
-        run: mise run setup:browser
-      - name: Verify
-        run: mise run verify
+        working-directory: ${{ matrix.directory }}/frontend
+        run: npx playwright install --only-shell chromium
+      - name: Verify and build
+        run: node scripts/run.mjs ci
       - name: NSIS
         run: choco install nsis --yes --no-progress
       - name: Installer
-        run: mise run package
+        run: node scripts/run.mjs package:prepared
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build-${{ matrix.directory == '.' && 'project' || 'reference' }}
