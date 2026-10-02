@@ -57,6 +57,94 @@ func (s *Service) load(ctx context.Context) (InitialFoundryView, error) {
 	return s.acquire(ctx)
 }
 
+func (s *Service) ChangeFoundry(ctx context.Context, id string) (InitialFoundryView, error) {
+	if err := s.signedIn(ctx); err != nil {
+		return InitialFoundryView{}, err
+	}
+	view, err := s.change(ctx, id)
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "foundry.ChangeFoundry", "cause", err)
+		if ctx.Err() != nil {
+			return InitialFoundryView{}, fault.Public(ctx.Err())
+		}
+		return InitialFoundryView{}, fault.New("FOUNDRY_LOAD_FAILED", "Foundry・デプロイモデルの取得またはファイルの読み込み・保存に失敗しました。")
+	}
+	return view, nil
+}
+
+func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, error) {
+	view, err := read(s.file)
+	if err != nil {
+		return InitialFoundryView{}, err
+	}
+	var selected Foundry
+	for _, foundry := range view.Foundries {
+		if foundry.ID == id {
+			selected = foundry
+			break
+		}
+	}
+	if selected.ID == "" {
+		return InitialFoundryView{}, fmt.Errorf("selected Foundry is not in the saved list")
+	}
+	if id == view.SelectedFoundryID {
+		return view, nil
+	}
+	oldPath := modelsPath(s.file, view.SelectedFoundryID)
+	if _, err := os.Stat(oldPath); errors.Is(err, os.ErrNotExist) {
+		if err := saveModels(oldPath, view.Deployments); err != nil {
+			return InitialFoundryView{}, err
+		}
+	} else if err != nil {
+		return InitialFoundryView{}, err
+	}
+	targetPath := modelsPath(s.file, id)
+	models, err := readModels(targetPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return InitialFoundryView{}, err
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		progress := Progress{
+			SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{},
+			SelectedFoundryName: selected.Name, ModelPhase: "running", SavePhase: "waiting",
+		}
+		s.emit(ProgressEvent, progress)
+		source, err := s.source()
+		if err != nil {
+			return InitialFoundryView{}, err
+		}
+		models, err = source.Deployments(ctx, selected, func(count int) {
+			progress.ModelCount = count
+			s.emit(ProgressEvent, progress)
+		})
+		if err != nil {
+			return InitialFoundryView{}, err
+		}
+		progress.ModelPhase = "completed"
+		progress.ModelCount = len(models)
+		s.emit(ProgressEvent, progress)
+		progress.SavePhase = "running"
+		s.emit(ProgressEvent, progress)
+		if err := saveModels(targetPath, models); err != nil {
+			return InitialFoundryView{}, err
+		}
+		view.SelectedFoundryID = id
+		view.Deployments = models
+		if err := save(s.file, view); err != nil {
+			return InitialFoundryView{}, err
+		}
+		progress.SavePhase = "completed"
+		s.emit(ProgressEvent, progress)
+		return view, nil
+	}
+	view.SelectedFoundryID = id
+	view.Deployments = models
+	if err := save(s.file, view); err != nil {
+		return InitialFoundryView{}, err
+	}
+	return view, nil
+}
+
 func (s *Service) acquire(ctx context.Context) (InitialFoundryView, error) {
 	progress := Progress{
 		SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{},
@@ -127,6 +215,9 @@ func (s *Service) acquire(ctx context.Context) (InitialFoundryView, error) {
 		return InitialFoundryView{}, err
 	}
 	update(func(p *Progress) { p.SavePhase = "running" })
+	if err := saveModels(modelsPath(s.file, view.SelectedFoundryID), view.Deployments); err != nil {
+		return InitialFoundryView{}, err
+	}
 	if err := save(s.file, view); err != nil {
 		return InitialFoundryView{}, err
 	}

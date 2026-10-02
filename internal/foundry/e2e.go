@@ -105,6 +105,18 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 		{ID: foundry.ID + "/deployments/chat-mini", DeploymentName: "chat-mini", ModelName: "gpt-4.1-mini", Version: "2025-04-14"},
 		{ID: foundry.ID + "/deployments/embeddings", DeploymentName: "embeddings", ModelName: "text-embedding-3-large", Version: "1"},
 	}
+	switch foundry.Name {
+	case "contoso-foundry-development":
+		deployments = []Deployment{
+			{ID: foundry.ID + "/deployments/development-chat", DeploymentName: "development-chat", ModelName: "gpt-4.1", Version: "2025-04-14"},
+			{ID: foundry.ID + "/deployments/development-mini", DeploymentName: "development-mini", ModelName: "gpt-4.1-mini", Version: "2025-04-14"},
+			{ID: foundry.ID + "/deployments/development-embedding", DeploymentName: "development-embedding", ModelName: "text-embedding-3-large", Version: "1"},
+		}
+	case "contoso-foundry-research":
+		deployments = []Deployment{
+			{ID: foundry.ID + "/deployments/research-chat", DeploymentName: "research-chat", ModelName: "gpt-4.1", Version: "2025-04-14"},
+		}
+	}
 	if err := waitForRelease(ctx, "models"); err != nil {
 		return nil, err
 	}

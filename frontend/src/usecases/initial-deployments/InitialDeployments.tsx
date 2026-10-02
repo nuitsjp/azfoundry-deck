@@ -10,7 +10,7 @@ import {
   Tooltip,
   useCombobox,
 } from '@mantine/core';
-import { changeFoundry, foundryChangeEnabled } from '../../features/foundry/change-view';
+import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
@@ -33,8 +33,7 @@ export function InitialDeployments() {
     retry: false,
   });
   const change = useMutation({
-    mutationFn: ({ view, id }: { view: NonNullable<typeof initial.data>; id: string }) =>
-      changeFoundry(view, id, setChangeProgress),
+    mutationFn: (id: string) => changeFoundry(id, setChangeProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
@@ -59,9 +58,9 @@ export function InitialDeployments() {
         store={combobox}
         onOptionSubmit={(id) => {
           combobox.closeDropdown();
-          if (foundryChangeEnabled && id !== view.selectedFoundryId) {
+          if (id !== view.selectedFoundryId) {
             setChangeProgress(null);
-            change.mutate({ view, id });
+            change.mutate(id);
           }
         }}
         withinPortal

@@ -8,7 +8,7 @@
 | Go サービス | ログインの実行、起動時の保存済みアカウント識別情報によるログインの復元、ログアウト、ログイン状態の保持、アカウント識別情報の資格情報マネージャーへの保存・読み出し・削除、永続キャッシュのファイル削除 | `internal/azauth/service.go`、`internal/azauth/credential_manager.go`、`internal/azauth/token_cache_windows.go`、`record_store.go` |
 | Azure SDK | `azidentity` によるブラウザー認証、トークン取得と永続キャッシュへの保存、永続キャッシュからのブラウザーを開かないトークン取得、ARM からのテナント名取得 | `internal/azauth/browser.go` |
 | Home画面 | ログイン済みでの閲覧要求、検索・Foundry取得・モデル取得・保存の進捗モーダル、Foundry のプルダウンとデプロイ済みモデルの表示、取得結果のメモリ保持 | `frontend/src/routes/index.tsx`、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx`、`frontend/src/usecases/initial-deployments/AcquisitionProgressModal.tsx`、`frontend/src/features/foundry/initial-view.ts`、`frontend/src/features/foundry/progress.ts` |
-| Foundry サービス | ログイン済みの確認、保存済みファイルの読み込み、最初に発見した Foundry の選択、一覧取得とモデル取得の並行実行、進捗イベントの通知、全取得後のファイル保存、結果確定 | `main.go`、`foundry_source.go`、`internal/foundry/service.go`、`internal/foundry/models.go`、`internal/foundry/progress.go`、`internal/foundry/storage.go` |
+| Foundry サービス | ログイン済みの確認、保存済みファイルの読み込み、Foundry の選択と変更、一覧取得とモデル取得の並行実行、進捗イベントの通知、全取得後のファイル保存、Foundry ごとのモデル保持、結果確定 | `main.go`、`foundry_source.go`、`internal/foundry/service.go`、`internal/foundry/models.go`、`internal/foundry/progress.go`、`internal/foundry/storage.go` |
 | Foundry の Azure SDK 境界 | サブスクリプション一覧と Foundry 一覧の取得、選択した Foundry の全デプロイ済みモデル取得 | `internal/foundry/azure.go` |
 
 初回認証と保存済みログイン情報の復元では `EnableCAE: true` で ARM トークンを取得し、後続の ARM クライアントと同じ CAE 用キャッシュを使う。
@@ -90,7 +90,8 @@ sequenceDiagram
     S-->>U: モデル取得状態と累積件数
   end
   S-->>U: 保存中
-  S->>F: 一覧・初期選択・モデルを一括保存
+  S->>F: 選択先のモデルをFoundry別ファイルに保存
+  S->>F: 一覧・初期選択・モデルを現在の状態ファイルに保存
   F-->>S: 保存完了
   S-->>U: 保存完了
   S-->>U: Foundry一覧・選択済みFoundry・モデル一覧
@@ -110,8 +111,12 @@ Go サービスはログイン済みを確認した後、`foundry-state.json` �
 
 ## Foundryを変更し初回閲覧する
 
-仕様合意用モックは `frontend/src/features/foundry/change-view.ts` の変更要求を合成点とし、Vite の `foundry-change-review` モードだけで固定応答へ差し替える。入力は現在の `InitialFoundryView` と変更先のリソース ID、結果は同じ `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。初期画面は既存の E2E 用 Go サービスを通して Foundry 3件と最初の選択を表示する。
+画面は `frontend/src/features/foundry/change-view.ts` から変更先のリソース ID を `Service.ChangeFoundry` に渡す。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使い、画面側に固定応答や人工的な待ち時間を置かない。
 
-モデル取得と保存の進捗は合意用の固定応答で表示し、`AcquisitionProgressModal` は変更時にサブスクリプション検索と Foundry 一覧取得の表示を省く。処理中は元の選択とモデルを維持し、変更を受け付けない。完了後に React Query の閲覧結果を置き換える。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。
+Go サービスはログイン済みを確認し、`foundry-state.json` に保存された Foundry 一覧に変更先が含まれることを確認する。同じ Foundry なら保存済みの閲覧結果を返し、取得・進捗通知・保存を行わない。異なる Foundry なら変更前のモデルを Foundry 別ファイルに保持する。変更先のモデルファイルが存在して読み込みに成功すれば保存内容を使い、そのモデルファイルを再保存しない。存在しない場合だけ `Source.Deployments` で全ページを取得し、モデル取得状態とページごとの累積件数、保存状態を通知して、変更先のモデルファイルを保存する。サブスクリプションと Foundry の一覧は再取得しない。
 
-通常構成では変更操作を有効にしない。変更先のファイル確認、Azure からのモデル取得、Foundry ごとのモデル保持とファイル保存は未接続で、実処理接続時に固定応答を削除する。既存の保存形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
+取得したモデルと保存されたモデルのどちらを使う場合も、変更先の選択とモデルを `foundry-state.json` に保存し、成功後に結果を返す。読み込み・JSON の復元・取得・保存の失敗時は既存の `FOUNDRY_LOAD_FAILED` を返し、固定応答や取得へのフォールバックは行わない。ファイルの形式と保存順序は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
+
+`AcquisitionProgressModal` は変更時にモデルと保存の状態だけを表示し、サブスクリプション検索と Foundry 一覧取得の表示を省く。処理中は元の選択とモデルを維持し、変更を受け付けない。成功後に React Query の閲覧結果を置き換える。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。モデル取得の進捗イベントが通知されない場合はモーダルを表示しない。
+
+画面確認用の E2E ビルドでは外部取得の `foundry.Source` だけを固定応答に差し替え、変更先ごとのモデル取得、ファイルの読み込み・保存、選択の更新と進捗表示は本番と同じ処理を通す。固定応答のモデルは Production が3件、Development が3件、Research が1件で、実 Azure のモデル取得の検証には使わない。
