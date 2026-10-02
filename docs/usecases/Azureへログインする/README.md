@@ -13,7 +13,7 @@ Azure 上の Microsoft Foundry を管理する運用者（Azure アカウント�
 
 ## 共通の受け入れ条件
 - 認証は Azure SDK for Go（`azidentity` の `InteractiveBrowserCredential`）で行う。
-- ログイン情報は OS のクレデンシャルマネージャーにのみ保存する。パスワードやトークンを画面・ログ・設定ファイルへ平文で出力しない。
+- ログイン情報のうちアカウント識別情報（`AuthenticationRecord`）は OS のクレデンシャルマネージャーに、トークンは Azure SDK の永続キャッシュ（Windows のユーザー単位の暗号化、アプリ固有名）に保存する。パスワードやトークンを画面・ログ・設定ファイルへ平文で出力しない。
 - ログイン失敗時に、ダミーの成功状態へ切り替えない。
 
 ## シナリオ
