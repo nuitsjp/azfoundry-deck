@@ -43,7 +43,7 @@ func credential(record azidentity.AuthenticationRecord, tenantID string, silent 
 // A failure to write the token cache fails the token acquisition itself.
 func signIn(ctx context.Context) (azidentity.AuthenticationRecord, error) {
 	var record azidentity.AuthenticationRecord
-	cred, err := credential(record, "common", false)
+	cred, err := credential(record, "", false)
 	if err != nil {
 		return record, err
 	}
@@ -69,7 +69,7 @@ func acquireTenantToken(ctx context.Context, record LoginRecord) error {
 }
 
 func listTenants(ctx context.Context, record azidentity.AuthenticationRecord) ([]Tenant, error) {
-	cred, err := credential(record, "common", true)
+	cred, err := credential(record, "", true)
 	if err != nil {
 		return nil, err
 	}
