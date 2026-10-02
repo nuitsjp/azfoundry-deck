@@ -7,11 +7,64 @@ on:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.paths.outputs.matrix }}
+      changed: ${{ steps.paths.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select changed applications
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+              directories = ['.', 'reference']
+          else:
+              base = os.environ['BASE_SHA']
+              head = os.environ['HEAD_SHA']
+              if base == '0' * 40:
+                  command = ['git', 'ls-tree', '-r', '--name-only', '-z', head]
+              elif os.environ['EVENT_NAME'] == 'pull_request':
+                  command = ['git', 'diff', '--name-only', '--no-renames', '-z', f'{base}...{head}']
+              else:
+                  command = ['git', 'diff', '--name-only', '--no-renames', '-z', base, head]
+              paths = subprocess.check_output(command).decode('utf-8').split('\0')
+              paths = [path for path in paths if path]
+              shared_paths = {
+                  '.github/workflows/windows.yml',
+                  'scripts/doc_check.py',
+                  'docs/document-policy.md',
+                  'docs/standards/mock-driven-development.md',
+                  'LICENSE',
+              }
+              shared = any(path in shared_paths for path in paths)
+              directories = []
+              if shared or any(not path.startswith('reference/') for path in paths):
+                  directories.append('.')
+              if shared or any(path.startswith('reference/') for path in paths):
+                  directories.append('reference')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'matrix={json.dumps({"directory": directories})}\n')
+              output.write(f'changed={str(bool(directories)).lower()}\n')
+          print(f'Selected applications: {directories}')
+          PY
   build:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        directory: [., reference]
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -26,14 +79,27 @@ jobs:
           version: '2026.9.5'
           working_directory: ${{ matrix.directory }}
       - run: mise trust
+      - name: Go cache paths
+        id: go-cache
+        run: |
+          "modules=$(go env GOMODCACHE)" >> $env:GITHUB_OUTPUT
+          "build=$(go env GOCACHE)" >> $env:GITHUB_OUTPUT
+          "version=$(go env GOVERSION)" >> $env:GITHUB_OUTPUT
+      - name: Restore Go cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.modules }}
+            ${{ steps.go-cache.outputs.build }}
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ steps.go-cache.outputs.version }}-${{ matrix.directory }}-${{ hashFiles(format('{0}/go.sum', matrix.directory)) }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}-${{ steps.go-cache.outputs.version }}-${{ matrix.directory }}-
       - name: Dependencies and generated sources
         run: mise run setup
       - name: Browser
         run: mise run setup:browser
       - name: Verify
         run: mise run verify
-      - name: Windows executable
-        run: mise run build
       - name: NSIS
         run: choco install nsis --yes --no-progress
       - name: Installer
