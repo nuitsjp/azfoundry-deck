@@ -18,4 +18,7 @@ type InitialFoundryView struct {
 	Foundries         []Foundry    `json:"foundries"`
 	SelectedFoundryID string       `json:"selectedFoundryId"`
 	Deployments       []Deployment `json:"deployments"`
+	// RFC 3339 times when the list and the displayed models were fetched from Azure.
+	FoundriesFetchedAt   string `json:"foundriesFetchedAt,omitempty"`
+	DeploymentsFetchedAt string `json:"deploymentsFetchedAt,omitempty"`
 }

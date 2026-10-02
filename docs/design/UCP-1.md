@@ -128,3 +128,13 @@ Go サービスはログイン済みを確認し、`foundry-state.json` に保�
 画面は読み込みと状態保存の完了まで変更前の選択とモデルを維持し、成功後に閲覧結果を置き換える。進捗が通知されないためモーダルは表示しない。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。保存形式と変更前のモデル保持は [データ設計](data.md#foundry-とデプロイモデル) に従う。
 
 画面確認用構成は `scripts/build.mjs` の起動準備で、固定の認証記録と Foundry 2件、各 Foundry のモデルファイル、Production を選択した状態ファイルを用意する。JSON は本番と同じ `InitialFoundryView` と `Deployment` の契約に従う。Go と画面の読み込み・選択更新・保存処理は差し替えず、外部取得を保留したまま、保存済みモデルだけで表示できることを確認する。固定ファイルの内容と起動・再起動の手順は [実行手順](../project.md#commands) を参照する。
+
+## Foundry一覧を更新する
+
+仕様合意用モックは `frontend/src/features/foundry/refresh-view.ts` の更新要求を合成点とし、Vite の `foundry-refresh-review` モードだけで `refresh-view-review.ts` の固定応答へ差し替える。入力は現在の `InitialFoundryView`、結果は同じ `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。初期画面と Foundry の変更は既存の E2E 用 Go サービスを通す。
+
+固定応答はサブスクリプション検索と3件の Foundry 取得の進捗を順に通知し、更新後の一覧を Production・Development・Staging とする（Research は消え、Staging が増える）。選択中の Foundry が残る場合は選択とモデルを維持し、モデル取得の進捗を表示しない。残らない場合は最初の Foundry を選択し、モデル取得の進捗を表示してその固定モデル3件を返す。`AcquisitionProgressModal` は `refresh` の表示で題名を「Foundry一覧を更新しています」とし、選択先の名称が通知された場合だけモデル取得の行を表示する。
+
+最終取得日時は `InitialFoundryView` の `foundriesFetchedAt` と `deploymentsFetchedAt`（RFC 3339 の文字列、未設定時は省略）で受け渡し、画面はローカル時刻の `YYYY-MM-DD HH:mm`、未設定時は `—` を表示する。モックでは固定応答だけが値を設定し、Go の取得処理は設定しない。
+
+通常構成では更新ボタンを表示しない。Azure からの再取得、モデルファイルの保存と削除、状態ファイルの保存は未接続で、取得日時の保存形式はテーブル設計の合意後に確定する。実処理接続時に固定応答を削除する。
