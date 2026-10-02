@@ -11,6 +11,8 @@
 | Foundry サービス | ログイン済みの確認、最初に発見した Foundry の選択、一覧取得とモデル取得の並行実行、進捗イベントの通知、全取得後のファイル保存、結果確定 | `main.go`、`foundry_source.go`、`internal/foundry/service.go`、`internal/foundry/models.go`、`internal/foundry/progress.go`、`internal/foundry/storage.go` |
 | Foundry の Azure SDK 境界 | サブスクリプション一覧と Foundry 一覧の取得、選択した Foundry の全デプロイ済みモデル取得 | `internal/foundry/azure.go` |
 
+初回認証と保存済みログイン情報の復元では `EnableCAE: true` で ARM トークンを取得し、後続の ARM クライアントと同じ CAE 用キャッシュを使う。
+
 ```mermaid
 sequenceDiagram
   participant U as 画面

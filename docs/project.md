@@ -58,7 +58,7 @@
 | 環境構築 | `mise trust`、`mise run setup`、`mise run setup:browser` | `frontend/bindings/azfoundrydeck/internal/azauth/` と `frontend/bindings/azfoundrydeck/internal/foundry/` が生成される |
 | 起動（ブラウザー確認） | `mise run server` | `http://127.0.0.1:34115/` を開くと、Home を背景にログインのモーダルが表示される |
 | 起動（デスクトップ） | `mise run dev` | ウィンドウにログインのモーダルが表示される（未検証） |
-| ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck`（CAE 用は `azfoundrydeck.cae`）が作成される（段階5で利用者が実 Azure で確認） |
+| ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck.cae` が作成される（段階5で利用者が実 Azure で確認） |
 | 自動ログイン（起動時の復元） | 保存済みのログイン情報がある状態で `mise run server` を起動し、`http://127.0.0.1:34115/` を開く | モーダルを表示せずに、ヘッダーにテナント名とユーザーアイコンが表示される。失敗時はモーダル内に `LOGIN_FAILED` と理由が表示され、ログに `operation":"azauth.Restore"` の `operation_failed` が記録される |
 | ログアウト | ログイン済みの画面でユーザーアイコンを押し、メニューの「ログアウト」を選ぶ | ヘッダー右が消えてログインモーダルが出る。`cmdkey /list:AzFoundryDeck:AuthenticationRecord` が「なし」を表示し、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck` と `azfoundrydeck.cae` が存在しない（実 Azure でのログアウトは未検証。段階5で利用者が確認） |
 | 保存したログイン情報の手動削除 | `cmdkey /delete:AzFoundryDeck:AuthenticationRecord`、`Remove-Item "$env:LOCALAPPDATA\.IdentityService\azfoundrydeck*"` | `cmdkey /list:AzFoundryDeck:AuthenticationRecord` が「なし」を表示する |

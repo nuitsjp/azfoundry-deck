@@ -5,8 +5,8 @@ package azauth
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache"
@@ -43,7 +43,8 @@ func signIn(ctx context.Context) (Account, azidentity.AuthenticationRecord, erro
 	if err != nil {
 		return Account{}, record, err
 	}
-	record, err = cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: []string{armScope}})
+	// ARM clients request CAE tokens, which use a separate cache from non-CAE tokens.
+	record, err = cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: []string{armScope}, EnableCAE: true})
 	if err != nil {
 		return Account{}, record, err
 	}
@@ -58,7 +59,7 @@ func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord)
 	if err != nil {
 		return Account{}, err
 	}
-	if _, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{armScope}}); err != nil {
+	if _, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{armScope}, EnableCAE: true}); err != nil {
 		return Account{}, err
 	}
 	return tenantAccount(ctx, cred, record)
