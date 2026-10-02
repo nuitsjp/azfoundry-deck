@@ -8,7 +8,7 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧を含む）。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧を含む）。 |
 | 今回の対象外 | サブスクリプション・Foundry・モデルデプロイの操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 ## 2. 制約・品質要求・受け入れ条件
@@ -70,6 +70,10 @@
 | Foundry変更の画面確認用起動 | `node scripts/run.mjs server:review:foundry-change` | `http://127.0.0.1:34116/` がログイン済みで開く。通常と同じフロントエンドを E2E 用 Go サービスにつなぎ、保存済み状態がなければ固定の Foundry 3件と初期選択先のモデル3件を取得して保存する。保存済みならその内容を表示する。端末に確認用データフォルダーが表示される |
 | Foundry変更の確認 | 変更先のモデルファイルが存在しない状態で、プルダウンから `contoso-foundry-development` を選択する。完了後に選択表示へマウスを合わせ、Home画面を再読み込みする | サブスクリプションと Foundry 一覧は再取得せず、変更先のモデル取得と保存の実際の進捗を表示する。応答が速い場合は短い状態を目視できないことがある。成功後に変更先とモデル3件へ切り替わり、省略表示と全文ツールチップを表示する。保存形式は [データ設計](design/data.md#foundry-とデプロイモデル) を参照する。再読み込み後も保存した選択とモデルを表示する |
 | Foundry変更の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | Azure のモデル取得だけが確認用の固定応答から実処理に切り替わり、変更先の確認・選択更新・ファイル読み込みと保存・進捗表示は同じ処理を通る。処理と型は [変更シナリオ設計](design/UCP-1.md#foundryを変更し初回閲覧する) を参照する |
+| Foundry変更後の再閲覧の画面確認用起動 | `node scripts/run.mjs server:review:foundry-revisit` | `http://127.0.0.1:34116/` がログイン済みで開く。起動のたびに `%TEMP%\AzFoundryDeck-foundry-revisit-review` に認証記録、Foundry 2件と各モデルファイル、Production を選択した状態ファイルを用意する。初期表示は `saved-production-chat` の1件。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` で外部取得を保留したまま、本番と同じ Go・画面処理で表示する |
+| Foundry変更後の再閲覧の確認 | プルダウンで `contoso-foundry-development` を選択し、Home画面を再読み込みする。必要に応じて Production に戻る | 取得や進捗モーダルなしで、ファイルから `saved-development-chat`・`saved-development-embedding` の2件を表示する。変更先のモデルファイルは内容と更新時刻を維持し、選択と表示モデルを状態ファイルに保存する。再読み込み後も選択を維持し、Production に戻すと保存済みの1件を表示する。再現境界は [再閲覧の構成](design/UCP-1.md#foundryを変更し再閲覧する) を参照する |
+| Foundry変更後の再閲覧の再起動確認 | 起動端末で `Ctrl+C`。`$env:WAILS_DATA_DIR="$env:TEMP\AzFoundryDeck-foundry-revisit-review"; $env:WAILS_SERVER_PORT='34116'; $env:AZFOUNDRYDECK_E2E_HOLD_FOUNDRY='1'; .\bin\azfoundrydeck-server-e2e.exe` で直接起動する | 固定ファイルを置き直さず、変更後の選択と全モデルを復元する。外部取得を解放するファイルを作らずに表示でき、取得の進捗モーダルを表示しない。公開の確認用起動コマンドはファイルを初期化するため、この確認には使わない |
+| Foundry変更後の再閲覧の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。直接起動用に設定した場合は `Remove-Item Env:WAILS_DATA_DIR, Env:WAILS_SERVER_PORT, Env:AZFOUNDRYDECK_E2E_HOLD_FOUNDRY`。通常構成は `node scripts/run.mjs server` | 通常の認証とデータフォルダーを使用する。確認用の固定ファイルを通常データに持ち込まず、保存済みモデルの読み込みと選択更新は同じ処理を通る |
 | 初回閲覧の進捗の確認 | `foundry-state.json` が存在しない状態で通常ビルドの Home画面を表示し、モーダルの検索・サブスクリプション一覧・モデル取得・保存を確認する。処理中に Escape を押し、モーダル外をクリックする | 検索中と発見件数、待機中・取得中のサブスクリプションが発見順に表示される。完了した行は削除され、完了数と発見件数は削除した行も含めて集計される。選択先とモデルの取得件数、保存状態を表示し、保存成功後に自動で閉じる。処理中は Escape・外側クリックで閉じない。実際の応答時間に従って表示が進むため、短い処理の状態は目視できないことがある |
 | Home画面の初回閲覧の再現 | 確認用データフォルダーに `foundry-state.json` が存在しない状態で `mise run server:review` を起動し、Foundry のプルダウンを開閉して選択表示にマウスを合わせる | 開いた一覧は Foundry 3件の全文を表示する。選択表示は幅に応じて省略し、ツールチップに全文を表示する。モデル一覧はデプロイ名・モデル名・バージョンの3列で3件を表示する。表示した一覧・初期選択・モデルが確認用データフォルダーの `foundry-state.json` に保存される |
 | ログアウトの再現 | 上の画面でユーザーアイコンを押し、メニューの「ログアウト」を選ぶ | メニューにアカウント名 `operator@contoso.onmicrosoft.com` と「ログアウト」だけが出る。選ぶとヘッダー右が消え、閉じられないログインモーダルが出る。データフォルダーの `e2e-authentication-record.json` が削除される |

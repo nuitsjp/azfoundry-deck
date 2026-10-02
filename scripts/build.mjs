@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -42,18 +43,41 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (command === 'run-server-review' || command === 'run-server-review-foundry-change') {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
-    const dataDir = join(tmpdir(), `${app.id}-${foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
+    const dataDir = join(tmpdir(), `${app.id}-${foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
     }));
+    if (foundryRevisitReview) {
+      // File boundary only: reset the review fixture on launch, then use the real
+      // Go read/change/save operations and the production frontend unchanged.
+      const foundries = [
+        { id: '/subscriptions/saved-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast', name: 'contoso-foundry-production-japaneast', subscriptionName: 'Contoso AI Production Subscription', resourceGroupName: 'rg-ai-production-japaneast' },
+        { id: '/subscriptions/saved-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development', name: 'contoso-foundry-development', subscriptionName: 'Contoso Development', resourceGroupName: 'rg-ai-development' },
+      ];
+      const models = [
+        [{ id: `${foundries[0].id}/deployments/saved-production-chat`, deploymentName: 'saved-production-chat', modelName: 'gpt-4.1', version: '2025-04-14' }],
+        [
+          { id: `${foundries[1].id}/deployments/saved-development-chat`, deploymentName: 'saved-development-chat', modelName: 'gpt-4.1-mini', version: '2025-04-14' },
+          { id: `${foundries[1].id}/deployments/saved-development-embedding`, deploymentName: 'saved-development-embedding', modelName: 'text-embedding-3-large', version: '1' },
+        ],
+      ];
+      const modelsDir = join(dataDir, 'foundry-models');
+      mkdirSync(modelsDir, { recursive: true });
+      for (const [index, foundry] of foundries.entries()) {
+        const hash = createHash('sha256').update(foundry.id).digest('hex');
+        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify(models[index], null, 2));
+      }
+      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({ foundries, selectedFoundryId: foundries[0].id, deployments: models[0] }, null, 2));
+    }
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview ? { WAILS_SERVER_PORT: '34116' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

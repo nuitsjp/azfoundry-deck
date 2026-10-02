@@ -25,6 +25,7 @@ Azure にログイン済みである。
 - [デプロイモデルを初回閲覧する](scenarios/デプロイモデルを初回閲覧する.md)
 - [デプロイモデルを再閲覧する](scenarios/デプロイモデルを再閲覧する.md)
 - [Foundryを変更し初回閲覧する](scenarios/Foundryを変更し初回閲覧する.md)
+- [Foundryを変更し再閲覧する](scenarios/Foundryを変更し再閲覧する.md)
 
 ## 実現パターン
 

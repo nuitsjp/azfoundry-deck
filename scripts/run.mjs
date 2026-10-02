@@ -37,13 +37,13 @@ try {
     run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
     run(cli, ['task', 'generate']);
   } else if (command === 'help') {
-    console.log('node scripts/run.mjs setup | dev | build | package | server | server:review | server:review:foundry-change | verify | test:core');
+    console.log('node scripts/run.mjs setup | dev | build | package | server | server:review | server:review:foundry-change | server:review:foundry-revisit | verify | test:core');
   } else {
     if (!existsSync(cli)) throw new Error('先に node scripts/run.mjs setup を実行してください。');
     if (command === 'dev') {
       if (!windows) throw new Error('Desktop development is Windows-only. Use server for browser verification.');
       run(cli, ['dev']);
-    } else if (['build', 'package', 'server', 'server:review', 'server:review:foundry-change', 'verify', 'test:core', 'generate'].includes(command)) {
+    } else if (['build', 'package', 'server', 'server:review', 'server:review:foundry-change', 'server:review:foundry-revisit', 'verify', 'test:core', 'generate'].includes(command)) {
       run(cli, ['task', command]);
     } else throw new Error(`Unknown command: ${command}`);
   }
