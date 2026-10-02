@@ -18,6 +18,7 @@ Azure 上の Microsoft Foundry を管理する運用者（Azure アカウント�
 
 ## シナリオ
 - [ブラウザーでAzureにサインインする](scenarios/ブラウザーでAzureにサインインする.md)
+- [保存済みのログイン情報で自動的にログイン済みになる](scenarios/保存済みのログイン情報で自動的にログイン済みになる.md)
 
 ## 実現パターン
 [UCP-1. 画面操作から Go サービス経由で Azure SDK を呼ぶ](../../design/UCP-1.md)
