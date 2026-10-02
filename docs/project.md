@@ -30,6 +30,7 @@
 | ユースケース | 主アクター | 目的 | 実装順序 | 実現パターン | モック適用 |
 | --- | --- | --- | --- | --- | --- |
 | [Azureへログインする](usecases/Azureへログインする/README.md) | Foundry の運用者 | Azure の認証済み状態を確立し、次回起動へ引き継ぐ | 1 | [UCP-1](design/UCP-1.md) | 対象 |
+| [Azureからログアウトする](usecases/Azureからログアウトする/README.md) | Foundry の運用者 | このアプリのログイン状態と保存したログイン情報を破棄する | 2 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
