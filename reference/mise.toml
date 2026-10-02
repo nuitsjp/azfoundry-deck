@@ -2,7 +2,7 @@
 [tools]
 go = "1.26.8"
 node = "24.21.0"
-python = "3.14"
+python = "3.14.8"
 
 [env]
 PYTHONIOENCODING = "utf-8"
