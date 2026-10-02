@@ -49,4 +49,21 @@ sequenceDiagram
 ```
 
 - 整合性: 状態更新の主体 Go サービス / 結果確定点 手動ログインはトークン取得（永続キャッシュへの保存を含む）、テナント名取得、アカウント識別情報の保存のすべての成功時。起動時の復元はアカウント識別情報の読み出し、トークン取得、テナント名取得のすべての成功時 / 障害時の停止・継続 いずれかが失敗すれば未ログインのままにし、理由を画面へ返す。復元の失敗では保存済みのアカウント識別情報を削除しない。ログアウトは永続キャッシュとアカウント識別情報の両方の削除の成功時に未ログインを確定し、いずれかが失敗すればログイン済みのまま理由を返す
-- モックに置き換える境界と合成点: なし。E2E 用ビルド（`e2e` タグ）に限り、`internal/azauth/e2e.go` と `record_store_e2e.go` で Azure SDK 側のサインイン・復元・キャッシュ削除と保存先を差し替える
+- モックに置き換える境界と合成点: デプロイモデルの初回閲覧は Home画面が受け取る `InitialFoundryView` を合成点とし、画面確認用ビルドで固定データを渡す。認証は E2E 用ビルド（`e2e` タグ）に限り、`internal/azauth/e2e.go` と `record_store_e2e.go` で Azure SDK 側のサインイン・復元・キャッシュ削除と保存先を差し替える
+
+## デプロイモデルの初回閲覧
+
+Home画面は `frontend/src/usecases/initial-deployments/InitialDeployments.tsx` で Foundry とデプロイ済みモデルを表示する。入出力の型は `frontend/src/features/foundry/models.ts` の `Foundry`、`Deployment`、`InitialFoundryView` を共有する。Foundry はリソース ID で識別し、選択済み Foundry を `selectedFoundryId` で参照する。
+
+画面確認用ビルドは `frontend/src/routes/index.tsx` の `VITE_FOUNDRY_REVIEW=1` を唯一の切り替え箇所とし、`frontend/src/features/foundry/initial-view.ts` の固定表を画面に渡す。通常ビルドではこの画面モックを有効にしない。固定表は Foundry 3件、最初に発見した Foundry の選択、その Foundry のデプロイ済みモデル3件を表す。Azure の並列取得とファイル保存はモックで再実装しない。
+
+```mermaid
+sequenceDiagram
+  participant U as Home画面
+  participant M as 初回閲覧の合成点
+  U->>M: 初回閲覧の状態を要求
+  M-->>U: Foundry一覧・選択済みFoundry・モデル一覧
+  U->>U: プルダウンとモデル一覧を表示
+```
+
+モックの表示状態は React Query で保持する。プルダウンを開閉しても初期選択を変更しない。別の Foundry への切り替えはこの系列に含まない。実処理の並列取得・永続化・障害時動作はこのモックによる検証対象外とする。
