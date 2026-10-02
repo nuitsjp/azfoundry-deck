@@ -18,8 +18,8 @@ const (
 )
 
 type Account struct {
-	Username string `json:"username"`
-	TenantID string `json:"tenantID"`
+	Username   string `json:"username"`
+	TenantName string `json:"tenantName"`
 }
 
 type Status struct {

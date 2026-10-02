@@ -19,7 +19,7 @@ createRoot(root, {
   onCaughtError: reportFrontendError,
 }).render(
   <React.StrictMode>
-    <MantineProvider theme={theme}>
+    <MantineProvider theme={theme} forceColorScheme="dark">
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>

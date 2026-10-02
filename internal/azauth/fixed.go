@@ -21,5 +21,5 @@ func (f Fixed) Authenticate(ctx context.Context) (Account, error) {
 	if f.Fail {
 		return Account{}, errors.New("mock: AZFOUNDRYDECK_MOCK_LOGIN_FAIL=1")
 	}
-	return Account{Username: "operator@contoso.onmicrosoft.com", TenantID: "00000000-0000-0000-0000-000000000001"}, nil
+	return Account{Username: "operator@contoso.onmicrosoft.com", TenantName: "Contoso"}, nil
 }

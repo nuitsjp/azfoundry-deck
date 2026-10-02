@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
 import { useIsMutating, useQuery } from '@tanstack/react-query';
-import { Alert, Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { Alert, AppShell, Badge, Button, Group, Modal, NavLink, Stack, Text } from '@mantine/core';
 import { appInfo, confirmQuit, ready, subscribeClose } from '../features/application/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { ExitProvider, useExit } from '../shared/ExitContext';
-import styles from './Shell.module.css';
+import { AzureLogin } from '../usecases/azure-login/AzureLogin';
+
+function AppIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="4" rx="1.5" fill="#4dabf7" />
+      <rect x="3" y="10" width="18" height="4" rx="1.5" fill="#339af0" />
+      <rect x="3" y="16" width="18" height="4" rx="1.5" fill="#1c7ed6" />
+    </svg>
+  );
+}
 
 function Content() {
   const info = useQuery(appInfo());
@@ -26,42 +36,25 @@ function Content() {
     }
   }
   return (
-    <div className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Text size="xs" fw={700} c="dimmed" className={styles.eyebrow}>
-          AZFOUNDRYDECK
-        </Text>
-        <Title order={3} mt="xs">
-          Azure Foundry
-          <br />
-          を管理する。
-        </Title>
-        <Text size="sm" c="dimmed" mt="md">
-          Microsoft Foundry とモデルデプロイを管理するデスクトップアプリ。
-        </Text>
-        <nav className={styles.navigation} aria-label="メインナビゲーション">
-          <Link to="/" activeProps={{ className: styles.active }}>
-            {'01　Azureへのログイン'}
-          </Link>
-        </nav>
-        <div className={styles.footer}>
-          <Badge variant="light">{info.data?.server ? 'Server / 検証用' : 'Windows Desktop'}</Badge>
-          <Text size="xs" c="dimmed" mt="sm">
-            v{info.data?.version ?? '—'}
-          </Text>
-        </div>
-      </aside>
-      <main className={styles.main}>
-        {__MOCK__ && (
-          <Group justify="flex-end" mb="xl">
-            <Badge color="orange">試験用モック</Badge>
+    <AppShell header={{ height: 52 }} navbar={{ width: 200, breakpoint: 0 }} padding="lg">
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap">
+            <AppIcon />
+            <Text fw={700}>AzFoundryDeck</Text>
+            {__MOCK__ && (
+              <Badge size="xs" color="orange" variant="light">
+                モック
+              </Badge>
+            )}
           </Group>
-        )}
-        {__MOCK__ && (
-          <Alert color="orange" mb="lg">
-            固定データによる試験用の再現です。Azure へは接続しません。
-          </Alert>
-        )}
+          <AzureLogin />
+        </Group>
+      </AppShell.Header>
+      <AppShell.Navbar p="xs" aria-label="メインナビゲーション">
+        <NavLink component={Link} to="/" label="Home" active />
+      </AppShell.Navbar>
+      <AppShell.Main>
         <ErrorNotice error={info.error || error} />
         {info.data && !info.data.diagnosticsAvailable && (
           <Alert color="yellow" mb="lg">
@@ -69,7 +62,7 @@ function Content() {
           </Alert>
         )}
         <Outlet />
-      </main>
+      </AppShell.Main>
       <Modal
         opened={closing}
         onClose={() => setClosing(false)}
@@ -95,7 +88,7 @@ function Content() {
           </Group>
         </Stack>
       </Modal>
-    </div>
+    </AppShell>
   );
 }
 export function Shell() {

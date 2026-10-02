@@ -46,13 +46,13 @@
 | 目的 | コマンド・設定 | 成功確認 |
 | --- | --- | --- |
 | 環境構築 | `mise trust`、`mise run setup`、`mise run setup:browser` | `frontend/bindings/azfoundrydeck/internal/azauth/` が生成される |
-| モック起動（ブラウザー確認） | `mise run server:mock` | `http://127.0.0.1:34115/` に右上の「試験用モック」バッジと固定データの注記が表示され、サーバーの出力に `mock authenticator enabled` が出る |
-| モックの失敗再現 | `$env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL='1'; mise run server:mock`（確認後 `Remove-Item Env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL`） | 「Azureにログイン」を押して約3秒後に `LOGIN_FAILED` の理由が表示され、ボタンが再び押せる未ログイン画面に戻る |
-| モック起動（デスクトップ） | `mise run dev:mock` | ウィンドウに「試験用モック」バッジが表示される（未検証） |
-| 実処理起動 | `mise run server`（ブラウザー確認、URL は同上）、`mise run dev`（デスクトップ） | 「試験用モック」バッジがなく、ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）に `mock authenticator enabled` が出ない |
+| モック起動（ブラウザー確認） | `mise run server:mock` | `http://127.0.0.1:34115/` のヘッダーでアプリ名の右に「モック」バッジが表示され、サーバーの出力に `mock authenticator enabled` が出る |
+| モックの失敗再現 | `$env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL='1'; mise run server:mock`（確認後 `Remove-Item Env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL`） | ヘッダーの「Azureにログイン」を押して約3秒後に、ヘッダー内に `LOGIN_FAILED` と理由が表示され、ボタンが再び押せる状態に戻る |
+| モック起動（デスクトップ） | `mise run dev:mock` | ウィンドウのヘッダーに「モック」バッジが表示される（未検証） |
+| 実処理起動 | `mise run server`（ブラウザー確認、URL は同上）、`mise run dev`（デスクトップ） | 「モック」バッジがなく、ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）に `mock authenticator enabled` が出ない |
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |
 
-- **モックの範囲**: 合成点は `main.go` で `internal/azauth` の `Authenticator` を選ぶ1箇所です。モックの `Fixed` は約3秒待ってから固定のアカウント名 `operator@contoso.onmicrosoft.com` とテナントID `00000000-0000-0000-0000-000000000001` を返します。Azure への接続と OS のクレデンシャルマネージャーへの保存は行いません。
+- **モックの範囲**: 合成点は `main.go` で `internal/azauth` の `Authenticator` を選ぶ1箇所です。モックの `Fixed` は約3秒待ってから固定のアカウント名 `operator@contoso.onmicrosoft.com` とテナント名 `Contoso` を返します。Azure への接続と OS のクレデンシャルマネージャーへの保存は行いません。
 - **モック有効の条件**: `production` タグなしのビルドで、環境変数 `WAILS_FRONTEND_MODE=mock` のときだけ有効です。`server:mock` と `dev:mock` がこの値を設定します。`production` タグ付きのビルド（`server`、`build`、`package`）は環境変数に関係なく実処理（`azidentity.InteractiveBrowserCredential`）を使います。
 - **実処理への切り替え**: `server:mock` を終了し、`mise run server` または `mise run dev` で起動します。
 - **フォールバックしないことの確認**: `mise run server` で作成した `bin\azfoundrydeck-server.exe` を、`WAILS_FRONTEND_MODE=mock` と接続できないプロキシ（`HTTPS_PROXY=http://127.0.0.1:9`）を設定して起動し、「Azureにログイン」を押すと `LOGIN_FAILED` が表示され、ログイン済みにならないことを確認しました。ログには `operation_failed` と接続失敗の原因が記録されます。
