@@ -34,6 +34,11 @@ tasks:
       - task: generate
       - npm --prefix frontend run build
       - node scripts/build.mjs server-e2e
+  # Screen review with the e2e build (fixed sign-in, file store); not a production path.
+  server:review:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review
   server:
     cmds:
       - task: build:server

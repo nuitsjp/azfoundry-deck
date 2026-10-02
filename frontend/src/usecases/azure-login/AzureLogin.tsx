@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Avatar, Button, Group, Loader, Modal, Stack, Text, Title, Tooltip } from '@mantine/core';
+import { Button, Group, Loader, Modal, Stack, Text, Title } from '@mantine/core';
 import { Phase } from '@bindings/azfoundrydeck/internal/azauth/models';
 import { authStatus, useLogin } from '../../features/auth/queries';
 import { publicError } from '../../shared/errors';
+import { AccountMenu } from '../azure-logout/AccountMenu';
 
 // Header: tenant name and account avatar after sign-in.
 export function AccountBadge() {
@@ -14,9 +15,7 @@ export function AccountBadge() {
       <Text size="sm" c="dimmed">
         {account.tenantName}
       </Text>
-      <Tooltip label={account.username} position="bottom-end">
-        <Avatar name={account.username} color="initials" radius="xl" size="sm" />
-      </Tooltip>
+      <AccountMenu account={account} />
     </Group>
   );
 }

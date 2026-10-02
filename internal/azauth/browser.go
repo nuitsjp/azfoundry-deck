@@ -4,6 +4,7 @@ package azauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -84,4 +85,11 @@ func tenantAccount(ctx context.Context, cred *azidentity.InteractiveBrowserCrede
 		}
 	}
 	return Account{}, fmt.Errorf("tenant %s is not in the ARM tenant list", record.TenantID)
+}
+
+// deleteTokenCache removes this app's persistent token cache files.
+// Not implemented yet (use case "Azureからログアウトする", stage 4): it fails
+// so that a logout never reports a false success.
+func deleteTokenCache() error {
+	return errors.New("deleting the token cache is not implemented")
 }

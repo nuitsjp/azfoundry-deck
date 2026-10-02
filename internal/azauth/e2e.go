@@ -14,7 +14,7 @@ import (
 )
 
 // E2E builds replace only the external boundaries (Entra ID / ARM and the
-// Credential Manager). AZFOUNDRYDECK_E2E_FAIL=signin, =save or =restore injects
+// Credential Manager). AZFOUNDRYDECK_E2E_FAIL=signin, =save, =restore or =logout injects
 // a failure. A record file placed before start makes the startup restore sign in silently.
 // Every sign-in leaves the e2e-signin-called file in WAILS_DATA_DIR, and
 // AZFOUNDRYDECK_E2E_HOLD_RESTORE=1 holds the restore until the e2e-restore-release
@@ -84,4 +84,19 @@ func (f FileStore) Load() (azidentity.AuthenticationRecord, bool, error) {
 		return record, false, err
 	}
 	return record, true, json.Unmarshal(data, &record)
+}
+
+// The e2e build has no persistent token cache.
+func deleteTokenCache() error {
+	return nil
+}
+
+func (f FileStore) Delete() error {
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "logout" {
+		return errors.New("e2e: logout failure injected")
+	}
+	if err := os.Remove(f.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }

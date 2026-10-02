@@ -32,6 +32,10 @@ run = "node scripts/run.mjs package"
 description = "Go実処理を使うブラウザ確認用サーバーを起動する"
 run = "node scripts/run.mjs server"
 
+[tasks."server:review"]
+description = "画面確認用：E2E用ビルドを固定の記録でログイン済みから起動する（本番経路ではない）"
+run = "node scripts/run.mjs server:review"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

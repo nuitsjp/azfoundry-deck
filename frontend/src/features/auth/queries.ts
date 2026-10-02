@@ -19,3 +19,12 @@ export function useLogin() {
     },
   });
 }
+export function useLogout() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => Auth.Logout(),
+    onSuccess: (status) => {
+      client.setQueryData(statusKey, status);
+    },
+  });
+}

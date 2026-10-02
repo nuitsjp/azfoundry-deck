@@ -35,6 +35,8 @@ type RecordStore interface {
 	Save(record azidentity.AuthenticationRecord) error
 	// Load reports found=false when nothing is saved.
 	Load() (record azidentity.AuthenticationRecord, found bool, err error)
+	// Delete removes the saved record; nothing saved is not an error.
+	Delete() error
 }
 
 type Service struct {
@@ -135,5 +137,25 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 		return Status{}, fault.New("LOGIN_FAILED", "Azureにログインできませんでした。ブラウザーでのサインインを完了したか確認し、もう一度ログインしてください。")
 	}
 	s.status = Status{Phase: SignedIn, Account: &account}
+	return s.status, nil
+}
+
+// Logout deletes the saved record and the persistent token cache, then drops
+// the in-memory sign-in. If any deletion fails the state stays SignedIn.
+func (s *Service) Logout() (Status, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.status.Phase != SignedIn {
+		return Status{}, fault.New("NOT_SIGNED_IN", "ログインしていません。")
+	}
+	err := s.store.Delete()
+	if err == nil {
+		err = deleteTokenCache()
+	}
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "azauth.Logout", "cause", err)
+		return Status{}, fault.New("LOGOUT_FAILED", "Azureからログアウトできませんでした。もう一度ログアウトしてください。")
+	}
+	s.status = Status{Phase: SignedOut}
 	return s.status, nil
 }
