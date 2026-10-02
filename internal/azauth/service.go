@@ -25,8 +25,14 @@ const (
 )
 
 type Account struct {
-	Username   string `json:"username"`
-	TenantName string `json:"tenantName"`
+	Username         string   `json:"username"`
+	Tenants          []Tenant `json:"tenants"`
+	SelectedTenantID string   `json:"selectedTenantId"`
+}
+
+type Tenant struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
 }
 
 type Status struct {

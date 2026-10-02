@@ -41,6 +41,10 @@ run = "node scripts/run.mjs server"
 description = "画面確認用：E2E用ビルドを固定の記録でログイン済みから起動する（本番経路ではない）"
 run = "node scripts/run.mjs server:review"
 
+[tasks."server:review:login"]
+description = "テナント1件のサインイン画面を固定応答で確認する"
+run = "node scripts/run.mjs server:review:login"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

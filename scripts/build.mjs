@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,10 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
+  } else if (command === 'run-server-review-login') {
+    const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
+    console.log(`review data directory: ${dataDir}`);
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: '34117' } });
   } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.

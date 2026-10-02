@@ -8,7 +8,7 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧を含む）。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧を含む）。 |
 | 今回の対象外 | サブスクリプション・Foundry・モデルデプロイの操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 ## 2. 制約・品質要求・受け入れ条件
@@ -32,6 +32,7 @@
 | [Azureへログインする](usecases/Azureへログインする/README.md) | Foundry の運用者 | Azure の認証済み状態を確立し、次回起動へ引き継ぐ | 1 | [UCP-1](design/UCP-1.md) | 対象 |
 | [Azureからログアウトする](usecases/Azureからログアウトする/README.md) | Foundry の運用者 | このアプリのログイン状態と保存したログイン情報を破棄する | 2 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルを閲覧する](usecases/デプロイモデルを閲覧する/README.md) | Foundry の運用者 | Home画面で Foundry 一覧と選択された Foundry のデプロイ済みモデルを確認する | 3 | [UCP-1](design/UCP-1.md) | 対象 |
+| [テナントを変更する](usecases/テナントを変更する/README.md) | Azure にログイン済みの Foundry 運用者 | 認証済みのアカウントを維持したまま、Azure リソース操作の対象テナントを変更する | 4 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -60,6 +61,8 @@
 | runner 本体の自動更新 | runner の標準自動更新を有効にしたままサービスを常駐させる。別の定期タスクは不要 | [GitHub の仕様](https://docs.github.com/en/actions/reference/runners/self-hosted-runners#communication)では、ジョブ割り当て時、または新バージョン公開後1週間以内に更新される |
 | 起動（ブラウザー確認） | `mise run server` | `http://127.0.0.1:34115/` を開くと、Home を背景にログインのモーダルが表示される |
 | 起動（デスクトップ） | `mise run dev` | ウィンドウにログインのモーダルが表示される（未検証） |
+| 1件テナントのサインイン画面確認用起動 | `mise run server:review:login` | `http://127.0.0.1:34117/` が未ログインで開く。起動のたびに空の一時フォルダー `AzFoundryDeck-login-review-...` を作り、端末にパスを表示する。「Azureにログイン」を押すと、ブラウザーを開かずに固定応答で認証し、唯一の候補 ID `e2e-azure-tenant`、表示名 `Contoso` が選択される。認証記録のテナント ID `e2e-tenant` は候補 ID と異なる。ヘッダーのプルダウンとユーザーアイコンへのマウスオーバーで選択名・アカウント名 `operator@contoso.onmicrosoft.com` を確認する。実 Azure・資格情報マネージャー・永続キャッシュには触れず、選択の永続保存やテナント別の閲覧データ分離は未検証。構成は [サインイン設計](design/UCP-1.md#ブラウザーでazureにサインインする) を参照する |
+| サインイン画面確認用構成の終了と実処理への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` または `mise run dev` | 確認用の一時データを通常データへ持ち込まず、実 Azure の認証経路に切り替わる。実認証・テナント一覧取得の変更と選択の永続保存は段階4で接続する対象であり、確認用画面の成功は本番認証・保存の成功を意味しない |
 | ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck.cae` が作成される（段階5で利用者が実 Azure で確認） |
 | 自動ログイン（起動時の復元） | 保存済みのログイン情報がある状態で `mise run server` を起動し、`http://127.0.0.1:34115/` を開く | モーダルを表示せずに、ヘッダーにテナント名とユーザーアイコンが表示される。失敗時はモーダル内に `LOGIN_FAILED` と理由が表示され、ログに `operation":"azauth.Restore"` の `operation_failed` が記録される |
 | ログアウト | ログイン済みの画面でユーザーアイコンを押し、メニューの「ログアウト」を選ぶ | ヘッダー右が消えてログインモーダルが出る。`cmdkey /list:AzFoundryDeck:AuthenticationRecord` が「なし」を表示し、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck` と `azfoundrydeck.cae` が存在しない（実 Azure でのログアウトは未検証。段階5で利用者が確認） |

@@ -35,7 +35,11 @@ func signIn(context.Context) (Account, azidentity.AuthenticationRecord, error) {
 		Username:      "operator@contoso.onmicrosoft.com",
 		Version:       "1.0",
 	}
-	return Account{Username: record.Username, TenantName: "Contoso"}, record, nil
+	return Account{
+		Username:         record.Username,
+		Tenants:          []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}},
+		SelectedTenantID: "e2e-azure-tenant",
+	}, record, nil
 }
 
 func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord) (Account, error) {
@@ -55,7 +59,11 @@ func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord)
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "restore" {
 		return Account{}, errors.New("e2e: restore failure injected")
 	}
-	return Account{Username: record.Username, TenantName: "Contoso"}, nil
+	return Account{
+		Username:         record.Username,
+		Tenants:          []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}},
+		SelectedTenantID: "e2e-azure-tenant",
+	}, nil
 }
 
 // FileStore writes the record as the same JSON the Credential Manager store uses.

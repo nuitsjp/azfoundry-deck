@@ -81,7 +81,11 @@ func tenantAccount(ctx context.Context, cred *azidentity.InteractiveBrowserCrede
 				if t.DisplayName == nil || *t.DisplayName == "" {
 					return Account{}, fmt.Errorf("tenant %s has no display name", record.TenantID)
 				}
-				return Account{Username: record.Username, TenantName: *t.DisplayName}, nil
+				return Account{
+					Username:         record.Username,
+					Tenants:          []Tenant{{ID: *t.TenantID, DisplayName: *t.DisplayName}},
+					SelectedTenantID: *t.TenantID,
+				}, nil
 			}
 		}
 	}

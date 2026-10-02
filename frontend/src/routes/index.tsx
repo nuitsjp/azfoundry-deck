@@ -12,7 +12,9 @@ function Home() {
       <Title order={2} mb="lg">
         Home
       </Title>
-      {status.data?.phase === Phase.SignedIn && <InitialDeployments />}
+      {status.data?.phase === Phase.SignedIn && status.data.account?.selectedTenantId ? (
+        <InitialDeployments />
+      ) : null}
     </>
   );
 }
