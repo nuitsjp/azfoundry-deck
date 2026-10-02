@@ -87,7 +87,7 @@ func (f FileStore) Load() (azidentity.AuthenticationRecord, bool, error) {
 }
 
 // The e2e build has no persistent token cache.
-func deleteTokenCache() error {
+func deleteTokenCache(string) error {
 	return nil
 }
 

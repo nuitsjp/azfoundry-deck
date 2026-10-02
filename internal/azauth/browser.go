@@ -4,7 +4,6 @@ package azauth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -13,12 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 )
 
-const (
-	armScope = "https://management.azure.com/.default"
-	// tokenCacheName isolates this app's persistent token cache. On Windows the
-	// SDK stores it DPAPI-encrypted at %LOCALAPPDATA%\.IdentityService\<name>.
-	tokenCacheName = "azfoundrydeck"
-)
+const armScope = "https://management.azure.com/.default"
 
 // credential uses the persistent token cache. With a record and silent set, it
 // only reads or refreshes cached tokens and fails instead of opening a browser.
@@ -85,11 +79,4 @@ func tenantAccount(ctx context.Context, cred *azidentity.InteractiveBrowserCrede
 		}
 	}
 	return Account{}, fmt.Errorf("tenant %s is not in the ARM tenant list", record.TenantID)
-}
-
-// deleteTokenCache removes this app's persistent token cache files.
-// Not implemented yet (use case "Azureからログアウトする", stage 4): it fails
-// so that a logout never reports a false success.
-func deleteTokenCache() error {
-	return errors.New("deleting the token cache is not implemented")
 }

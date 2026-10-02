@@ -12,6 +12,10 @@ import (
 	"azfoundrydeck/internal/fault"
 )
 
+// tokenCacheName isolates this app's persistent token cache. On Windows the
+// SDK stores it DPAPI-encrypted at %LOCALAPPDATA%\.IdentityService\<name>.
+const tokenCacheName = "azfoundrydeck"
+
 type Phase string
 
 const (
@@ -140,17 +144,20 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 	return s.status, nil
 }
 
-// Logout deletes the saved record and the persistent token cache, then drops
-// the in-memory sign-in. If any deletion fails the state stays SignedIn.
+// Logout deletes the persistent token cache first and the saved record second,
+// then drops the in-memory sign-in. Tokens go first so that a partial failure
+// leaves only the record, which holds no secret; the next start then fails the
+// restore and shows the login modal. If any deletion fails the state stays
+// SignedIn, and a retry is safe because both deletions are idempotent.
 func (s *Service) Logout() (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status.Phase != SignedIn {
 		return Status{}, fault.New("NOT_SIGNED_IN", "ログインしていません。")
 	}
-	err := s.store.Delete()
+	err := deleteTokenCache(tokenCacheName)
 	if err == nil {
-		err = deleteTokenCache()
+		err = s.store.Delete()
 	}
 	if err != nil {
 		s.logger.Error("operation_failed", "operation", "azauth.Logout", "cause", err)

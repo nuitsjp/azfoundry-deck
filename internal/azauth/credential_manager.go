@@ -39,8 +39,11 @@ func (CredentialManager) Load() (azidentity.AuthenticationRecord, bool, error) {
 	return record, true, json.Unmarshal([]byte(data), &record)
 }
 
-// Delete is not implemented yet (use case "Azureからログアウトする", stage 4):
-// it fails so that a logout never reports a false success.
+// Delete removes the saved record. A record that is already gone is not an error.
 func (CredentialManager) Delete() error {
-	return errors.New("deleting the saved record is not implemented")
+	err := keyring.Delete(credentialService, credentialUser)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return nil
+	}
+	return err
 }
