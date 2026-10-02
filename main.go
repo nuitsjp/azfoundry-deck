@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -96,17 +97,44 @@ func run() error {
 	}
 	controls := &desktop.Controls{Emit: emit}
 	authStore := recordStore(dir)
-	authService := azauth.New(authStore, logger)
-	foundryService := foundry.New(func() (foundry.Source, error) { return foundrySource(authStore) }, func(ctx context.Context) error {
+	clearViews := func() error {
+		for _, name := range []string{"azure-views", "foundry-state.json", "foundry-models"} {
+			target := filepath.Join(dir, name)
+			if filepath.Dir(target) != filepath.Clean(dir) {
+				return fmt.Errorf("invalid saved data path")
+			}
+			if err := os.RemoveAll(target); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	operations := &sync.Mutex{}
+	authService := azauth.New(authStore, logger, clearViews, operations)
+	foundryService := foundry.New(operations, func() (foundry.Source, error) { return foundrySource(authStore) }, func(ctx context.Context) error {
 		status, err := authService.GetStatus(ctx)
 		if err != nil {
 			return err
 		}
-		if status.Phase != azauth.SignedIn {
+		if status.Phase != azauth.SignedIn || status.Account == nil || status.Account.SelectedTenantID == "" {
 			return fault.New("NOT_SIGNED_IN", "ログインしていません。")
 		}
 		return nil
-	}, filepath.Join(dir, "foundry-state.json"), logger, emit)
+	}, func() (string, error) {
+		record, found, err := authStore.Load()
+		if err != nil {
+			return "", err
+		}
+		if !found || record.SelectedTenantID == "" {
+			return "", fmt.Errorf("selected tenant is missing")
+		}
+		identity, err := json.Marshal([]string{record.Record.HomeAccountID, record.SelectedTenantID})
+		if err != nil {
+			return "", err
+		}
+		key := sha256.Sum256(identity)
+		return filepath.Join(dir, "azure-views", fmt.Sprintf("%x", key), "foundry-state.json"), nil
+	}, logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
 	options := application.Options{

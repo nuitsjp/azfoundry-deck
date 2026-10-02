@@ -1,4 +1,5 @@
-import { readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 import type { InitialFoundryView } from '../../../../src/features/foundry/models';
@@ -49,7 +50,14 @@ const labels = foundries.map(
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
 test('デプロイモデルを再閲覧する', async ({ page, app }) => {
-  const savedFile = join(app.dataDir, 'foundry-state.json');
+  const viewDir = join(
+    app.dataDir,
+    'azure-views',
+    createHash('sha256')
+      .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
+      .digest('hex'),
+  );
+  const savedFile = join(viewDir, 'foundry-state.json');
   const savedText = JSON.stringify(view, null, 2) + '\n';
   let timestamps: { mtimeMs: number; birthtimeMs: number };
   const progressFrames: string[] = [];
@@ -115,8 +123,11 @@ test('デプロイモデルを再閲覧する', async ({ page, app }) => {
         tenantId: 'e2e-tenant',
         username: 'operator@contoso.onmicrosoft.com',
         version: '1.0',
+        tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+        selectedTenantId: 'e2e-azure-tenant',
       }),
     );
+    mkdirSync(viewDir, { recursive: true });
     writeFileSync(savedFile, savedText);
     const oldTime = new Date('2001-02-03T04:05:06.000Z');
     utimesSync(savedFile, oldTime, oldTime);

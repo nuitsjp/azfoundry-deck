@@ -59,10 +59,17 @@ const displayed = (value: string) => {
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
 test('デプロイモデルを更新する', async ({ page, app }) => {
-  const stateFile = join(app.dataDir, 'foundry-state.json');
+  const viewDir = join(
+    app.dataDir,
+    'azure-views',
+    createHash('sha256')
+      .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
+      .digest('hex'),
+  );
+  const stateFile = join(viewDir, 'foundry-state.json');
   const modelFile = (foundry: { id: string }) =>
     join(
-      app.dataDir,
+      viewDir,
       'foundry-models',
       `${createHash('sha256').update(foundry.id).digest('hex')}.json`,
     );
@@ -109,10 +116,12 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
         tenantId: 'e2e-tenant',
         username: 'operator@contoso.onmicrosoft.com',
         version: '1.0',
+        tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+        selectedTenantId: 'e2e-azure-tenant',
       }),
     );
+    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    mkdirSync(join(app.dataDir, 'foundry-models'));
     writeFileSync(modelFile(production), savedModelFile(production, savedModels));
     writeFileSync(modelFile(development), savedModelFile(development, developmentModels));
     const oldTime = new Date('2001-02-03T04:05:06Z');

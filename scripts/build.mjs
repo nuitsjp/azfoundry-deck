@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,11 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
+  } else if (['run-server-review-login', 'run-server-review-login-multiple'].includes(command)) {
+    const multiple = command === 'run-server-review-login-multiple';
+    const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
+    console.log(`review data directory: ${dataDir}`);
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: multiple ? '34118' : '34117', AZFOUNDRYDECK_E2E_TENANTS: multiple ? 'multiple' : '' } });
   } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
@@ -58,7 +63,10 @@ try {
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
+      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
     }));
+    // Saved views live under the signed-in account and selected tenant.
+    const viewDir = join(dataDir, 'azure-views', createHash('sha256').update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant'])).digest('hex'));
     if (foundryRevisitReview) {
       // File boundary only: reset the review fixture on launch, then use the real
       // Go read/change/save operations and the production frontend unchanged.
@@ -73,13 +81,13 @@ try {
           { id: `${foundries[1].id}/deployments/saved-development-embedding`, deploymentName: 'saved-development-embedding', modelName: 'text-embedding-3-large', version: '1' },
         ],
       ];
-      const modelsDir = join(dataDir, 'foundry-models');
+      const modelsDir = join(viewDir, 'foundry-models');
       mkdirSync(modelsDir, { recursive: true });
       for (const [index, foundry] of foundries.entries()) {
         const hash = createHash('sha256').update(foundry.id).digest('hex');
         writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt: '2026-09-01T09:00:00+09:00', deployments: models[index] }, null, 2));
       }
-      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
+      writeFileSync(join(viewDir, 'foundry-state.json'), JSON.stringify({
         foundries, selectedFoundryId: foundries[0].id, deployments: models[0],
         foundriesFetchedAt: '2026-09-01T09:00:00+09:00', deploymentsFetchedAt: '2026-09-01T09:00:00+09:00',
       }, null, 2));
@@ -100,13 +108,13 @@ try {
         [['legacy-chat', 'gpt-4o', '2024-11-20']],
       ].map((rows, index) => rows.map(([deploymentName, modelName, version]) => ({ id: `${owners[index].id}/deployments/${deploymentName}`, deploymentName, modelName, version })));
       const fetchedAt = '2026-09-01T09:00:00+09:00';
-      const modelsDir = join(dataDir, 'foundry-models');
+      const modelsDir = join(viewDir, 'foundry-models');
       mkdirSync(modelsDir, { recursive: true });
       for (const [index, deployments] of models.entries()) {
         const hash = createHash('sha256').update(owners[index].id).digest('hex');
         writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt, deployments }, null, 2));
       }
-      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
+      writeFileSync(join(viewDir, 'foundry-state.json'), JSON.stringify({
         foundries, selectedFoundryId: foundries[0].id, deployments: models[0], foundriesFetchedAt: fetchedAt, deploymentsFetchedAt: fetchedAt,
       }, null, 2));
     }

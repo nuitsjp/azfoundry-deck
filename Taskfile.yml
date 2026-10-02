@@ -42,6 +42,14 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review
+  server:review:login:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-login
+  server:review:login-multiple:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-login-multiple
   server:review:foundry-change:
     cmds:
       - task: build:server:e2e

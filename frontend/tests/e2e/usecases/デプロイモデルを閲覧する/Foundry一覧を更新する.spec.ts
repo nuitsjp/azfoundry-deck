@@ -70,10 +70,17 @@ const displayed = (value: string) => {
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
 test('Foundry一覧を更新する', async ({ page, app }) => {
-  const stateFile = join(app.dataDir, 'foundry-state.json');
+  const viewDir = join(
+    app.dataDir,
+    'azure-views',
+    createHash('sha256')
+      .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
+      .digest('hex'),
+  );
+  const stateFile = join(viewDir, 'foundry-state.json');
   const modelFile = (foundry: { id: string }) =>
     join(
-      app.dataDir,
+      viewDir,
       'foundry-models',
       `${createHash('sha256').update(foundry.id).digest('hex')}.json`,
     );
@@ -84,8 +91,8 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
   const prepare = (view: InitialFoundryView) => {
+    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
     writeFileSync(stateFile, JSON.stringify(view));
-    mkdirSync(join(app.dataDir, 'foundry-models'), { recursive: true });
     writeFileSync(modelFile(production), productionText);
     writeFileSync(modelFile(legacy), savedModelFile(legacyModels, legacy));
   };
@@ -125,6 +132,8 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
         tenantId: 'e2e-tenant',
         username: 'operator@contoso.onmicrosoft.com',
         version: '1.0',
+        tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+        selectedTenantId: 'e2e-azure-tenant',
       }),
     );
     prepare(original);

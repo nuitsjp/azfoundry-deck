@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"azfoundrydeck/internal/fault"
@@ -19,14 +18,21 @@ const tokenCacheName = "azfoundrydeck"
 type Phase string
 
 const (
-	SignedOut Phase = "signedOut"
-	SigningIn Phase = "signingIn"
-	SignedIn  Phase = "signedIn"
+	SignedOut       Phase = "signedOut"
+	SigningIn       Phase = "signingIn"
+	SelectingTenant Phase = "selectingTenant"
+	SignedIn        Phase = "signedIn"
 )
 
 type Account struct {
-	Username   string `json:"username"`
-	TenantName string `json:"tenantName"`
+	Username         string   `json:"username"`
+	Tenants          []Tenant `json:"tenants"`
+	SelectedTenantID string   `json:"selectedTenantId"`
+}
+
+type Tenant struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
 }
 
 type Status struct {
@@ -36,9 +42,9 @@ type Status struct {
 
 // RecordStore keeps the account identity that a later start uses to restore sign-in.
 type RecordStore interface {
-	Save(record azidentity.AuthenticationRecord) error
+	Save(record LoginRecord) error
 	// Load reports found=false when nothing is saved.
-	Load() (record azidentity.AuthenticationRecord, found bool, err error)
+	Load() (record LoginRecord, found bool, err error)
 	// Delete removes the saved record; nothing saved is not an error.
 	Delete() error
 }
@@ -50,11 +56,13 @@ type Service struct {
 	restored   chan struct{}
 	store      RecordStore
 	logger     *slog.Logger
+	clearViews func() error
+	operations *sync.Mutex
 }
 
 // New returns a service whose GetStatus waits until the startup restore has finished.
-func New(store RecordStore, logger *slog.Logger) *Service {
-	return &Service{status: Status{Phase: SigningIn}, restored: make(chan struct{}), store: store, logger: logger}
+func New(store RecordStore, logger *slog.Logger, clearViews func() error, operations *sync.Mutex) *Service {
+	return &Service{status: Status{Phase: SigningIn}, restored: make(chan struct{}), store: store, logger: logger, clearViews: clearViews, operations: operations}
 }
 
 // ServiceStartup is called by Wails when the app starts and runs the restore in
@@ -77,7 +85,10 @@ func (s *Service) restore(ctx context.Context) {
 	}
 	var account Account
 	if err == nil {
-		account, err = restoreAccount(ctx, record)
+		account, err = record.account()
+		if err == nil {
+			err = restoreToken(ctx, record)
+		}
 	}
 	if err != nil {
 		s.logger.Error("operation_failed", "operation", "azauth.Restore", "cause", err)
@@ -112,10 +123,12 @@ func (s *Service) GetStatus(ctx context.Context) (Status, error) {
 	return s.status, nil
 }
 
-// Login succeeds only when the token, the tenant name and the saved record are
+// Login succeeds only when the token, tenant list and saved selection are
 // all in place. On failure the state returns to SignedOut and never becomes a
 // substituted success.
 func (s *Service) Login(ctx context.Context) (Status, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
 	s.mu.Lock()
 	if s.status.Phase == SigningIn {
 		s.mu.Unlock()
@@ -125,9 +138,36 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 	s.restoreErr = nil
 	s.mu.Unlock()
 
-	account, record, err := signIn(ctx)
+	record, err := signIn(ctx)
+	saved := LoginRecord{Record: record}
 	if err == nil {
-		err = s.store.Save(record)
+		err = s.store.Save(saved)
+	}
+	if err == nil {
+		saved.Tenants, err = listTenants(ctx, record)
+	}
+	if err == nil {
+		err = s.store.Save(saved)
+	}
+	var account Account
+	phase := SignedIn
+	if err == nil {
+		switch len(saved.Tenants) {
+		case 0:
+			err = fault.New("NO_TENANTS", "利用可能なテナントがありません。")
+		case 1:
+			saved.SelectedTenantID = saved.Tenants[0].ID
+			err = acquireTenantToken(ctx, saved)
+			if err == nil {
+				err = s.store.Save(saved)
+			}
+			if err == nil {
+				account, err = saved.account()
+			}
+		default:
+			phase = SelectingTenant
+			account = Account{Username: record.Username, Tenants: saved.Tenants}
+		}
 	}
 
 	s.mu.Lock()
@@ -138,24 +178,77 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 		if ctx.Err() != nil {
 			return Status{}, fault.Public(ctx.Err())
 		}
-		return Status{}, fault.New("LOGIN_FAILED", "Azureにログインできませんでした。ブラウザーでのサインインを完了したか確認し、もう一度ログインしてください。")
+		return Status{}, fault.New("LOGIN_FAILED", "Azureにログインできませんでした。"+err.Error())
 	}
+	s.status = Status{Phase: phase, Account: &account}
+	return s.status, nil
+}
+
+// SelectTenant completes sign-in after the user chooses from the saved list.
+func (s *Service) SelectTenant(ctx context.Context, tenantID string) (Status, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	s.mu.Lock()
+	selecting := s.status.Phase == SelectingTenant
+	s.mu.Unlock()
+	if !selecting {
+		return Status{}, fault.New("NOT_SELECTING_TENANT", "テナント選択待ちではありません。")
+	}
+	saved, found, err := s.store.Load()
+	if err == nil && !found {
+		err = fault.New("LOGIN_REQUIRED", "サインインし直してください。")
+	}
+	valid := false
+	if err == nil {
+		for _, tenant := range saved.Tenants {
+			if tenant.ID == tenantID && tenantID != "" {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return Status{}, fault.New("INVALID_TENANT", "一覧からテナントを選択してください。")
+		}
+		saved.SelectedTenantID = tenantID
+		err = acquireTenantToken(ctx, saved)
+	}
+	if err == nil {
+		err = s.store.Save(saved)
+	}
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "azauth.SelectTenant", "cause", err)
+		if ctx.Err() != nil {
+			return Status{}, fault.Public(ctx.Err())
+		}
+		return Status{}, fault.New("SELECT_TENANT_FAILED", "テナントを設定できませんでした。もう一度確定してください。")
+	}
+	account, err := saved.account()
+	if err != nil {
+		return Status{}, fault.Public(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.status = Status{Phase: SignedIn, Account: &account}
 	return s.status, nil
 }
 
-// Logout deletes the persistent token cache first and the saved record second,
+// Logout deletes the persistent token cache and saved views, then the record,
 // then drops the in-memory sign-in. Tokens go first so that a partial failure
 // leaves only the record, which holds no secret; the next start then fails the
 // restore and shows the login modal. If any deletion fails the state stays
 // SignedIn, and a retry is safe because both deletions are idempotent.
 func (s *Service) Logout() (Status, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status.Phase != SignedIn {
 		return Status{}, fault.New("NOT_SIGNED_IN", "ログインしていません。")
 	}
 	err := deleteTokenCache(tokenCacheName)
+	if err == nil {
+		err = s.clearViews()
+	}
 	if err == nil {
 		err = s.store.Delete()
 	}
