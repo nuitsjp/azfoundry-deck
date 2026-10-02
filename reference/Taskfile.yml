@@ -6,9 +6,15 @@ vars:
 
 tasks:
   generate:
+    run: once
     cmds:
       - wails3 generate bindings -ts -i -names -f '-tags=server' -d frontend/bindings .
       - npm --prefix frontend run routes
+  frontend:build:
+    run: once
+    cmds:
+      - task: generate
+      - npm --prefix frontend run build:prepared
   frontend:dev:
     dir: frontend
     cmds: [npm run dev]
@@ -21,13 +27,11 @@ tasks:
     cmds: [node scripts/build.mjs run]
   build:
     cmds:
-      - task: generate
-      - npm --prefix frontend run build
+      - task: frontend:build
       - node scripts/build.mjs desktop
   build:server:
     cmds:
-      - task: generate
-      - npm --prefix frontend run build
+      - task: frontend:build
       - node scripts/build.mjs server
   server:
     cmds:
@@ -36,19 +40,40 @@ tasks:
   package:
     cmds:
       - task: build
+      - task: package:prepared
+  package:prepared:
+    cmds:
       - node scripts/build.mjs package
+  ci:
+    cmds:
+      - task: verify:prepare
+      - task: ci:finish
+  ci:finish:
+    deps: [test:e2e, build]
   test:core:
     cmds: [go test ./internal/... ./cmd/release/...]
-  verify:
+  lint:
+    cmds: [npm --prefix frontend run lint]
+  format:check:
+    cmds: [npm --prefix frontend run format:check]
+  test:frontend:
+    cmds: [npm --prefix frontend run test]
+  check:docs:
+    cmds:
+      - python {{.DOC_CHECK}} .
+  test:e2e:
+    cmds: [npm --prefix frontend run test:e2e]
+  verify:prepare:
     cmds:
       - task: generate
-      - npm --prefix frontend run typecheck
-      - npm --prefix frontend run lint
-      - npm --prefix frontend run format:check
-      - npm --prefix frontend run test
-      - go test ./internal/... ./cmd/release/...
-      - go vet ./...
-      - go vet -tags server ./...
-      - python {{.DOC_CHECK}} .
+      - task: verify:prepared
+  verify:prepared:
+    deps: [frontend:build, lint, format:check, test:frontend, test:core, check:docs]
+    cmds:
+      - go vet -tags production ./...
+      - go vet -tags server,production ./...
       - task: build:server
-      - npm --prefix frontend run test:e2e
+  verify:
+    cmds:
+      - task: verify:prepare
+      - task: test:e2e

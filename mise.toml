@@ -1,8 +1,8 @@
 # Node.jsは.nvmrcと同じ版を指定する。Go・Pythonは以下の検証用ツール版を使用する。
 [tools]
-go = "1.26.5"
+go = "1.26.8"
 node = "24.21.0"
-python = "3.14"
+python = "3.14.8"
 
 [env]
 PYTHONIOENCODING = "utf-8"
@@ -15,6 +15,11 @@ run = ["mise install", "node scripts/run.mjs setup"]
 description = "E2E用のChromium Headless Shellを導入する"
 dir = "frontend"
 run = "npx playwright install --only-shell chromium"
+
+[tasks."setup:runner"]
+description = "GitHub Actions runnerをWindowsサービスとして登録する（管理者権限が必要。-- 2 などで追加する番号を指定）"
+raw = true
+run = "pwsh -NoProfile -File scripts/setup-runner.ps1"
 
 [tasks.dev]
 description = "Windowsアプリを起動し、Go・Reactの変更を監視する"

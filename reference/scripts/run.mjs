@@ -1,6 +1,8 @@
 // The only public command entry. Build order lives in Taskfile.yml.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, delimiter, resolve } from 'node:path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,18 +26,38 @@ function run(command, args, cwd = root, extra = {}) {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 const [command = 'help', ...args] = process.argv.slice(2);
+function installCLI() {
+  const match = readFileSync('go.mod', 'utf8').match(/github\.com\/wailsapp\/wails\/v3 (\S+)/);
+  if (!match) throw new Error('Wails version is missing from go.mod');
+  mkdirSync(tools, { recursive: true });
+  run('go', ['install', `github.com/wailsapp/wails/v3/cmd/wails3@${match[1]}`], root, {
+    GOBIN: tools,
+    GOMODCACHE: resolve(tmpdir(), 'azfoundry-deck-wails', 'mod'),
+    GOCACHE: resolve(tmpdir(), 'azfoundry-deck-wails', 'build'),
+  });
+}
 try {
-  if (command === 'setup') {
-    const match = readFileSync('go.mod', 'utf8').match(/github\.com\/wailsapp\/wails\/v3 (\S+)/);
-    if (!match) throw new Error('Wails version is missing from go.mod');
-    mkdirSync(tools, { recursive: true });
-    // No silently substituted local CLI or hand-authored generated files.
-    run('go', ['install', `github.com/wailsapp/wails/v3/cmd/wails3@${match[1]}`], root, { GOBIN: tools });
+  if (command === 'cli:install') {
+    installCLI();
+  } else if (command === 'setup' || command === 'setup:dependencies') {
+    if (command === 'setup') installCLI();
     // Install exactly the committed go.sum and package-lock.json without rewriting them.
     run('go', ['mod', 'download']);
     run('go', ['mod', 'verify']);
-    run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
-    run(cli, ['task', 'generate']);
+    const reuse = command === 'setup:dependencies' && process.argv.includes('--reuse-node-modules');
+    const installKey = createHash('sha256').update(JSON.stringify([
+      process.version, process.platform, process.arch, 'npm ci --no-audit --no-fund',
+      readFileSync('frontend/package.json', 'utf8'), readFileSync('frontend/package-lock.json', 'utf8'),
+    ])).digest('hex');
+    const marker = resolve('frontend/node_modules/.ci-install-key');
+    if (reuse && existsSync(marker) && readFileSync(marker, 'utf8') === installKey) {
+      console.log('Reusing node_modules: installation inputs unchanged.');
+    } else {
+      rmSync(marker, { force: true });
+      run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
+      if (reuse) writeFileSync(marker, installKey);
+    }
+    if (command === 'setup') run(cli, ['task', 'generate']);
   } else if (command === 'help') {
     console.log('node scripts/run.mjs setup | dev | dev:mock | build | package | server | verify | test:core | release <args>');
   } else {
@@ -45,7 +67,7 @@ try {
       run(cli, ['dev'], root, { WAILS_FRONTEND_MODE: command === 'dev:mock' ? 'mock' : 'real' });
     } else if (command === 'release') {
       run('go', ['run', './cmd/release', ...args]);
-    } else if (['build', 'package', 'server', 'verify', 'test:core', 'generate'].includes(command)) {
+    } else if (['build', 'package', 'package:prepared', 'ci', 'server', 'verify', 'test:core', 'generate'].includes(command)) {
       run(cli, ['task', command]);
     } else throw new Error(`Unknown command: ${command}`);
   }

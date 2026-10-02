@@ -11,6 +11,7 @@
     "routes": "tsr generate",
     "typecheck": "npm run routes && tsc --noEmit",
     "build": "npm run typecheck && vite build",
+    "build:prepared": "tsc --noEmit && vite build",
     "build:dev": "npm run routes && vite build --mode development",
     "lint": "eslint src tests",
     "format": "prettier --write src tests *.ts *.json *.mjs",
