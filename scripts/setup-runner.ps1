@@ -1,5 +1,12 @@
 # Requires PowerShell 7 and an elevated terminal. config.cmd prompts for the
 # registration token and service account; neither is stored by this script.
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)]
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$RunnerNumber = 1
+)
+
 $ErrorActionPreference = 'Stop'
 
 if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64') {
@@ -11,7 +18,9 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     throw 'Run mise run setup:runner from an administrator PowerShell terminal.'
 }
 
-$runnerDirectory = 'D:\actions-runner\azfoundry-deck'
+$runnerInstance = if ($RunnerNumber -eq 1) { 'azfoundry-deck' } else { "azfoundry-deck-$RunnerNumber" }
+$runnerDirectory = Join-Path 'D:\actions-runner' $runnerInstance
+$runnerName = "$env:COMPUTERNAME-$runnerInstance"
 if ((Test-Path -LiteralPath $runnerDirectory) -and
     (-not (Test-Path -LiteralPath $runnerDirectory -PathType Container) -or
     (Get-ChildItem -LiteralPath $runnerDirectory -Force | Select-Object -First 1))) {
@@ -44,7 +53,7 @@ try {
     # Automatic updates are enabled by default; do not pass --disableupdate.
     # Let the official installer prompt for the service account and password.
     & .\config.cmd --url 'https://github.com/nuitsjp/azfoundry-deck' `
-        --name "$env:COMPUTERNAME-azfoundry-deck" --labels 'azfoundry-deck' `
+        --name $runnerName --labels 'azfoundry-deck' `
         --work '_work' --runasservice
     if ($LASTEXITCODE -ne 0) {
         throw "Runner configuration failed with exit code $LASTEXITCODE."

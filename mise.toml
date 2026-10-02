@@ -17,7 +17,7 @@ dir = "frontend"
 run = "npx playwright install --only-shell chromium"
 
 [tasks."setup:runner"]
-description = "GitHub Actions runnerを配置し、自動更新が有効なWindowsサービスとして登録する（管理者権限が必要）"
+description = "GitHub Actions runnerをWindowsサービスとして登録する（管理者権限が必要。-- 2 などで追加する番号を指定）"
 raw = true
 run = "pwsh -NoProfile -File scripts/setup-runner.ps1"
 
