@@ -141,6 +141,8 @@ Go サービスはログイン済みを確認し、`foundry-state.json` に保�
 
 ## Foundry一覧を更新する
 
+この処理は、[Foundry一覧を更新する](../usecases/デプロイモデルを閲覧する/scenarios/Foundry一覧を更新する.md)と[Foundry一覧の更新で選択先が変わる](../usecases/デプロイモデルを閲覧する/scenarios/Foundry一覧の更新で選択先が変わる.md)の両シナリオで共用する。
+
 画面は `frontend/src/features/foundry/refresh-view.ts` から `Service.RefreshFoundries` を呼ぶ。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。
 
 Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んだ後、初回閲覧と同じ `Source.Discover` でサブスクリプション検索と Foundry 一覧の全ページ取得を行い、検索・サブスクリプションごとの進捗を通知する。一覧が空なら失敗とする。選択中の Foundry が更新後の一覧に含まれる場合は選択とモデルを維持し、モデルを取得しない。含まれない場合は一覧の最初の Foundry を選択し、`Source.Deployments` で全ページを取得して、選択先の名称・モデル取得状態・累積件数を通知する。
