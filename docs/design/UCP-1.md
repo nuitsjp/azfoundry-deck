@@ -162,3 +162,11 @@ sequenceDiagram
 `AcquisitionProgressModal` は `refresh` の表示で題名を「Foundry一覧を更新しています」とし、選択先の名称が通知された場合だけモデル取得の行を表示する。処理中は元の一覧・選択・モデルを維持し、プルダウンと更新ボタンを無効にする。最終取得日時は `InitialFoundryView` の `foundriesFetchedAt` と `deploymentsFetchedAt` を、画面でローカル時刻の `YYYY-MM-DD HH:mm` に変換して表示する。
 
 画面確認用構成は `scripts/build.mjs` の起動準備で、固定の認証記録と、Production・Development・Legacy の Foundry 一覧、Production と Legacy のモデルファイル、Production を選択した状態ファイルを用意する（取得日時はすべて `2026-09-01T09:00:00+09:00`）。外部取得の `foundry.Source` だけを E2E 用の固定応答（Production・Development・Research）に差し替え、一覧の更新・モデル取得・ファイルの保存と削除・進捗表示は本番と同じ処理を通す。実 Azure の一覧取得の検証には使わない。
+
+## デプロイモデルを更新する
+
+仕様合意用モックは `frontend/src/features/foundry/refresh-deployments.ts` の更新要求を合成点とし、Vite の `deployment-refresh-review` モードだけで `refresh-deployments-review.ts` の固定応答へ差し替える。入力は現在の `InitialFoundryView`、結果は同じ `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。初期画面は Foundry一覧の更新と同じ画面確認用の保存済みファイルを、既存の E2E 用 Go サービスで読み込んで表示する。
+
+固定応答は選択中の Foundry のモデル取得の進捗（取得中・累積件数・完了）と保存の進捗を順に通知し、現在のモデルに `added-chat` を1件加えた一覧と現在時刻の `deploymentsFetchedAt` を返す。`AcquisitionProgressModal` は `deployments` の表示で題名を「デプロイモデルを更新しています」とし、Foundry の変更時と同じくモデル取得と保存の行だけを表示する。処理中は元のモデルを維持し、プルダウンと両方の更新ボタンを無効にする。
+
+通常構成では「モデルを更新」ボタンを表示しない。Azure からのモデル取得、モデルファイルと状態ファイルの保存は未接続で、実処理接続時に固定応答を削除する。保存形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。

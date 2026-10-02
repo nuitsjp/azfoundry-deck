@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActionIcon,
+  Button,
   Combobox,
   Group,
   Input,
@@ -16,7 +17,11 @@ import {
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
-import type { Foundry } from '../../features/foundry/models';
+import {
+  deploymentRefreshEnabled,
+  refreshDeployments,
+} from '../../features/foundry/refresh-deployments';
+import type { Foundry, InitialFoundryView } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
@@ -51,6 +56,7 @@ export function InitialDeployments() {
   const [progress, setProgress] = useState<FoundryProgress | null>(null);
   const [changeProgress, setChangeProgress] = useState<FoundryProgress | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<FoundryProgress | null>(null);
+  const [modelsProgress, setModelsProgress] = useState<FoundryProgress | null>(null);
   const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
@@ -67,7 +73,11 @@ export function InitialDeployments() {
     mutationFn: () => refreshFoundries(setRefreshProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
-  const busy = change.isPending || refresh.isPending;
+  const refreshModels = useMutation({
+    mutationFn: (current: InitialFoundryView) => refreshDeployments(current, setModelsProgress),
+    onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
+  });
+  const busy = change.isPending || refresh.isPending || refreshModels.isPending;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view)
@@ -96,7 +106,14 @@ export function InitialDeployments() {
           mode="refresh"
         />
       )}
-      <ErrorNotice error={change.error || refresh.error} />
+      {modelsProgress && (
+        <AcquisitionProgressModal
+          opened={refreshModels.isPending}
+          progress={modelsProgress}
+          mode="deployments"
+        />
+      )}
+      <ErrorNotice error={change.error || refresh.error || refreshModels.error} />
       <Stack gap={6}>
         <Group gap="xs" align="flex-end" wrap="nowrap">
           <Combobox
@@ -177,11 +194,27 @@ export function InitialDeployments() {
         </Text>
       </Stack>
       <Stack gap="xs">
-        <Group gap="sm" align="baseline">
-          <Title order={4}>デプロイ済みモデル</Title>
-          <Text size="xs" c="dimmed">
-            {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
-          </Text>
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap="sm" align="baseline">
+            <Title order={4}>デプロイ済みモデル</Title>
+            <Text size="xs" c="dimmed">
+              {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
+            </Text>
+          </Group>
+          {deploymentRefreshEnabled && (
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              leftSection={<RefreshIcon />}
+              disabled={busy}
+              onClick={() => {
+                setModelsProgress(null);
+                refreshModels.mutate(view);
+              }}
+            >
+              モデルを更新
+            </Button>
+          )}
         </Group>
         <Table.ScrollContainer minWidth={480}>
           <Table aria-label="デプロイ済みモデル" striped highlightOnHover>

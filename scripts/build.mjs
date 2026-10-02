@@ -43,13 +43,15 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh'].includes(command)) {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
     const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
-    const foundryRefreshReview = command === 'run-server-review-foundry-refresh';
-    const dataDir = join(tmpdir(), `${app.id}-${foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const deploymentRefreshReview = command === 'run-server-review-deployment-refresh';
+    // The deployment refresh review reuses the Foundry refresh fixture.
+    const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview;
+    const dataDir = join(tmpdir(), `${app.id}-${deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
     // The refresh review resets its saved state on each launch.
     if (foundryRefreshReview) rmSync(dataDir, { recursive: true, force: true });
     mkdirSync(dataDir, { recursive: true });

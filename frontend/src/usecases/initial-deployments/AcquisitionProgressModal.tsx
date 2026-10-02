@@ -22,9 +22,9 @@ export function AcquisitionProgressModal({
 }: {
   opened: boolean;
   progress: FoundryProgress;
-  mode?: 'initial' | 'change' | 'refresh';
+  mode?: 'initial' | 'change' | 'refresh' | 'deployments';
 }) {
-  const modelsOnly = mode === 'change';
+  const modelsOnly = mode === 'change' || mode === 'deployments';
   // A refresh fetches models only when the selected Foundry disappeared from the list.
   const showModels = mode !== 'refresh' || progress.selectedFoundryName !== '';
   const completed = progress.subscriptions.filter(
@@ -54,7 +54,11 @@ export function AcquisitionProgressModal({
       <Modal.Content>
         <Modal.Header role="presentation">
           <Modal.Title>
-            {mode === 'refresh' ? 'Foundry一覧を更新しています' : 'デプロイモデルを取得しています'}
+            {mode === 'refresh'
+              ? 'Foundry一覧を更新しています'
+              : mode === 'deployments'
+                ? 'デプロイモデルを更新しています'
+                : 'デプロイモデルを取得しています'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
