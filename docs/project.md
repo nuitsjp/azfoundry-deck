@@ -55,6 +55,8 @@
 | 目的 | コマンド・設定 | 成功確認 |
 | --- | --- | --- |
 | 環境構築 | `mise trust`、`mise run setup`、`mise run setup:browser` | `frontend/bindings/azfoundrydeck/internal/azauth/` が生成される |
+| self-hosted runner の初期登録 | 管理者 PowerShell 7 で `mise run setup:runner`。GitHub の Settings → Actions → Runners → New self-hosted runner から登録トークンを取得し、プロンプトで入力する。サービス実行アカウントもプロンプトで指定する | GitHub の Runners に runner が Online と表示される。配置先は [設定スクリプト](../scripts/setup-runner.ps1) の `runnerDirectory` で定義し、既存ファイルがある場合は上書きしない |
+| runner 本体の自動更新 | runner の標準自動更新を有効にしたままサービスを常駐させる。別の定期タスクは不要 | [GitHub の仕様](https://docs.github.com/en/actions/reference/runners/self-hosted-runners#communication)では、ジョブ割り当て時、または新バージョン公開後1週間以内に更新される |
 | 起動（ブラウザー確認） | `mise run server` | `http://127.0.0.1:34115/` を開くと、Home を背景にログインのモーダルが表示される |
 | 起動（デスクトップ） | `mise run dev` | ウィンドウにログインのモーダルが表示される（未検証） |
 | ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck`（CAE 用は `azfoundrydeck.cae`）が作成される（段階5で利用者が実 Azure で確認） |

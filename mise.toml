@@ -16,6 +16,11 @@ description = "E2E用のChromium Headless Shellを導入する"
 dir = "frontend"
 run = "npx playwright install --only-shell chromium"
 
+[tasks."setup:runner"]
+description = "GitHub Actions runnerを配置し、自動更新が有効なWindowsサービスとして登録する（管理者権限が必要）"
+raw = true
+run = "pwsh -NoProfile -File scripts/setup-runner.ps1"
+
 [tasks.dev]
 description = "Windowsアプリを起動し、Go・Reactの変更を監視する"
 run = "node scripts/run.mjs dev"
