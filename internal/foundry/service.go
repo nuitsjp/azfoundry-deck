@@ -110,40 +110,7 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 		return InitialFoundryView{}, err
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		progress := Progress{
-			SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{},
-			SelectedFoundryName: selected.Name, ModelPhase: "running", SavePhase: "waiting",
-		}
-		s.emit(ProgressEvent, progress)
-		source, err := s.source()
-		if err != nil {
-			return InitialFoundryView{}, err
-		}
-		models, err := source.Deployments(ctx, selected, func(count int) {
-			progress.ModelCount = count
-			s.emit(ProgressEvent, progress)
-		})
-		if err != nil {
-			return InitialFoundryView{}, err
-		}
-		fetchedAt := fetchedNow()
-		progress.ModelPhase = "completed"
-		progress.ModelCount = len(models)
-		s.emit(ProgressEvent, progress)
-		progress.SavePhase = "running"
-		s.emit(ProgressEvent, progress)
-		if err := saveModels(targetPath, savedModels{FetchedAt: fetchedAt, Deployments: models}); err != nil {
-			return InitialFoundryView{}, err
-		}
-		view.SelectedFoundryID = id
-		view.Deployments = models
-		view.DeploymentsFetchedAt = fetchedAt
-		if err := save(s.file, view); err != nil {
-			return InitialFoundryView{}, err
-		}
-		progress.SavePhase = "completed"
-		s.emit(ProgressEvent, progress)
-		return view, nil
+		return s.acquireModels(ctx, view, selected)
 	}
 	view.SelectedFoundryID = id
 	view.Deployments = saved.Deployments
@@ -152,6 +119,73 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 		return InitialFoundryView{}, err
 	}
 	return view, nil
+}
+
+// acquireModels fetches all models of the Foundry from Azure, saves its model
+// file and then the state with that Foundry selected.
+func (s *Service) acquireModels(ctx context.Context, view InitialFoundryView, selected Foundry) (InitialFoundryView, error) {
+	progress := Progress{
+		SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{},
+		SelectedFoundryName: selected.Name, ModelPhase: "running", SavePhase: "waiting",
+	}
+	s.emit(ProgressEvent, progress)
+	source, err := s.source()
+	if err != nil {
+		return InitialFoundryView{}, err
+	}
+	models, err := source.Deployments(ctx, selected, func(count int) {
+		progress.ModelCount = count
+		s.emit(ProgressEvent, progress)
+	})
+	if err != nil {
+		return InitialFoundryView{}, err
+	}
+	fetchedAt := fetchedNow()
+	progress.ModelPhase = "completed"
+	progress.ModelCount = len(models)
+	s.emit(ProgressEvent, progress)
+	progress.SavePhase = "running"
+	s.emit(ProgressEvent, progress)
+	if err := saveModels(modelsPath(s.file, selected.ID), savedModels{FetchedAt: fetchedAt, Deployments: models}); err != nil {
+		return InitialFoundryView{}, err
+	}
+	view.SelectedFoundryID = selected.ID
+	view.Deployments = models
+	view.DeploymentsFetchedAt = fetchedAt
+	if err := save(s.file, view); err != nil {
+		return InitialFoundryView{}, err
+	}
+	progress.SavePhase = "completed"
+	s.emit(ProgressEvent, progress)
+	return view, nil
+}
+
+func (s *Service) RefreshDeployments(ctx context.Context) (InitialFoundryView, error) {
+	if err := s.signedIn(ctx); err != nil {
+		return InitialFoundryView{}, err
+	}
+	view, err := s.refreshDeployments(ctx)
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "foundry.RefreshDeployments", "cause", err)
+		if ctx.Err() != nil {
+			return InitialFoundryView{}, fault.Public(ctx.Err())
+		}
+		return InitialFoundryView{}, fault.New("FOUNDRY_LOAD_FAILED", "Foundry・デプロイモデルの取得またはファイルの読み込み・保存に失敗しました。")
+	}
+	return view, nil
+}
+
+// refreshDeployments re-fetches the selected Foundry's models regardless of its saved file.
+func (s *Service) refreshDeployments(ctx context.Context) (InitialFoundryView, error) {
+	view, err := read(s.file)
+	if err != nil {
+		return InitialFoundryView{}, err
+	}
+	index := slices.IndexFunc(view.Foundries, func(foundry Foundry) bool { return foundry.ID == view.SelectedFoundryID })
+	if index < 0 {
+		return InitialFoundryView{}, fmt.Errorf("selected Foundry is not in the saved list")
+	}
+	return s.acquireModels(ctx, view, view.Foundries[index])
 }
 
 func (s *Service) RefreshFoundries(ctx context.Context) (InitialFoundryView, error) {

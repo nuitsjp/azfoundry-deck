@@ -16,11 +16,8 @@ import {
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
-import {
-  deploymentRefreshEnabled,
-  refreshDeployments,
-} from '../../features/foundry/refresh-deployments';
-import type { Foundry, InitialFoundryView } from '../../features/foundry/models';
+import { refreshDeployments } from '../../features/foundry/refresh-deployments';
+import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
@@ -73,7 +70,7 @@ export function InitialDeployments() {
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const refreshModels = useMutation({
-    mutationFn: (current: InitialFoundryView) => refreshDeployments(current, setModelsProgress),
+    mutationFn: () => refreshDeployments(setModelsProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const busy = change.isPending || refresh.isPending || refreshModels.isPending;
@@ -195,21 +192,19 @@ export function InitialDeployments() {
       <Stack gap="xs">
         <Group gap="sm" align="center">
           <Title order={4}>デプロイ済みモデル</Title>
-          {deploymentRefreshEnabled && (
-            <Tooltip label="モデルを更新">
-              <ActionIcon
-                variant="default"
-                aria-label="モデルを更新"
-                disabled={busy}
-                onClick={() => {
-                  setModelsProgress(null);
-                  refreshModels.mutate(view);
-                }}
-              >
-                <RefreshIcon />
-              </ActionIcon>
-            </Tooltip>
-          )}
+          <Tooltip label="モデルを更新">
+            <ActionIcon
+              variant="default"
+              aria-label="モデルを更新"
+              disabled={busy}
+              onClick={() => {
+                setModelsProgress(null);
+                refreshModels.mutate();
+              }}
+            >
+              <RefreshIcon />
+            </ActionIcon>
+          </Tooltip>
           <Text size="xs" c="dimmed">
             {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
           </Text>

@@ -95,7 +95,8 @@ try {
       // Saved model files exist for Production and Legacy.
       const owners = [foundries[0], foundries[2]];
       const models = [
-        [['chat-production', 'gpt-4.1', '2025-04-14'], ['chat-mini', 'gpt-4.1-mini', '2025-04-14'], ['embeddings', 'text-embedding-3-large', '1']],
+        // One fewer than the fixed source returns, so a model refresh visibly changes them.
+        [['chat-production', 'gpt-4.1', '2025-04-14'], ['chat-mini', 'gpt-4.1-mini', '2025-04-14']],
         [['legacy-chat', 'gpt-4o', '2024-11-20']],
       ].map((rows, index) => rows.map(([deploymentName, modelName, version]) => ({ id: `${owners[index].id}/deployments/${deploymentName}`, deploymentName, modelName, version })));
       const fetchedAt = '2026-09-01T09:00:00+09:00';
