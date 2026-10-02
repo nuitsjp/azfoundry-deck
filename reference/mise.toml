@@ -1,0 +1,49 @@
+# Node.jsは.nvmrcと同じ版を指定する。Go・Pythonは以下の検証用ツール版を使用する。
+[tools]
+go = "1.26.5"
+node = "24.21.0"
+python = "3.14"
+
+[env]
+PYTHONIOENCODING = "utf-8"
+
+[tasks.setup]
+description = "固定版ツール、Wails CLI、Go/npm依存と生成コードを準備する"
+run = ["mise install", "node scripts/run.mjs setup"]
+
+[tasks."setup:browser"]
+description = "E2E用のChromium Headless Shellを導入する"
+dir = "frontend"
+run = "npx playwright install --only-shell chromium"
+
+[tasks.dev]
+description = "Windowsアプリを起動し、Go・Reactの変更を監視する"
+run = "node scripts/run.mjs dev"
+
+[tasks."dev:mock"]
+description = "試験用固定データで起動する（実データは変更しない）"
+run = "node scripts/run.mjs dev:mock"
+
+[tasks.build]
+description = "本番実行ファイルをbin/に生成する"
+run = "node scripts/run.mjs build"
+
+[tasks.package]
+description = "ビルド後、未署名NSISインストーラーをbin/に生成する"
+run = "node scripts/run.mjs package"
+
+[tasks.server]
+description = "Go実処理を使うブラウザ確認用サーバーを起動する"
+run = "node scripts/run.mjs server"
+
+[tasks.verify]
+description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
+run = "node scripts/run.mjs verify"
+
+[tasks."test:core"]
+description = "Goの機能・保存・更新検証を実行する"
+run = "node scripts/run.mjs test:core"
+
+[tasks.release]
+description = "更新用の鍵生成と署名済み更新情報の作成（引数はrelease以降に指定）"
+run = "node scripts/run.mjs release"
