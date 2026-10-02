@@ -61,14 +61,15 @@ jobs:
           PY
   build:
     needs: changes
-    if: needs.changes.outputs.changed == 'true'
+    if: needs.changes.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64, azfoundry-deck]
     timeout-minutes: 30
     defaults:
       run:
+        shell: powershell
         working-directory: ${{ matrix.directory }}
     env:
       CI: 'true'
@@ -78,17 +79,12 @@ jobs:
       - name: Read tool versions
         id: tools
         run: |
-          @'
-          import os
-          import re
-          import tomllib
-          from pathlib import Path
-
-          tools = tomllib.loads(Path('mise.toml').read_text(encoding='utf-8'))['tools']
-          wails = re.search(r'github.com/wailsapp/wails/v3 (\S+)', Path('go.mod').read_text(encoding='utf-8')).group(1)
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f"go={tools['go']}\npython={tools['python']}\nwails={wails}\nimage={os.environ['ImageOS']}\n")
-          '@ | python -
+          $tools = Get-Content mise.toml -Raw
+          $go = [regex]::Match($tools, '(?m)^go = "([^"]+)"').Groups[1].Value
+          $python = [regex]::Match($tools, '(?m)^python = "([^"]+)"').Groups[1].Value
+          $wails = [regex]::Match((Get-Content go.mod -Raw), 'github.com/wailsapp/wails/v3 (\S+)').Groups[1].Value
+          "go=$go`npython=$python`nwails=$wails" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
       - uses: actions/setup-node@v6
         with:
           node-version-file: ${{ matrix.directory }}/.nvmrc
@@ -100,29 +96,20 @@ jobs:
         with:
           go-version: ${{ steps.tools.outputs.go }}
           cache: false
-      - name: Restore Wails CLI
-        id: wails-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ matrix.directory }}/.tools/wails3.exe
-          key: wails-cli-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ steps.tools.outputs.wails }}-${{ matrix.directory }}
-      - name: Install Wails CLI
-        if: steps.wails-cache.outputs.cache-hit != 'true'
-        run: node scripts/run.mjs cli:install
-      - name: Go cache paths
-        id: go-cache
+      - name: Wails CLI
+        env:
+          CLI_CACHE: ${{ runner.tool_cache }}/wails/${{ steps.tools.outputs.go }}/${{ steps.tools.outputs.wails }}
         run: |
-          "modules=$(go env GOMODCACHE)" >> $env:GITHUB_OUTPUT
-          "build=$(go env GOCACHE)" >> $env:GITHUB_OUTPUT
-      - name: Restore Go cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ steps.go-cache.outputs.modules }}
-            ${{ steps.go-cache.outputs.build }}
-          key: go-app-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ matrix.directory }}-${{ hashFiles(format('{0}/go.sum', matrix.directory)) }}
-          restore-keys: |
-            go-app-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.image }}-${{ steps.tools.outputs.go }}-${{ matrix.directory }}-
+          $cachedCLI = Join-Path $env:CLI_CACHE wails3.exe
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          if (-not (Test-Path $cachedCLI)) {
+            node scripts/run.mjs cli:install
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            New-Item -ItemType Directory -Force $env:CLI_CACHE | Out-Null
+            Copy-Item .tools/wails3.exe $cachedCLI
+          }
+          Copy-Item $cachedCLI .tools/wails3.exe
+          go env GOMODCACHE GOCACHE
       - name: Dependencies
         run: node scripts/run.mjs setup:dependencies
       - name: Browser
@@ -131,7 +118,12 @@ jobs:
       - name: Verify and build
         run: node scripts/run.mjs ci
       - name: NSIS
-        run: choco install nsis --yes --no-progress
+        run: |
+          $nsis = Join-Path ${env:ProgramFiles(x86)} NSIS/makensis.exe
+          if (-not (Test-Path $nsis)) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Installer
         run: node scripts/run.mjs package:prepared
       - uses: actions/upload-artifact@v4
