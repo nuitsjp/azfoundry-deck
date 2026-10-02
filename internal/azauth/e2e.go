@@ -12,7 +12,8 @@ import (
 )
 
 // E2E builds replace only the external boundaries (Entra ID / ARM and the
-// Credential Manager). AZFOUNDRYDECK_E2E_FAIL=signin or =save injects a failure.
+// Credential Manager). AZFOUNDRYDECK_E2E_FAIL=signin, =save or =restore injects
+// a failure. A record file placed before start makes the startup restore sign in silently.
 // Production builds never compile this file.
 
 func signIn(context.Context) (Account, azidentity.AuthenticationRecord, error) {
@@ -30,6 +31,13 @@ func signIn(context.Context) (Account, azidentity.AuthenticationRecord, error) {
 	return Account{Username: record.Username, TenantName: "Contoso"}, record, nil
 }
 
+func restoreAccount(_ context.Context, record azidentity.AuthenticationRecord) (Account, error) {
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "restore" {
+		return Account{}, errors.New("e2e: restore failure injected")
+	}
+	return Account{Username: record.Username, TenantName: "Contoso"}, nil
+}
+
 // FileStore writes the record as the same JSON the Credential Manager store uses.
 type FileStore struct {
 	Path string
@@ -44,4 +52,16 @@ func (f FileStore) Save(record azidentity.AuthenticationRecord) error {
 		return err
 	}
 	return os.WriteFile(f.Path, data, 0o600)
+}
+
+func (f FileStore) Load() (azidentity.AuthenticationRecord, bool, error) {
+	var record azidentity.AuthenticationRecord
+	data, err := os.ReadFile(f.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return record, false, nil
+	}
+	if err != nil {
+		return record, false, err
+	}
+	return record, true, json.Unmarshal(data, &record)
 }

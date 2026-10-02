@@ -40,6 +40,7 @@
 - `azidentity.Cache` は内部型の別名で、外部モジュールからは `cache.New` 以外で作れない（`azidentity/internal` の import は `use of internal package ... not allowed` でビルドできないことを実測）。そのため `InteractiveBrowserCredential` のトークン保存先を資格情報マネージャーへ差し替えられず、リフレッシュトークンも取り出せない。
 - MSAL はトークン取得時に永続キャッシュへ書き込み、書き込みの失敗をトークン取得の失敗として返す（`apps/internal/base/base.go` の `AuthResultFromToken`）。
 - `AuthenticationRecord` は authority、clientId、homeAccountId、tenantId、username、version の6項目の JSON で、秘密情報を含まない。
+- `InteractiveBrowserCredential` に `AuthenticationRecord`、`Cache`、`DisableAutomaticAuthentication: true` を渡すと、`GetToken` は記録のアカウントで `AcquireTokenSilent`（キャッシュのトークン、または更新トークンによる更新）だけを行い、失敗時は `AuthenticationRequiredError` を返してブラウザー認証（`AcquireTokenInteractive`）へ進まない（`azidentity` の `public_client.go` の `GetToken`）。`Authenticate` はキャッシュを使わず常にブラウザー認証を行う。記録の JSON の読み込みは `version` がない、または未対応の場合にエラーを返す（`authentication_record.go`）。
 - `go-keyring` は Windows で `danieljoos/wincred` の汎用資格情報を使い、対象名は `<service>:<user>`、保存値が 2560 バイトを超えると `ErrSetDataTooBig` を返す。本アプリの `AzFoundryDeck:AuthenticationRecord` へ試験用レコード（283 バイト）を書き込み、`cmdkey /list` での表示、読み出しと一致確認、削除を実機で確認した。
 
 - **確認した事実**: 外部仕様や既存コードの調査結果（情報源、対象版、確認日、確認範囲）。仮定と明確に区別します。外部システムの実測応答を保存する場合は `reference/` に配置して参照します。
@@ -55,16 +56,18 @@
 | 起動（ブラウザー確認） | `mise run server` | `http://127.0.0.1:34115/` を開くと、Home を背景にログインのモーダルが表示される |
 | 起動（デスクトップ） | `mise run dev` | ウィンドウにログインのモーダルが表示される（未検証） |
 | ログイン | モーダルの「Azureにログイン」を押し、開いたブラウザーでサインインする | モーダルが閉じてヘッダーにテナント名とユーザーアイコンが表示され、`cmdkey /list:AzFoundryDeck:AuthenticationRecord` に資格情報が表示され、`%LOCALAPPDATA%\.IdentityService\azfoundrydeck`（CAE 用は `azfoundrydeck.cae`）が作成される（段階5で利用者が実 Azure で確認） |
+| 自動ログイン（起動時の復元） | 保存済みのログイン情報がある状態で `mise run server` を起動し、`http://127.0.0.1:34115/` を開く | モーダルを表示せずに、ヘッダーにテナント名とユーザーアイコンが表示される。失敗時はモーダル内に `LOGIN_FAILED` と理由が表示され、ログに `operation":"azauth.Restore"` の `operation_failed` が記録される |
 | 保存したログイン情報の削除 | `cmdkey /delete:AzFoundryDeck:AuthenticationRecord`、`Remove-Item "$env:LOCALAPPDATA\.IdentityService\azfoundrydeck*"` | `cmdkey /list:AzFoundryDeck:AuthenticationRecord` が「なし」を表示する |
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |
 | 一括検証（生成・型検査・Lint・整形・単体テスト・Go の vet と test・文書検査・E2E 用ビルド・E2E） | `mise run verify` | 終了コード 0。文書検査が `NG 0 件`、E2E が `3 passed` |
 | E2E のみ再実行 | `mise run verify` を一度実行した後、`npm --prefix frontend run test:e2e` | `3 passed`。失敗時の記録は `frontend/playwright-report/` と `frontend/test-results/` |
 
 - **E2E の対象と構成**: シナリオ「ブラウザーでAzureにサインインする」の E2E は `frontend/tests/e2e/usecases/Azureへログインする/ブラウザーでAzureにサインインする.spec.ts` です。各テストが `bin\azfoundrydeck-server-e2e.exe` を一時データディレクトリと空きポートで起動します。主成功（手順1〜4と保存の確認）、トークン取得・テナント名取得の失敗、保存の失敗の3件を検証します。
-- **E2E 用ビルド**: `node scripts/build.mjs server-e2e`（`build:server:e2e` タスク）が `-tags server,production,e2e` でビルドします。`e2e` タグでは、外部境界のサインイン（Entra ID・ARM）が固定のアカウント（`operator@contoso.onmicrosoft.com`、テナント名 `Contoso`）を返し、アカウント識別情報は資格情報マネージャーの代わりにデータディレクトリの `e2e-authentication-record.json` に同じ JSON で保存されます。環境変数 `AZFOUNDRYDECK_E2E_FAIL=signin` または `save` で失敗を注入します。
+- **E2E 用ビルド**: `node scripts/build.mjs server-e2e`（`build:server:e2e` タスク）が `-tags server,production,e2e` でビルドします。`e2e` タグでは、外部境界のサインイン（Entra ID・ARM）が固定のアカウント（`operator@contoso.onmicrosoft.com`、テナント名 `Contoso`）を返し、アカウント識別情報は資格情報マネージャーの代わりにデータディレクトリの `e2e-authentication-record.json` に同じ JSON で保存されます。環境変数 `AZFOUNDRYDECK_E2E_FAIL=signin`、`save`、`restore` で失敗を注入します。起動前にデータディレクトリへ `e2e-authentication-record.json` を置くと、起動時の復元がその記録で成功します。
 - **本番に含まれないこと**: `internal/azauth/e2e.go` と `record_store_e2e.go` は `e2e` タグのときだけコンパイルされ、`server`、`build`、`package`、`dev` のビルドには含まれません。`go list -tags server,production -f '{{.GoFiles}}' ./internal/azauth .` に `e2e.go`・`record_store_e2e.go` が現れないことで確認できます。実 Azure へのサインイン、実ブラウザーでの認証、実資格情報マネージャーへの保存は E2E の対象外です。
 
 - **保存するもの**: アカウント識別情報（`azidentity.AuthenticationRecord` の JSON）を Windows 資格情報マネージャーの汎用資格情報 `AzFoundryDeck:AuthenticationRecord`（ユーザー名 `AuthenticationRecord`）に、トークンを `azidentity/cache` の永続キャッシュ（名前 `azfoundrydeck`）に保存します。
+- **自動ログインの確認**: 2026-10-02 に `bin\azfoundrydeck-server.exe` で次を確認しました。この端末の実際の保存済みログイン情報では、ブラウザー操作なしにテナント名とユーザーアイコンが表示されました。保存済みログイン情報がない場合はエラーなしのモーダル、不正な JSON の場合と、キャッシュにないアカウント（`homeAccountId` を変えた記録）の場合はモーダルと `LOGIN_FAILED` が表示され、保存済みの値は変わりませんでした。いずれも取得中はモーダルとスピナーを表示せず、ヘッダー右は空でした。ブラウザー認証が始まらないことは、サーバーの待ち受けポートがアプリの 34115 だけで、ブラウザー認証時に MSAL が開く応答受信用のローカルポートが現れないことで確認しました。確認後に元の保存値へ戻しました。
 - **失敗時の確認**: `mise run server` で作成した `bin\azfoundrydeck-server.exe` を、接続できないプロキシ（`HTTPS_PROXY=http://127.0.0.1:9`）を設定して起動し、「Azureにログイン」を押すと、モーダル内に `LOGIN_FAILED` と理由が表示され、ボタンが再び押せる状態に戻り、ログイン済みにならないことを確認しました。ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）には `operation_failed` と接続失敗の原因が記録されます。
 
 環境構築、作業ディレクトリ、実行コマンド、設定、期待結果を明記します。自動テストと実機確認の対象・条件を示し、最新コードで再実行できる手順を維持します。モック利用時は、起動・終了、モック有効/無効の確認、実処理への切り替え手順を記述します（接続失敗時にモックへフォールバックしないことの確認を含む）。

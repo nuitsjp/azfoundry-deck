@@ -2,6 +2,7 @@ package azauth
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/zalando/go-keyring"
@@ -24,4 +25,16 @@ func (CredentialManager) Save(record azidentity.AuthenticationRecord) error {
 		return err
 	}
 	return keyring.Set(credentialService, credentialUser, string(data))
+}
+
+func (CredentialManager) Load() (azidentity.AuthenticationRecord, bool, error) {
+	var record azidentity.AuthenticationRecord
+	data, err := keyring.Get(credentialService, credentialUser)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return record, false, nil
+	}
+	if err != nil {
+		return record, false, err
+	}
+	return record, true, json.Unmarshal([]byte(data), &record)
 }
