@@ -57,6 +57,7 @@ try {
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
+      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
     }));
     if (foundryRevisitReview) {
       // File boundary only: reset the review fixture on launch, then use the real
@@ -72,13 +73,14 @@ try {
           { id: `${foundries[1].id}/deployments/saved-development-embedding`, deploymentName: 'saved-development-embedding', modelName: 'text-embedding-3-large', version: '1' },
         ],
       ];
-      const modelsDir = join(dataDir, 'foundry-models');
+      const viewDir = join(dataDir, 'azure-views', createHash('sha256').update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant'])).digest('hex'));
+      const modelsDir = join(viewDir, 'foundry-models');
       mkdirSync(modelsDir, { recursive: true });
       for (const [index, foundry] of foundries.entries()) {
         const hash = createHash('sha256').update(foundry.id).digest('hex');
         writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify(models[index], null, 2));
       }
-      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({ foundries, selectedFoundryId: foundries[0].id, deployments: models[0] }, null, 2));
+      writeFileSync(join(viewDir, 'foundry-state.json'), JSON.stringify({ foundries, selectedFoundryId: foundries[0].id, deployments: models[0] }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });

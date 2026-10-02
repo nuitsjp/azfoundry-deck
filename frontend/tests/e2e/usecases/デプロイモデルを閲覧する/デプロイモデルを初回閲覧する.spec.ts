@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
@@ -42,7 +43,14 @@ test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
-  const savedFile = join(app.dataDir, 'foundry-state.json');
+  const viewDir = join(
+    app.dataDir,
+    'azure-views',
+    createHash('sha256')
+      .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
+      .digest('hex'),
+  );
+  const savedFile = join(viewDir, 'foundry-state.json');
   const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
   const rows = dialog
     .getByRole('table', { name: 'サブスクリプションの取得状況' })
@@ -65,6 +73,8 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
         tenantId: 'e2e-tenant',
         username: 'operator@contoso.onmicrosoft.com',
         version: '1.0',
+        tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+        selectedTenantId: 'e2e-azure-tenant',
       }),
     );
     await app.restart();

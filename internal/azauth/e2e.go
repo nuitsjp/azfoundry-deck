@@ -20,12 +20,12 @@ import (
 // AZFOUNDRYDECK_E2E_HOLD_RESTORE=1 holds the restore until the e2e-restore-release
 // file appears there. Production builds never compile this file.
 
-func signIn(context.Context) (Account, azidentity.AuthenticationRecord, error) {
+func signIn(context.Context) (azidentity.AuthenticationRecord, error) {
 	if err := os.WriteFile(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-signin-called"), nil, 0o600); err != nil {
-		return Account{}, azidentity.AuthenticationRecord{}, err
+		return azidentity.AuthenticationRecord{}, err
 	}
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "signin" {
-		return Account{}, azidentity.AuthenticationRecord{}, errors.New("e2e: sign-in failure injected")
+		return azidentity.AuthenticationRecord{}, errors.New("e2e: sign-in failure injected")
 	}
 	record := azidentity.AuthenticationRecord{
 		Authority:     "login.microsoftonline.com",
@@ -35,14 +35,16 @@ func signIn(context.Context) (Account, azidentity.AuthenticationRecord, error) {
 		Username:      "operator@contoso.onmicrosoft.com",
 		Version:       "1.0",
 	}
-	return Account{
-		Username:         record.Username,
-		Tenants:          []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}},
-		SelectedTenantID: "e2e-azure-tenant",
-	}, record, nil
+	return record, nil
 }
 
-func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord) (Account, error) {
+func listTenants(context.Context, azidentity.AuthenticationRecord) ([]Tenant, error) {
+	return []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}}, nil
+}
+
+func acquireTenantToken(context.Context, LoginRecord) error { return nil }
+
+func restoreToken(ctx context.Context, record LoginRecord) error {
 	if os.Getenv("AZFOUNDRYDECK_E2E_HOLD_RESTORE") == "1" {
 		release := filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-restore-release")
 		for {
@@ -51,19 +53,15 @@ func restoreAccount(ctx context.Context, record azidentity.AuthenticationRecord)
 			}
 			select {
 			case <-ctx.Done():
-				return Account{}, ctx.Err()
+				return ctx.Err()
 			case <-time.After(50 * time.Millisecond):
 			}
 		}
 	}
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "restore" {
-		return Account{}, errors.New("e2e: restore failure injected")
+		return errors.New("e2e: restore failure injected")
 	}
-	return Account{
-		Username:         record.Username,
-		Tenants:          []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}},
-		SelectedTenantID: "e2e-azure-tenant",
-	}, nil
+	return nil
 }
 
 // FileStore writes the record as the same JSON the Credential Manager store uses.
@@ -71,7 +69,7 @@ type FileStore struct {
 	Path string
 }
 
-func (f FileStore) Save(record azidentity.AuthenticationRecord) error {
+func (f FileStore) Save(record LoginRecord) error {
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "save" {
 		return errors.New("e2e: save failure injected")
 	}
@@ -82,8 +80,8 @@ func (f FileStore) Save(record azidentity.AuthenticationRecord) error {
 	return os.WriteFile(f.Path, data, 0o600)
 }
 
-func (f FileStore) Load() (azidentity.AuthenticationRecord, bool, error) {
-	var record azidentity.AuthenticationRecord
+func (f FileStore) Load() (LoginRecord, bool, error) {
+	var record LoginRecord
 	data, err := os.ReadFile(f.Path)
 	if errors.Is(err, os.ErrNotExist) {
 		return record, false, nil

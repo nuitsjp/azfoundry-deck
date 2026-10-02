@@ -15,6 +15,8 @@ const record = JSON.stringify({
   tenantId: 'e2e-tenant',
   username,
   version: '1.0',
+  tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+  selectedTenantId: 'e2e-azure-tenant',
 });
 const recordFile = (app: IsolatedApp) => join(app.dataDir, 'e2e-authentication-record.json');
 

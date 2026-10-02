@@ -52,9 +52,16 @@ const labels = foundries.map(
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
 test('Foundryを変更し再閲覧する', async ({ page, app }) => {
-  const stateFile = join(app.dataDir, 'foundry-state.json');
+  const viewDir = join(
+    app.dataDir,
+    'azure-views',
+    createHash('sha256')
+      .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
+      .digest('hex'),
+  );
+  const stateFile = join(viewDir, 'foundry-state.json');
   const cacheFile = (id: string) =>
-    join(app.dataDir, 'foundry-models', `${createHash('sha256').update(id).digest('hex')}.json`);
+    join(viewDir, 'foundry-models', `${createHash('sha256').update(id).digest('hex')}.json`);
   const cacheFiles = foundries.map((foundry) => cacheFile(foundry.id));
   const fileIdentity = (path: string) => ({
     bytes: readFileSync(path),
@@ -137,10 +144,12 @@ test('Foundryを変更し再閲覧する', async ({ page, app }) => {
         tenantId: 'e2e-tenant',
         username: 'operator@contoso.onmicrosoft.com',
         version: '1.0',
+        tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+        selectedTenantId: 'e2e-azure-tenant',
       }),
     );
+    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    mkdirSync(join(app.dataDir, 'foundry-models'));
     writeFileSync(cacheFiles[0], JSON.stringify(original.deployments, null, 2) + '\n');
     writeFileSync(cacheFiles[1], JSON.stringify(expected.deployments, null, 2) + '\n');
     for (const file of cacheFiles)

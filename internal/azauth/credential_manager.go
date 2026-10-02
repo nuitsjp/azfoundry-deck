@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/zalando/go-keyring"
 )
 
@@ -19,7 +18,7 @@ const (
 // CredentialManager stores the AuthenticationRecord in the Windows Credential Manager.
 type CredentialManager struct{}
 
-func (CredentialManager) Save(record azidentity.AuthenticationRecord) error {
+func (CredentialManager) Save(record LoginRecord) error {
 	data, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -27,8 +26,8 @@ func (CredentialManager) Save(record azidentity.AuthenticationRecord) error {
 	return keyring.Set(credentialService, credentialUser, string(data))
 }
 
-func (CredentialManager) Load() (azidentity.AuthenticationRecord, bool, error) {
-	var record azidentity.AuthenticationRecord
+func (CredentialManager) Load() (LoginRecord, bool, error) {
+	var record LoginRecord
 	data, err := keyring.Get(credentialService, credentialUser)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return record, false, nil

@@ -61,7 +61,7 @@ func TestInitialViewStartsModelsBeforeDiscoveryEndsAndSavesAllResults(t *testing
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	var mu sync.Mutex
 	var events []Progress
-	service := New(func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, path,
+	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(name string, data any) {
 			if name != ProgressEvent {
 				t.Errorf("unexpected event %q", name)
@@ -152,13 +152,13 @@ func TestDiscoveryFailureCancelsModelsAndKeepsSavedState(t *testing.T) {
 	if err := os.WriteFile(path, previous, 0600); err != nil {
 		t.Fatal(err)
 	}
-	service := New(func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, path,
+	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(_ string, data any) {
 			if data.(Progress).SavePhase != "waiting" {
 				t.Error("failed acquisition entered saving")
 			}
 		})
-	view, err := service.acquire(ctx)
+	view, err := service.acquire(ctx, path)
 	if err == nil || !reflect.DeepEqual(view, InitialFoundryView{}) {
 		t.Fatalf("returned partial success: %#v, %v", view, err)
 	}
@@ -211,7 +211,7 @@ func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing
 		},
 	}
 	var events []Progress
-	service := New(func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, path,
+	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(name string, data any) {
 			if name != ProgressEvent {
 				t.Errorf("unexpected event %q", name)
@@ -328,10 +328,10 @@ func TestChangeFoundryReusesSavedModelsAndDoesNotSaveSameSelection(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			service := New(func() (Source, error) {
+			service := New(new(sync.Mutex), func() (Source, error) {
 				t.Error("saved models called source factory")
 				return nil, errors.New("unexpected source call")
-			}, func(context.Context) error { return nil }, path, slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {
+			}, func(context.Context) error { return nil }, func() (string, error) { return path, nil }, slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {
 				t.Error("saved models emitted acquisition progress")
 			})
 			view, err := service.ChangeFoundry(t.Context(), selectedID)
@@ -408,7 +408,7 @@ func TestChangeFoundryArchiveSaveFailureKeepsPreviousSelectionAndModels(t *testi
 		},
 	}
 	var events []Progress
-	service := New(func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, path,
+	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(_ string, data any) { events = append(events, data.(Progress)) })
 	view, err := service.ChangeFoundry(t.Context(), target.ID)
 	if err == nil || !reflect.DeepEqual(view, InitialFoundryView{}) {

@@ -23,22 +23,29 @@ type firstFoundry struct {
 }
 
 type Service struct {
-	source   func() (Source, error)
-	signedIn func(context.Context) error
-	file     string
-	logger   *slog.Logger
-	emit     func(string, any)
+	source     func() (Source, error)
+	signedIn   func(context.Context) error
+	file       func() (string, error)
+	logger     *slog.Logger
+	emit       func(string, any)
+	operations *sync.Mutex
 }
 
-func New(source func() (Source, error), signedIn func(context.Context) error, file string, logger *slog.Logger, emit func(string, any)) *Service {
-	return &Service{source: source, signedIn: signedIn, file: file, logger: logger, emit: emit}
+func New(operations *sync.Mutex, source func() (Source, error), signedIn func(context.Context) error, file func() (string, error), logger *slog.Logger, emit func(string, any)) *Service {
+	return &Service{source: source, signedIn: signedIn, file: file, logger: logger, emit: emit, operations: operations}
 }
 
 func (s *Service) GetInitialView(ctx context.Context) (InitialFoundryView, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
 	if err := s.signedIn(ctx); err != nil {
 		return InitialFoundryView{}, err
 	}
-	view, err := s.load(ctx)
+	file, err := s.file()
+	var view InitialFoundryView
+	if err == nil {
+		view, err = s.load(ctx, file)
+	}
 	if err != nil {
 		s.logger.Error("operation_failed", "operation", "foundry.GetInitialView", "cause", err)
 		if ctx.Err() != nil {
@@ -49,19 +56,25 @@ func (s *Service) GetInitialView(ctx context.Context) (InitialFoundryView, error
 	return view, nil
 }
 
-func (s *Service) load(ctx context.Context) (InitialFoundryView, error) {
-	view, err := read(s.file)
+func (s *Service) load(ctx context.Context, file string) (InitialFoundryView, error) {
+	view, err := read(file)
 	if !errors.Is(err, os.ErrNotExist) {
 		return view, err
 	}
-	return s.acquire(ctx)
+	return s.acquire(ctx, file)
 }
 
 func (s *Service) ChangeFoundry(ctx context.Context, id string) (InitialFoundryView, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
 	if err := s.signedIn(ctx); err != nil {
 		return InitialFoundryView{}, err
 	}
-	view, err := s.change(ctx, id)
+	file, err := s.file()
+	var view InitialFoundryView
+	if err == nil {
+		view, err = s.change(ctx, file, id)
+	}
 	if err != nil {
 		s.logger.Error("operation_failed", "operation", "foundry.ChangeFoundry", "cause", err)
 		if ctx.Err() != nil {
@@ -72,8 +85,8 @@ func (s *Service) ChangeFoundry(ctx context.Context, id string) (InitialFoundryV
 	return view, nil
 }
 
-func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, error) {
-	view, err := read(s.file)
+func (s *Service) change(ctx context.Context, file, id string) (InitialFoundryView, error) {
+	view, err := read(file)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
@@ -90,7 +103,7 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 	if id == view.SelectedFoundryID {
 		return view, nil
 	}
-	oldPath := modelsPath(s.file, view.SelectedFoundryID)
+	oldPath := modelsPath(file, view.SelectedFoundryID)
 	if _, err := os.Stat(oldPath); errors.Is(err, os.ErrNotExist) {
 		if err := saveModels(oldPath, view.Deployments); err != nil {
 			return InitialFoundryView{}, err
@@ -98,7 +111,7 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 	} else if err != nil {
 		return InitialFoundryView{}, err
 	}
-	targetPath := modelsPath(s.file, id)
+	targetPath := modelsPath(file, id)
 	models, err := readModels(targetPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return InitialFoundryView{}, err
@@ -130,7 +143,7 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 		}
 		view.SelectedFoundryID = id
 		view.Deployments = models
-		if err := save(s.file, view); err != nil {
+		if err := save(file, view); err != nil {
 			return InitialFoundryView{}, err
 		}
 		progress.SavePhase = "completed"
@@ -139,13 +152,13 @@ func (s *Service) change(ctx context.Context, id string) (InitialFoundryView, er
 	}
 	view.SelectedFoundryID = id
 	view.Deployments = models
-	if err := save(s.file, view); err != nil {
+	if err := save(file, view); err != nil {
 		return InitialFoundryView{}, err
 	}
 	return view, nil
 }
 
-func (s *Service) acquire(ctx context.Context) (InitialFoundryView, error) {
+func (s *Service) acquire(ctx context.Context, file string) (InitialFoundryView, error) {
 	progress := Progress{
 		SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{},
 		ModelPhase: "waiting", SavePhase: "waiting",
@@ -215,10 +228,10 @@ func (s *Service) acquire(ctx context.Context) (InitialFoundryView, error) {
 		return InitialFoundryView{}, err
 	}
 	update(func(p *Progress) { p.SavePhase = "running" })
-	if err := saveModels(modelsPath(s.file, view.SelectedFoundryID), view.Deployments); err != nil {
+	if err := saveModels(modelsPath(file, view.SelectedFoundryID), view.Deployments); err != nil {
 		return InitialFoundryView{}, err
 	}
-	if err := save(s.file, view); err != nil {
+	if err := save(file, view); err != nil {
 		return InitialFoundryView{}, err
 	}
 	update(func(p *Progress) { p.SavePhase = "completed" })
