@@ -3,6 +3,7 @@ package foundry
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,26 +28,57 @@ func modelsPath(statePath, foundryID string) string {
 	return filepath.Join(filepath.Dir(statePath), "foundry-models", fmt.Sprintf("%x.json", id))
 }
 
-func readModels(path string) ([]Deployment, error) {
+// savedModels is one Foundry's model file.
+type savedModels struct {
+	FetchedAt   string       `json:"fetchedAt"`
+	Deployments []Deployment `json:"deployments"`
+}
+
+func readModels(path string) (savedModels, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return savedModels{}, err
 	}
-	var models []Deployment
+	var models savedModels
 	if err := json.Unmarshal(data, &models); err != nil {
-		return nil, err
+		return savedModels{}, err
 	}
-	if models == nil {
-		return nil, fmt.Errorf("saved deployments must be an array")
+	if models.Deployments == nil {
+		return savedModels{}, fmt.Errorf("saved deployments must be an array")
 	}
 	return models, nil
 }
 
-func saveModels(path string, models []Deployment) error {
+func saveModels(path string, models savedModels) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 	return saveJSON(path, models)
+}
+
+// removeModelsExcept deletes the model files of Foundries outside the list.
+func removeModelsExcept(statePath string, foundries []Foundry) error {
+	keep := map[string]bool{}
+	for _, foundry := range foundries {
+		keep[modelsPath(statePath, foundry.ID)] = true
+	}
+	dir := filepath.Join(filepath.Dir(statePath), "foundry-models")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		if !keep[path] {
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func saveJSON(path string, value any) error {

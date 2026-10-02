@@ -15,8 +15,8 @@ import {
 } from '@mantine/core';
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
-import { foundryRefreshEnabled, refreshFoundries } from '../../features/foundry/refresh-view';
-import type { Foundry, InitialFoundryView } from '../../features/foundry/models';
+import { refreshFoundries } from '../../features/foundry/refresh-view';
+import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
@@ -25,9 +25,8 @@ function foundryLabel(foundry: Foundry) {
   return `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`;
 }
 
-// Local time as YYYY-MM-DD HH:mm; saved files without a fetch time show a dash.
-function fetchedAt(value?: string) {
-  if (!value) return '—';
+// Local time as YYYY-MM-DD HH:mm.
+function fetchedAt(value: string) {
   const time = new Date(value);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
@@ -65,7 +64,7 @@ export function InitialDeployments() {
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const refresh = useMutation({
-    mutationFn: (current: InitialFoundryView) => refreshFoundries(current, setRefreshProgress),
+    mutationFn: () => refreshFoundries(setRefreshProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
   const busy = change.isPending || refresh.isPending;
@@ -158,22 +157,20 @@ export function InitialDeployments() {
               </Combobox.Options>
             </Combobox.Dropdown>
           </Combobox>
-          {foundryRefreshEnabled && (
-            <Tooltip label="Foundry一覧を更新">
-              <ActionIcon
-                variant="default"
-                size={36}
-                aria-label="Foundry一覧を更新"
-                disabled={busy}
-                onClick={() => {
-                  setRefreshProgress(null);
-                  refresh.mutate(view);
-                }}
-              >
-                <RefreshIcon />
-              </ActionIcon>
-            </Tooltip>
-          )}
+          <Tooltip label="Foundry一覧を更新">
+            <ActionIcon
+              variant="default"
+              size={36}
+              aria-label="Foundry一覧を更新"
+              disabled={busy}
+              onClick={() => {
+                setRefreshProgress(null);
+                refresh.mutate();
+              }}
+            >
+              <RefreshIcon />
+            </ActionIcon>
+          </Tooltip>
         </Group>
         <Text size="xs" c="dimmed">
           Foundry一覧の最終取得 {fetchedAt(view.foundriesFetchedAt)}

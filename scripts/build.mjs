@@ -75,26 +75,36 @@ try {
       mkdirSync(modelsDir, { recursive: true });
       for (const [index, foundry] of foundries.entries()) {
         const hash = createHash('sha256').update(foundry.id).digest('hex');
-        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify(models[index], null, 2));
+        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt: '2026-09-01T09:00:00+09:00', deployments: models[index] }, null, 2));
       }
-      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({ foundries, selectedFoundryId: foundries[0].id, deployments: models[0] }, null, 2));
+      writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
+        foundries, selectedFoundryId: foundries[0].id, deployments: models[0],
+        foundriesFetchedAt: '2026-09-01T09:00:00+09:00', deploymentsFetchedAt: '2026-09-01T09:00:00+09:00',
+      }, null, 2));
     }
     if (foundryRefreshReview) {
-      // File boundary only: a saved state with a past fetch time, so the review can
-      // tell whether a refresh updates each time. Same IDs as the e2e fixed source.
+      // File boundary only: a saved state with past fetch times and a Legacy Foundry
+      // that the e2e fixed source no longer returns. Other IDs match the fixed source.
       const foundries = [
         { id: '/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast', name: 'contoso-foundry-production-japaneast', subscriptionName: 'Contoso AI Production Subscription', resourceGroupName: 'rg-ai-production-japaneast' },
         { id: '/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development', name: 'contoso-foundry-development', subscriptionName: 'Contoso Development', resourceGroupName: 'rg-ai-development' },
-        { id: '/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research', name: 'contoso-foundry-research', subscriptionName: 'Contoso Research', resourceGroupName: 'rg-ai-research' },
+        { id: '/subscriptions/review-legacy/resourceGroups/rg-ai-legacy/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-legacy', name: 'contoso-foundry-legacy', subscriptionName: 'Contoso Legacy', resourceGroupName: 'rg-ai-legacy' },
       ];
-      const deployments = [['chat-production', 'gpt-4.1', '2025-04-14'], ['chat-mini', 'gpt-4.1-mini', '2025-04-14'], ['embeddings', 'text-embedding-3-large', '1']]
-        .map(([deploymentName, modelName, version]) => ({ id: `${foundries[0].id}/deployments/${deploymentName}`, deploymentName, modelName, version }));
+      // Saved model files exist for Production and Legacy.
+      const owners = [foundries[0], foundries[2]];
+      const models = [
+        [['chat-production', 'gpt-4.1', '2025-04-14'], ['chat-mini', 'gpt-4.1-mini', '2025-04-14'], ['embeddings', 'text-embedding-3-large', '1']],
+        [['legacy-chat', 'gpt-4o', '2024-11-20']],
+      ].map((rows, index) => rows.map(([deploymentName, modelName, version]) => ({ id: `${owners[index].id}/deployments/${deploymentName}`, deploymentName, modelName, version })));
+      const fetchedAt = '2026-09-01T09:00:00+09:00';
       const modelsDir = join(dataDir, 'foundry-models');
       mkdirSync(modelsDir, { recursive: true });
-      writeFileSync(join(modelsDir, `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`), JSON.stringify(deployments, null, 2));
-      const fetchedAt = '2026-09-01T09:00:00+09:00';
+      for (const [index, deployments] of models.entries()) {
+        const hash = createHash('sha256').update(owners[index].id).digest('hex');
+        writeFileSync(join(modelsDir, `${hash}.json`), JSON.stringify({ fetchedAt, deployments }, null, 2));
+      }
       writeFileSync(join(dataDir, 'foundry-state.json'), JSON.stringify({
-        foundries, selectedFoundryId: foundries[0].id, deployments, foundriesFetchedAt: fetchedAt, deploymentsFetchedAt: fetchedAt,
+        foundries, selectedFoundryId: foundries[0].id, deployments: models[0], foundriesFetchedAt: fetchedAt, deploymentsFetchedAt: fetchedAt,
       }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);

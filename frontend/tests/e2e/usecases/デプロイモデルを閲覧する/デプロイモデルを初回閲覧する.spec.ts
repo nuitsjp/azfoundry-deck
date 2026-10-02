@@ -140,6 +140,8 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
         modelName,
         version,
       })),
+      foundriesFetchedAt: expect.any(String),
+      deploymentsFetchedAt: expect.any(String),
     });
     const modelRows = page.getByRole('table', { name: 'デプロイ済みモデル' }).locator('tbody tr');
     await expect(modelRows).toHaveCount(3);
