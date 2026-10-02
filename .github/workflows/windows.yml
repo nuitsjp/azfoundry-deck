@@ -74,6 +74,7 @@ jobs:
     env:
       CI: 'true'
       PYTHONIOENCODING: utf-8
+      PSExecutionPolicyPreference: Bypass
     steps:
       - uses: actions/checkout@v4
       - name: Read tool versions
