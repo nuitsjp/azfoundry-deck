@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
@@ -10,6 +11,8 @@ const app = JSON.parse(readFileSync('build/app.json', 'utf8'));
 const arch = process.env.GOARCH || (process.arch === 'arm64' ? 'arm64' : 'amd64');
 const target = resolve('bin', app.executable);
 const server = resolve('bin', app.executable.slice(0, -4) + '-server' + (windows ? '.exe' : ''));
+// E2E-only server: the e2e tag swaps Entra ID / ARM and the Credential Manager for fixed boundaries.
+const serverE2E = resolve('bin', app.executable.slice(0, -4) + '-server-e2e' + (windows ? '.exe' : ''));
 function run(cmd, args, extra = {}) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', ...extra });
   if (result.error) throw result.error;
@@ -37,8 +40,21 @@ try {
     run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', '-H windowsgui', '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
   } else if (command === 'server') {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
+  } else if (command === 'server-e2e') {
+    run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
+  } else if (command === 'run-server-review') {
+    // Screen review only, not a production path: the e2e build starts signed in
+    // from a fixed record in a fixed temporary data directory.
+    const dataDir = join(tmpdir(), `${app.id}-review`);
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
+      authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
+      tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
+    }));
+    console.log(`review data directory: ${dataDir}`);
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir } });
   } else if (command === 'run' || command === 'run-server') {
-    run(command === 'run' ? target : server, []);
+    run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {
     if (!windows) throw new Error('NSIS packaging must be run on Windows.');
     const include = [

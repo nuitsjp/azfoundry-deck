@@ -29,6 +29,16 @@ tasks:
       - task: generate
       - npm --prefix frontend run build
       - node scripts/build.mjs server
+  build:server:e2e:
+    cmds:
+      - task: generate
+      - npm --prefix frontend run build
+      - node scripts/build.mjs server-e2e
+  # Screen review with the e2e build (fixed sign-in, file store); not a production path.
+  server:review:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review
   server:
     cmds:
       - task: build:server
@@ -38,7 +48,7 @@ tasks:
       - task: build
       - node scripts/build.mjs package
   test:core:
-    cmds: [go test ./internal/... ./cmd/release/...]
+    cmds: [go test ./internal/...]
   verify:
     cmds:
       - task: generate
@@ -46,9 +56,10 @@ tasks:
       - npm --prefix frontend run lint
       - npm --prefix frontend run format:check
       - npm --prefix frontend run test
-      - go test ./internal/... ./cmd/release/...
+      - go test ./internal/...
       - go vet ./...
       - go vet -tags server ./...
+      - go vet -tags server,production,e2e ./...
       - python {{.DOC_CHECK}} .
-      - task: build:server
+      - task: build:server:e2e
       - npm --prefix frontend run test:e2e

@@ -1,21 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet } from '@tanstack/react-router';
-import { useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
+import { Alert, AppShell, Button, Group, Modal, NavLink, Stack, Text } from '@mantine/core';
 import { appInfo, confirmQuit, ready, subscribeClose } from '../features/application/queries';
-import { subscribeNotes } from '../features/notes/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { ExitProvider, useExit } from '../shared/ExitContext';
-import styles from './Shell.module.css';
+import { AccountBadge, LoginModal } from '../usecases/azure-login/AzureLogin';
+
+function AppIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="4" rx="1.5" fill="#4dabf7" />
+      <rect x="3" y="10" width="18" height="4" rx="1.5" fill="#339af0" />
+      <rect x="3" y="16" width="18" height="4" rx="1.5" fill="#1c7ed6" />
+    </svg>
+  );
+}
 
 function Content() {
-  const client = useQueryClient();
   const info = useQuery(appInfo());
   const { dirty } = useExit();
   const busy = useIsMutating() > 0;
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  useEffect(() => subscribeNotes(client), [client]);
   useEffect(() => {
     const off = subscribeClose(() => setClosing(true));
     void ready().catch(setError);
@@ -29,49 +36,20 @@ function Content() {
     }
   }
   return (
-    <div className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Text size="xs" fw={700} c="dimmed" className={styles.eyebrow}>
-          WAILS TEMPLATE
-        </Text>
-        <Title order={3} mt="xs">
-          ユースケースから
-          <br />
-          実装へ。
-        </Title>
-        <Text size="sm" c="dimmed" mt="md">
-          対話はReact、機能はGo。境界を確認できる参照アプリ。
-        </Text>
-        <nav className={styles.navigation} aria-label="メインナビゲーション">
-          <Link to="/notes" activeProps={{ className: styles.active }}>
-            {'01　メモの編集'}
-          </Link>
-          <Link to="/import" activeProps={{ className: styles.active }}>
-            {'02　一括取り込み'}
-          </Link>
-          <Link to="/updates" activeProps={{ className: styles.active }}>
-            {'03　アプリの更新'}
-          </Link>
-        </nav>
-        <div className={styles.footer}>
-          <Badge variant="light">{info.data?.server ? 'Server / 検証用' : 'Windows Desktop'}</Badge>
-          <Text size="xs" c="dimmed" mt="sm">
-            v{info.data?.version ?? '—'}
-          </Text>
-        </div>
-      </aside>
-      <main className={styles.main}>
-        <Group justify="space-between" mb="xl">
-          <Text size="sm" c="dimmed">
-            REFERENCE IMPLEMENTATION
-          </Text>
-          {__MOCK__ && <Badge color="orange">試験用モック</Badge>}
+    <AppShell header={{ height: 52 }} navbar={{ width: 200, breakpoint: 0 }} padding="lg">
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap">
+            <AppIcon />
+            <Text fw={700}>AzFoundryDeck</Text>
+          </Group>
+          <AccountBadge />
         </Group>
-        {__MOCK__ && (
-          <Alert color="orange" mb="lg">
-            固定データによる試験用の再現です。保存・取り込みは実データへ反映されません。
-          </Alert>
-        )}
+      </AppShell.Header>
+      <AppShell.Navbar p="xs" aria-label="メインナビゲーション">
+        <NavLink component={Link} to="/" label="Home" active />
+      </AppShell.Navbar>
+      <AppShell.Main>
         <ErrorNotice error={info.error || error} />
         {info.data && !info.data.diagnosticsAvailable && (
           <Alert color="yellow" mb="lg">
@@ -79,7 +57,8 @@ function Content() {
           </Alert>
         )}
         <Outlet />
-      </main>
+      </AppShell.Main>
+      <LoginModal />
       <Modal
         opened={closing}
         onClose={() => setClosing(false)}
@@ -105,7 +84,7 @@ function Content() {
           </Group>
         </Stack>
       </Modal>
-    </div>
+    </AppShell>
   );
 }
 export function Shell() {

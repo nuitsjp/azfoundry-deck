@@ -2,7 +2,5 @@
   "id": "AzFoundryDeck",
   "name": "AzFoundryDeck",
   "executable": "azfoundrydeck.exe",
-  "version": "0.1.0",
-  "updateSource": "",
-  "updatePublicKey": ""
+  "version": "0.1.0"
 }

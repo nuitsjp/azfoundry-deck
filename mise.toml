@@ -20,10 +20,6 @@ run = "npx playwright install --only-shell chromium"
 description = "Windowsアプリを起動し、Go・Reactの変更を監視する"
 run = "node scripts/run.mjs dev"
 
-[tasks."dev:mock"]
-description = "試験用固定データで起動する（実データは変更しない）"
-run = "node scripts/run.mjs dev:mock"
-
 [tasks.build]
 description = "本番実行ファイルをbin/に生成する"
 run = "node scripts/run.mjs build"
@@ -36,14 +32,14 @@ run = "node scripts/run.mjs package"
 description = "Go実処理を使うブラウザ確認用サーバーを起動する"
 run = "node scripts/run.mjs server"
 
+[tasks."server:review"]
+description = "画面確認用：E2E用ビルドを固定の記録でログイン済みから起動する（本番経路ではない）"
+run = "node scripts/run.mjs server:review"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"
 
 [tasks."test:core"]
-description = "Goの機能・保存・更新検証を実行する"
+description = "Goの機能検証を実行する"
 run = "node scripts/run.mjs test:core"
-
-[tasks.release]
-description = "更新用の鍵生成と署名済み更新情報の作成（引数はrelease以降に指定）"
-run = "node scripts/run.mjs release"

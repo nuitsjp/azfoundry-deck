@@ -8,7 +8,7 @@ import (
 )
 
 func showStartupFailure() {
-	title, _ := syscall.UTF16PtrFromString("Wailsアプリを起動できません")
-	message, _ := syscall.UTF16PtrFromString("初期化に失敗しました。設定・保存データ・アクセス権を確認してください。保存データを空の内容で上書きしていません。")
+	title, _ := syscall.UTF16PtrFromString("AzFoundryDeckを起動できません")
+	message, _ := syscall.UTF16PtrFromString("初期化に失敗しました。設定とデータ領域のアクセス権を確認してください。")
 	syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(message)), uintptr(unsafe.Pointer(title)), 0x10)
 }

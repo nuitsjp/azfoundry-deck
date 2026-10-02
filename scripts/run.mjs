@@ -23,7 +23,7 @@ function run(command, args, cwd = root, extra = {}) {
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status || 1);
 }
-const [command = 'help', ...args] = process.argv.slice(2);
+const [command = 'help'] = process.argv.slice(2);
 try {
   if (command === 'setup') {
     const match = readFileSync('go.mod', 'utf8').match(/github\.com\/wailsapp\/wails\/v3 (\S+)/);
@@ -37,15 +37,13 @@ try {
     run('npm', ['ci', '--no-audit', '--no-fund'], resolve('frontend'));
     run(cli, ['task', 'generate']);
   } else if (command === 'help') {
-    console.log('node scripts/run.mjs setup | dev | dev:mock | build | package | server | verify | test:core | release <args>');
+    console.log('node scripts/run.mjs setup | dev | build | package | server | server:review | verify | test:core');
   } else {
     if (!existsSync(cli)) throw new Error('先に node scripts/run.mjs setup を実行してください。');
-    if (command === 'dev' || command === 'dev:mock') {
+    if (command === 'dev') {
       if (!windows) throw new Error('Desktop development is Windows-only. Use server for browser verification.');
-      run(cli, ['dev'], root, { WAILS_FRONTEND_MODE: command === 'dev:mock' ? 'mock' : 'real' });
-    } else if (command === 'release') {
-      run('go', ['run', './cmd/release', ...args]);
-    } else if (['build', 'package', 'server', 'verify', 'test:core', 'generate'].includes(command)) {
+      run(cli, ['dev']);
+    } else if (['build', 'package', 'server', 'server:review', 'verify', 'test:core', 'generate'].includes(command)) {
       run(cli, ['task', command]);
     } else throw new Error(`Unknown command: ${command}`);
   }

@@ -4,13 +4,8 @@ import react from '@vitejs/plugin-react';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import wails from '@wailsio/runtime/plugins/vite';
 
-export default defineConfig(({ command, mode }) => {
-  const mock = process.env.WAILS_FRONTEND_MODE === 'mock';
-  if (command === 'build' && mode === 'production' && mock) {
-    throw new Error('Production builds cannot enable mock bindings.');
-  }
+export default defineConfig(({ mode }) => {
   return {
-    define: { __MOCK__: JSON.stringify(mock) },
     plugins: [
       {
         name: 'app-csp',
@@ -28,17 +23,6 @@ export default defineConfig(({ command, mode }) => {
     ],
     resolve: {
       alias: [
-        {
-          find: '@notes-service',
-          replacement: fileURLToPath(
-            new URL(
-              mock
-                ? './tests/fixtures/notes.ts'
-                : './bindings/azfoundrydeck/internal/notes/service.ts',
-              import.meta.url,
-            ),
-          ),
-        },
         { find: '@bindings', replacement: fileURLToPath(new URL('./bindings', import.meta.url)) },
       ],
     },
