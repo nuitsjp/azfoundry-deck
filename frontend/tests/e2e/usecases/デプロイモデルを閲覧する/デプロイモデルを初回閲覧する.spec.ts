@@ -39,7 +39,7 @@ const labels = foundries.map(
 
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
-test('Home画面で最初に発見したFoundryのデプロイモデルを閲覧する', async ({ page, app }) => {
+test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
   const savedFile = join(app.dataDir, 'foundry-state.json');

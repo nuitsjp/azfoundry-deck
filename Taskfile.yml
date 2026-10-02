@@ -39,6 +39,12 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review
+  server:review:foundry:
+    cmds:
+      - task: generate
+      - npm --prefix frontend run build -- --mode foundry-review
+      - node scripts/build.mjs server-e2e
+      - node scripts/build.mjs run-server-review-foundry
   server:
     cmds:
       - task: build:server

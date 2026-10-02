@@ -8,7 +8,7 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、Home画面でのデプロイモデルの初回閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存を含む）。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元を含む）。 |
 | 今回の対象外 | サブスクリプション・Foundry・モデルデプロイの操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 ## 2. 制約・品質要求・受け入れ条件
@@ -31,7 +31,7 @@
 | --- | --- | --- | --- | --- | --- |
 | [Azureへログインする](usecases/Azureへログインする/README.md) | Foundry の運用者 | Azure の認証済み状態を確立し、次回起動へ引き継ぐ | 1 | [UCP-1](design/UCP-1.md) | 対象 |
 | [Azureからログアウトする](usecases/Azureからログアウトする/README.md) | Foundry の運用者 | このアプリのログイン状態と保存したログイン情報を破棄する | 2 | [UCP-1](design/UCP-1.md) | 対象 |
-| [デプロイモデルを初回閲覧する](usecases/デプロイモデルを初回閲覧する/README.md) | Foundry の運用者 | Home画面で取得の進捗を確認しながら、利用可能な Foundry と最初に発見された Foundry のデプロイ済みモデルを確認する | 3 | [UCP-1](design/UCP-1.md) | 対象 |
+| [デプロイモデルを閲覧する](usecases/デプロイモデルを閲覧する/README.md) | Foundry の運用者 | Home画面で Foundry 一覧と選択された Foundry のデプロイ済みモデルを確認する | 3 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -65,16 +65,18 @@
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |
 | Home画面での初回閲覧 | `mise run server` で起動し、ログイン済みで Home画面を表示する | 取得・保存の進捗モーダルを経て、参照可能な全 Foundry と最初に発見した Foundry の全デプロイ済みモデルが表示され、データフォルダーの `foundry-state.json` に同じ内容が保存される。取得または保存に失敗した場合は Home画面に `FOUNDRY_LOAD_FAILED` が表示される |
 | 画面確認用の起動（Home画面・ログアウトの UI 確認） | `mise run server:review` | `http://127.0.0.1:34115/` がログイン済み（ヘッダー右に `Contoso` とユーザーアイコン）で開き、Home画面に Foundry のプルダウンとデプロイ済みモデル3件が表示される。外部取得の固定応答は待ち時間なしで返るため、進捗モーダルは短時間で閉じる。端末に `review data directory: <一時フォルダー>\AzFoundryDeck-review` が出る |
+| 再閲覧モックの起動 | `node scripts/run.mjs server:review:foundry` | `http://127.0.0.1:34116/` がログイン済みで開く。取得モーダルを表示せず、Foundry 3件のうち `contoso-foundry-development` が選択され、`development-chat`・`development-mini`・`development-embedding` の3モデルが表示される |
+| 再閲覧モックの確認と終了 | Home画面を再読み込みし、プルダウンを開閉して選択表示にマウスを合わせる。終了は起動端末で `Ctrl+C` | 同じ選択とモデルを表示し、展開時は3件の全文、閉じた選択表示は幅に応じた省略と全文ツールチップを表示する。合成点と本番の型は [再閲覧設計](design/UCP-1.md#デプロイモデルの再閲覧) を参照する。ファイル読み込みは固定応答であり実処理は未接続。通常構成への切り替えは終了後 `mise run server` で起動する |
 | 初回閲覧の進捗の確認 | 通常ビルドの Home画面を再読み込みし、モーダルの検索・サブスクリプション一覧・モデル取得・保存を確認する。処理中に Escape を押し、モーダル外をクリックする | 検索中と発見件数、待機中・取得中のサブスクリプションが発見順に表示される。完了した行は削除され、完了数と発見件数は削除した行も含めて集計される。選択先とモデルの取得件数、保存状態を表示し、保存成功後に自動で閉じる。処理中は Escape・外側クリックで閉じない。実際の応答時間に従って表示が進むため、短い処理の状態は目視できないことがある |
 | Home画面の初回閲覧の再現 | 上の画面で Foundry のプルダウンを開閉し、選択表示にマウスを合わせる | 開いた一覧は Foundry 3件の全文を表示する。選択表示は幅に応じて省略し、ツールチップに全文を表示する。モデル一覧はデプロイ名・モデル名・バージョンの3列で3件を表示する。表示した一覧・初期選択・モデルが確認用データフォルダーの `foundry-state.json` に保存される |
 | ログアウトの再現 | 上の画面でユーザーアイコンを押し、メニューの「ログアウト」を選ぶ | メニューにアカウント名 `operator@contoso.onmicrosoft.com` と「ログアウト」だけが出る。選ぶとヘッダー右が消え、閉じられないログインモーダルが出る。データフォルダーの `e2e-authentication-record.json` が削除される |
 | ログアウト後の再起動の再現 | 終了後、`$env:WAILS_DATA_DIR="$env:TEMP\AzFoundryDeck-review"; .\bin\azfoundrydeck-server-e2e.exe`（確認後 `Remove-Item Env:WAILS_DATA_DIR`） | 自動ログインされず、ログインモーダルが出る（`server:review` は起動のたびに記録を置き直すため、記録を置かずに起動する） |
 | ログアウト失敗の再現 | `$env:AZFOUNDRYDECK_E2E_FAIL='logout'; mise run server:review`（確認後 `Remove-Item Env:AZFOUNDRYDECK_E2E_FAIL`） | 「ログアウト」を選ぶと、メニューが開いたまま中に `LOGOUT_FAILED` と理由が出て、ヘッダー右はログイン済みのまま、「ログアウト」を再度押せる |
-| 一括検証（生成・型検査・Lint・整形・単体テスト・Go の vet と test・文書検査・E2E 用ビルド・E2E） | `mise run verify` | 終了コード 0。文書検査が `NG 0 件`、Go の `internal/azauth` が `ok`、E2E が `7 passed` |
-| E2E のみ再実行 | `mise run verify` を一度実行した後、`npm --prefix frontend run test:e2e` | `7 passed`。失敗時の記録は `frontend/playwright-report/` と `frontend/test-results/` |
+| 一括検証（生成・型検査・Lint・整形・単体テスト・Go の vet と test・文書検査・E2E 用ビルド・E2E） | `mise run verify` | 終了コード 0。文書検査が `NG 0 件`、Go の `internal/azauth` が `ok`、E2E が `8 passed` |
+| E2E のみ再実行 | `mise run verify` を一度実行した後、`npm --prefix frontend run test:e2e` | `8 passed`。失敗時の記録は `frontend/playwright-report/` と `frontend/test-results/` |
 
 - **E2E の対象と構成**: シナリオ「ブラウザーでAzureにサインインする」の E2E は `frontend/tests/e2e/usecases/Azureへログインする/ブラウザーでAzureにサインインする.spec.ts` です。各テストが `bin\azfoundrydeck-server-e2e.exe` を一時データディレクトリと空きポートで起動します。主成功（手順1〜4と保存の確認）、トークン取得・テナント名取得の失敗、保存の失敗の3件を検証します。シナリオ「保存済みのログイン情報で自動的にログイン済みになる」の E2E は同じディレクトリの `保存済みのログイン情報で自動的にログイン済みになる.spec.ts` で、記録を置いて再起動し、復元の成功（取得中にモーダル・スピナーがなくヘッダー右が空であること、ブラウザーのサインインが呼ばれないことを含む）と復元の失敗（モーダルとエラー、記録が残ること、その後の手動ログイン）の2件を検証します。シナリオ「ヘッダーのユーザーアイコンからログアウトする」の E2E は `frontend/tests/e2e/usecases/Azureからログアウトする/ヘッダーのユーザーアイコンからログアウトする.spec.ts` で、記録を置いて再起動したログイン済みの状態から、メニューの内容、記録ファイルの削除、閉じられないログインモーダル、確認ダイアログがないこと、再起動後に自動ログインされないことを検証する主成功と、削除の失敗（メニュー内のエラー、ログイン済みのまま、再押下でも同じ、記録が残る）の2件を検証します。E2E 用ビルドには永続キャッシュがないため、永続キャッシュの削除は E2E の対象外です。
-- **Home画面の初回閲覧の検証**: `frontend/tests/e2e/usecases/デプロイモデルを初回閲覧する/Home画面で最初に発見したFoundryのデプロイモデルを閲覧する.spec.ts` で、保存済みの固定ログイン情報から Home画面を開き、検索・待機・取得・完了行の削除・モデル取得・保存後の結果表示、保存内容との一致、Foundry の全文表示と省略・ツールチップを検証します。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` のテストだけで外部取得を保留し、一時データディレクトリの `e2e-foundry-<段階>-release` ファイルで解放します。保存の状態遷移は実際の進捗イベントで確認します。固定 Source は3件のため、8並列の制限は実 Azure の進捗通知で確認します。`internal/foundry/service_test.go` はモデル取得の先行開始、全取得後の保存、取得失敗時の中止と既存保存内容の維持を検証します。すべて `mise run verify` で再実行できます。
+- **Home画面の初回閲覧の検証**: `frontend/tests/e2e/usecases/デプロイモデルを閲覧する/デプロイモデルを初回閲覧する.spec.ts` で、保存済みの固定ログイン情報から Home画面を開き、検索・待機・取得・完了行の削除・モデル取得・保存後の結果表示、保存内容との一致、Foundry の全文表示と省略・ツールチップを検証します。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` のテストだけで外部取得を保留し、一時データディレクトリの `e2e-foundry-<段階>-release` ファイルで解放します。保存の状態遷移は実際の進捗イベントで確認します。固定 Source は3件のため、8並列の制限は実 Azure の進捗通知で確認します。`internal/foundry/service_test.go` はモデル取得の先行開始、全取得後の保存、取得失敗時の中止と既存保存内容の維持を検証します。すべて `mise run verify` で再実行できます。
 - **単体テスト**: 永続キャッシュの削除（`internal/azauth/token_cache_windows_test.go`）は、実際の `%LOCALAPPDATA%\.IdentityService` に試験用の名前 `azfoundrydeck-test-<時刻>` とその `.cae` のファイルを作り、削除されることと、存在しないときの再削除が成功することを確認して後始末します。本アプリの `azfoundrydeck` には触れません。`go test ./internal/...`（`mise run verify` に含まれる）で実行されます。本番の永続キャッシュと資格情報マネージャーのエントリが実際に削除されることは、段階5で利用者が実機で確認しました。
 - **E2E 用ビルド**: `node scripts/build.mjs server-e2e`（`build:server:e2e` タスク）が `-tags server,production,e2e` でビルドします。`e2e` タグでは、外部境界のサインイン（Entra ID・ARM）が固定のアカウント（`operator@contoso.onmicrosoft.com`、テナント名 `Contoso`）を返し、アカウント識別情報は資格情報マネージャーの代わりにデータディレクトリの `e2e-authentication-record.json` に同じ JSON で保存されます。環境変数 `AZFOUNDRYDECK_E2E_FAIL=signin`、`save`、`restore`、`logout` で失敗を注入します。ログアウトではデータディレクトリの記録ファイルを削除します。起動前にデータディレクトリへ `e2e-authentication-record.json` を置くと、起動時の復元がその記録で成功します。サインインが呼ばれるとデータディレクトリに `e2e-signin-called` を作り、`AZFOUNDRYDECK_E2E_HOLD_RESTORE=1` のときは復元が `e2e-restore-release` の作成まで応答を保留します。
 - **画面確認用の起動と実処理への切り替え**: `server:review` は E2E 用ビルド（`bin\azfoundrydeck-server-e2e.exe`）を、一時フォルダーの固定データディレクトリ `AzFoundryDeck-review` に認証記録 `e2e-authentication-record.json` を置いて起動します。認証と Foundry・モデル取得の外部境界は固定応答を返しますが、初期選択・進捗の合成と通知・ファイル保存・結果表示は本番と同じ処理です。固定応答の内容と進捗の接続は [UCP-1](design/UCP-1.md#デプロイモデルの初回閲覧) を参照します。Azure・資格情報マネージャー・永続キャッシュには触れません。終了は起動した端末で `Ctrl+C` です。実 Azure の取得へ切り替える場合は終了後に `mise run server` で通常ビルドを起動します。接続または保存に失敗した場合は固定応答に切り替わらず、Home画面にエラーが表示されることを確認します。本番ビルドのログアウトは、永続キャッシュのファイル（`azfoundrydeck`、`azfoundrydeck.cae`）、資格情報マネージャーのエントリの順に削除します。どちらも既に存在しなければ成功として扱い、途中で失敗するとログイン済みのまま `LOGOUT_FAILED` を返します。

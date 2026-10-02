@@ -13,7 +13,7 @@ import {
 import { loadInitialView } from '../../features/foundry/initial-view';
 import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
-import { initialProgress } from '../../features/foundry/progress';
+import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
 
 function foundryLabel(foundry: Foundry) {
@@ -21,7 +21,7 @@ function foundryLabel(foundry: Foundry) {
 }
 
 export function InitialDeployments() {
-  const [progress, setProgress] = useState(initialProgress);
+  const [progress, setProgress] = useState<FoundryProgress | null>(null);
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
     queryFn: () => loadInitialView(setProgress),
@@ -34,7 +34,7 @@ export function InitialDeployments() {
   if (!view)
     return (
       <>
-        <AcquisitionProgressModal opened={initial.isPending} progress={progress} />
+        {progress && <AcquisitionProgressModal opened={initial.isPending} progress={progress} />}
         <ErrorNotice error={initial.error} />
       </>
     );
