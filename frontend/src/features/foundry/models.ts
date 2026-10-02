@@ -1,19 +1,13 @@
-export interface Foundry {
-  id: string;
-  name: string;
-  subscriptionName: string;
-  resourceGroupName: string;
-}
+import type {
+  Foundry,
+  Deployment,
+  InitialFoundryView as BoundInitialView,
+} from '@bindings/azfoundrydeck/internal/foundry/models';
 
-export interface Deployment {
-  id: string;
-  deploymentName: string;
-  modelName: string;
-  version: string;
-}
+export type { Foundry, Deployment };
 
-export interface InitialFoundryView {
+// A successful Go response always initializes both slices, including empty deployments.
+export type InitialFoundryView = Omit<BoundInitialView, 'foundries' | 'deployments'> & {
   foundries: Foundry[];
-  selectedFoundryId: string;
   deployments: Deployment[];
-}
+};

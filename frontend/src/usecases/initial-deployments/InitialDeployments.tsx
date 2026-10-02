@@ -18,7 +18,13 @@ function foundryLabel(foundry: Foundry) {
 }
 
 export function InitialDeployments() {
-  const initial = useQuery({ queryKey: ['foundry', 'initial-view'], queryFn: loadInitialView });
+  const initial = useQuery({
+    queryKey: ['foundry', 'initial-view'],
+    queryFn: loadInitialView,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+  });
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view) return <ErrorNotice error={initial.error} />;

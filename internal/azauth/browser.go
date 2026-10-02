@@ -5,6 +5,7 @@ package azauth
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -13,6 +14,11 @@ import (
 )
 
 const armScope = "https://management.azure.com/.default"
+
+// NewSilentCredential uses the signed-in account without opening a browser.
+func NewSilentCredential(record azidentity.AuthenticationRecord) (azcore.TokenCredential, error) {
+	return credential(record, true)
+}
 
 // credential uses the persistent token cache. With a record and silent set, it
 // only reads or refreshes cached tokens and fails instead of opening a browser.

@@ -12,9 +12,7 @@ function Home() {
       <Title order={2} mb="lg">
         Home
       </Title>
-      {import.meta.env.VITE_FOUNDRY_REVIEW === '1' && status.data?.phase === Phase.SignedIn && (
-        <InitialDeployments />
-      )}
+      {status.data?.phase === Phase.SignedIn && <InitialDeployments />}
     </>
   );
 }
