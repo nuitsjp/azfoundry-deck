@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | 環境構築 | `mise trust`、`mise run setup`、`mise run setup:browser` | `frontend/bindings/azfoundrydeck/internal/azauth/` が生成される |
 | モック起動（ブラウザー確認） | `mise run server:mock` | `http://127.0.0.1:34115/` のヘッダーでアプリ名の右に「モック」バッジが表示され、サーバーの出力に `mock authenticator enabled` が出る |
-| モックの失敗再現 | `$env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL='1'; mise run server:mock`（確認後 `Remove-Item Env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL`） | ヘッダーの「Azureにログイン」を押して約3秒後に、ヘッダー内に `LOGIN_FAILED` と理由が表示され、ボタンが再び押せる状態に戻る |
+| モックの失敗再現 | `$env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL='1'; mise run server:mock`（確認後 `Remove-Item Env:AZFOUNDRYDECK_MOCK_LOGIN_FAIL`） | 起動時に開くログインのモーダルで「Azureにログイン」を押して約3秒後に、モーダル内に `LOGIN_FAILED` と理由が表示され、モーダルは開いたままボタンが再び押せる状態に戻る |
 | モック起動（デスクトップ） | `mise run dev:mock` | ウィンドウのヘッダーに「モック」バッジが表示される（未検証） |
 | 実処理起動 | `mise run server`（ブラウザー確認、URL は同上）、`mise run dev`（デスクトップ） | 「モック」バッジがなく、ログ（`%APPDATA%\AzFoundryDeck\logs\app.jsonl`）に `mock authenticator enabled` が出ない |
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |

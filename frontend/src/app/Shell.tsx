@@ -5,7 +5,7 @@ import { Alert, AppShell, Badge, Button, Group, Modal, NavLink, Stack, Text } fr
 import { appInfo, confirmQuit, ready, subscribeClose } from '../features/application/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { ExitProvider, useExit } from '../shared/ExitContext';
-import { AzureLogin } from '../usecases/azure-login/AzureLogin';
+import { AccountBadge, LoginModal } from '../usecases/azure-login/AzureLogin';
 
 function AppIcon() {
   return (
@@ -48,7 +48,7 @@ function Content() {
               </Badge>
             )}
           </Group>
-          <AzureLogin />
+          <AccountBadge />
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="xs" aria-label="メインナビゲーション">
@@ -63,6 +63,7 @@ function Content() {
         )}
         <Outlet />
       </AppShell.Main>
+      <LoginModal />
       <Modal
         opened={closing}
         onClose={() => setClosing(false)}
