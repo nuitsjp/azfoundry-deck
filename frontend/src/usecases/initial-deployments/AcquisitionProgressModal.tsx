@@ -28,6 +28,9 @@ export function AcquisitionProgressModal({
     (subscription) => subscription.phase === 'running',
   ).length;
   const searching = progress.subscriptionSearch === 'searching';
+  const pending = progress.subscriptions.filter(
+    (subscription) => subscription.phase !== 'completed',
+  );
 
   return (
     <Modal.Root
@@ -73,7 +76,7 @@ export function AcquisitionProgressModal({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {progress.subscriptions.map((subscription) => (
+                  {pending.map((subscription) => (
                     <Table.Tr key={subscription.id}>
                       <Table.Td style={{ overflowWrap: 'anywhere' }}>{subscription.name}</Table.Td>
                       <Table.Td>
@@ -84,9 +87,11 @@ export function AcquisitionProgressModal({
                   ))}
                 </Table.Tbody>
               </Table>
-              {progress.subscriptions.length === 0 && (
+              {pending.length === 0 && (
                 <Text size="sm" c="dimmed" py="md">
-                  サブスクリプションの発見を待っています。
+                  {searching
+                    ? 'サブスクリプションの発見を待っています。'
+                    : 'すべてのサブスクリプションの取得が完了しました。'}
                 </Text>
               )}
             </ScrollArea.Autosize>
