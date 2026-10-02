@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActionIcon,
-  Button,
   Combobox,
   Group,
   Input,
@@ -194,27 +193,26 @@ export function InitialDeployments() {
         </Text>
       </Stack>
       <Stack gap="xs">
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" align="baseline">
-            <Title order={4}>デプロイ済みモデル</Title>
-            <Text size="xs" c="dimmed">
-              {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
-            </Text>
-          </Group>
+        <Group gap="sm" align="center">
+          <Title order={4}>デプロイ済みモデル</Title>
           {deploymentRefreshEnabled && (
-            <Button
-              variant="subtle"
-              size="compact-sm"
-              leftSection={<RefreshIcon />}
-              disabled={busy}
-              onClick={() => {
-                setModelsProgress(null);
-                refreshModels.mutate(view);
-              }}
-            >
-              モデルを更新
-            </Button>
+            <Tooltip label="モデルを更新">
+              <ActionIcon
+                variant="default"
+                aria-label="モデルを更新"
+                disabled={busy}
+                onClick={() => {
+                  setModelsProgress(null);
+                  refreshModels.mutate(view);
+                }}
+              >
+                <RefreshIcon />
+              </ActionIcon>
+            </Tooltip>
           )}
+          <Text size="xs" c="dimmed">
+            {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
+          </Text>
         </Group>
         <Table.ScrollContainer minWidth={480}>
           <Table aria-label="デプロイ済みモデル" striped highlightOnHover>
