@@ -18,9 +18,10 @@ const tokenCacheName = "azfoundrydeck"
 type Phase string
 
 const (
-	SignedOut Phase = "signedOut"
-	SigningIn Phase = "signingIn"
-	SignedIn  Phase = "signedIn"
+	SignedOut       Phase = "signedOut"
+	SigningIn       Phase = "signingIn"
+	SelectingTenant Phase = "selectingTenant"
+	SignedIn        Phase = "signedIn"
 )
 
 type Account struct {
@@ -149,6 +150,7 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 		err = s.store.Save(saved)
 	}
 	var account Account
+	phase := SignedIn
 	if err == nil {
 		switch len(saved.Tenants) {
 		case 0:
@@ -163,7 +165,8 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 				account, err = saved.account()
 			}
 		default:
-			err = fault.New("TENANT_SELECTION_REQUIRED", "利用するテナントの選択が必要です。")
+			phase = SelectingTenant
+			account = Account{Username: record.Username, Tenants: saved.Tenants}
 		}
 	}
 
@@ -177,6 +180,54 @@ func (s *Service) Login(ctx context.Context) (Status, error) {
 		}
 		return Status{}, fault.New("LOGIN_FAILED", "Azureにログインできませんでした。"+err.Error())
 	}
+	s.status = Status{Phase: phase, Account: &account}
+	return s.status, nil
+}
+
+// SelectTenant completes sign-in after the user chooses from the saved list.
+func (s *Service) SelectTenant(ctx context.Context, tenantID string) (Status, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	s.mu.Lock()
+	selecting := s.status.Phase == SelectingTenant
+	s.mu.Unlock()
+	if !selecting {
+		return Status{}, fault.New("NOT_SELECTING_TENANT", "テナント選択待ちではありません。")
+	}
+	saved, found, err := s.store.Load()
+	if err == nil && !found {
+		err = fault.New("LOGIN_REQUIRED", "サインインし直してください。")
+	}
+	valid := false
+	if err == nil {
+		for _, tenant := range saved.Tenants {
+			if tenant.ID == tenantID && tenantID != "" {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return Status{}, fault.New("INVALID_TENANT", "一覧からテナントを選択してください。")
+		}
+		saved.SelectedTenantID = tenantID
+		err = acquireTenantToken(ctx, saved)
+	}
+	if err == nil {
+		err = s.store.Save(saved)
+	}
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "azauth.SelectTenant", "cause", err)
+		if ctx.Err() != nil {
+			return Status{}, fault.Public(ctx.Err())
+		}
+		return Status{}, fault.New("SELECT_TENANT_FAILED", "テナントを設定できませんでした。もう一度確定してください。")
+	}
+	account, err := saved.account()
+	if err != nil {
+		return Status{}, fault.Public(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.status = Status{Phase: SignedIn, Account: &account}
 	return s.status, nil
 }

@@ -45,6 +45,10 @@ run = "node scripts/run.mjs server:review"
 description = "テナント1件のサインイン画面を固定応答で確認する"
 run = "node scripts/run.mjs server:review:login"
 
+[tasks."server:review:login-multiple"]
+description = "テナント7件のサインインと選択画面を固定応答で確認する"
+run = "node scripts/run.mjs server:review:login-multiple"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

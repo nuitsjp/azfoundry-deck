@@ -43,10 +43,11 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (command === 'run-server-review-login') {
+  } else if (['run-server-review-login', 'run-server-review-login-multiple'].includes(command)) {
+    const multiple = command === 'run-server-review-login-multiple';
     const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: '34117' } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: multiple ? '34118' : '34117', AZFOUNDRYDECK_E2E_TENANTS: multiple ? 'multiple' : '' } });
   } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.

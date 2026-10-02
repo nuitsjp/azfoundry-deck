@@ -39,6 +39,17 @@ func signIn(context.Context) (azidentity.AuthenticationRecord, error) {
 }
 
 func listTenants(context.Context, azidentity.AuthenticationRecord) ([]Tenant, error) {
+	if os.Getenv("AZFOUNDRYDECK_E2E_TENANTS") == "multiple" {
+		return []Tenant{
+			{ID: "e2e-azure-tenant", DisplayName: "Contoso"},
+			{ID: "e2e-development-tenant", DisplayName: "Contoso Development"},
+			{ID: "e2e-fabrikam-tenant", DisplayName: "Fabrikam"},
+			{ID: "e2e-northwind-tenant", DisplayName: "Northwind"},
+			{ID: "e2e-adventure-tenant", DisplayName: "Adventure Works"},
+			{ID: "e2e-woodgrove-tenant", DisplayName: "Woodgrove"},
+			{ID: "e2e-tailspin-tenant", DisplayName: "Tailspin"},
+		}, nil
+	}
 	return []Tenant{{ID: "e2e-azure-tenant", DisplayName: "Contoso"}}, nil
 }
 
@@ -70,7 +81,7 @@ type FileStore struct {
 }
 
 func (f FileStore) Save(record LoginRecord) error {
-	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "save" {
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "save" || (os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "select-save" && record.SelectedTenantID != "") {
 		return errors.New("e2e: save failure injected")
 	}
 	data, err := json.Marshal(record)

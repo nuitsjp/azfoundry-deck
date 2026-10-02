@@ -29,3 +29,11 @@ export function useLogout() {
     },
   });
 }
+
+export function useSelectTenant() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (tenantId: string) => Auth.SelectTenant(tenantId),
+    onSuccess: (status) => client.setQueryData(statusKey, status),
+  });
+}
