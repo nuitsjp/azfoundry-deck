@@ -14,7 +14,12 @@ import {
   useCombobox,
 } from '@mantine/core';
 import { Phase, type Account } from '@bindings/azfoundrydeck/internal/azauth/models';
-import { authStatus, useLogin, useSelectTenant } from '../../features/auth/queries';
+import {
+  authStatus,
+  useChangeTenant,
+  useLogin,
+  useSelectTenant,
+} from '../../features/auth/queries';
 import { publicError } from '../../shared/errors';
 import { AccountMenu } from '../azure-logout/AccountMenu';
 
@@ -23,12 +28,19 @@ export function AccountBadge() {
   const status = useQuery(authStatus());
   const account = status.data?.phase === Phase.SignedIn ? status.data.account : null;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
+  const change = useChangeTenant();
   if (!account?.selectedTenantId || !account.tenants) return null;
   const selected = account.tenants.find((tenant) => tenant.id === account.selectedTenantId);
   return (
     <Group gap="sm" wrap="nowrap">
       {selected && (
-        <Combobox store={combobox} onOptionSubmit={() => combobox.closeDropdown()}>
+        <Combobox
+          store={combobox}
+          onOptionSubmit={(tenantId) => {
+            combobox.closeDropdown();
+            if (tenantId !== account.selectedTenantId) change.mutate(tenantId);
+          }}
+        >
           <Combobox.Target targetType="button" withExpandedAttribute>
             <InputBase
               component="button"
@@ -37,6 +49,7 @@ export function AccountBadge() {
               rightSection={<Combobox.Chevron />}
               rightSectionPointerEvents="none"
               onClick={() => combobox.toggleDropdown()}
+              disabled={change.isPending}
               w={220}
               styles={{ input: { textAlign: 'left' } }}
             >

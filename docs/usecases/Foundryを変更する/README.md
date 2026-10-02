@@ -1,0 +1,26 @@
+# Foundryを変更する
+
+## 主アクター
+
+Foundry の運用者。
+
+## 目的
+
+Home画面で閲覧する Foundry を別の Foundry に変更し、そのデプロイ済みモデルを確認する。
+
+## 前提
+
+Azure にログイン済みで、Home画面に Foundry 一覧と選択済み Foundry のデプロイ済みモデルを表示しており、一覧に変更先の Foundry がある。
+
+## 共通の受け入れ条件
+
+- Foundry の表示形式、省略表示、全文ツールチップ、モデル一覧の列は「デプロイモデルを閲覧する」の共通の受け入れ条件に従う。
+
+## シナリオ
+
+- [Foundryを変更し初回閲覧する](scenarios/Foundryを変更し初回閲覧する.md)
+- [Foundryを変更し再閲覧する](scenarios/Foundryを変更し再閲覧する.md)
+
+## 実現パターン
+
+[UCP-1. 画面操作から Go サービス経由で Azure SDK を呼ぶ](../../design/UCP-1.md)

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   useCombobox,
 } from '@mantine/core';
+import { changeTenantKey } from '../../features/auth/queries';
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
@@ -73,7 +74,8 @@ export function InitialDeployments() {
     mutationFn: () => refreshDeployments(setModelsProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
-  const busy = change.isPending || refresh.isPending || refreshModels.isPending;
+  const changingTenant = useIsMutating({ mutationKey: changeTenantKey }) > 0;
+  const busy = change.isPending || refresh.isPending || refreshModels.isPending || changingTenant;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view)

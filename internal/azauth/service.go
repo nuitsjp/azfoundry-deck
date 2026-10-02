@@ -4,6 +4,7 @@ package azauth
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -221,6 +222,51 @@ func (s *Service) SelectTenant(ctx context.Context, tenantID string) (Status, er
 			return Status{}, fault.Public(ctx.Err())
 		}
 		return Status{}, fault.New("SELECT_TENANT_FAILED", "テナントを設定できませんでした。もう一度確定してください。")
+	}
+	account, err := saved.account()
+	if err != nil {
+		return Status{}, fault.Public(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.status = Status{Phase: SignedIn, Account: &account}
+	return s.status, nil
+}
+
+// ChangeTenant switches the target tenant of a signed-in account. The previous
+// selection and status stay in place unless the token and the saved selection both succeed.
+func (s *Service) ChangeTenant(ctx context.Context, tenantID string) (Status, error) {
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	s.mu.Lock()
+	status := s.status
+	s.mu.Unlock()
+	if status.Phase != SignedIn {
+		return Status{}, fault.New("NOT_SIGNED_IN", "ログインしていません。")
+	}
+	if status.Account != nil && status.Account.SelectedTenantID == tenantID {
+		return status, nil
+	}
+	saved, found, err := s.store.Load()
+	if err == nil && !found {
+		err = fault.New("LOGIN_REQUIRED", "サインインし直してください。")
+	}
+	if err == nil {
+		if !slices.ContainsFunc(saved.Tenants, func(tenant Tenant) bool { return tenant.ID == tenantID && tenantID != "" }) {
+			return Status{}, fault.New("INVALID_TENANT", "一覧からテナントを選択してください。")
+		}
+		saved.SelectedTenantID = tenantID
+		err = acquireTenantToken(ctx, saved)
+	}
+	if err == nil {
+		err = s.store.Save(saved)
+	}
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "azauth.ChangeTenant", "cause", err)
+		if ctx.Err() != nil {
+			return Status{}, fault.Public(ctx.Err())
+		}
+		return Status{}, fault.New("SELECT_TENANT_FAILED", "テナントを変更できませんでした。もう一度選択してください。")
 	}
 	account, err := saved.account()
 	if err != nil {

@@ -25,6 +25,14 @@ run = "pwsh -NoProfile -File scripts/setup-runner.ps1"
 description = "Windowsアプリを起動し、Go・Reactの変更を監視する"
 run = "node scripts/run.mjs dev"
 
+[tasks.reset]
+description = "保存データ・トークンキャッシュ・ログイン記録をすべて削除する（アプリを終了してから実行）"
+run = "node scripts/reset.mjs"
+
+[tasks."dev:fresh"]
+description = "全データを削除して初期状態に戻してから、Windowsアプリを起動する"
+run = ["node scripts/reset.mjs", "node scripts/run.mjs dev"]
+
 [tasks.build]
 description = "本番実行ファイルをbin/に生成する"
 run = "node scripts/run.mjs build"
@@ -48,6 +56,10 @@ run = "node scripts/run.mjs server:review:login"
 [tasks."server:review:login-multiple"]
 description = "テナント7件のサインインと選択画面を固定応答で確認する"
 run = "node scripts/run.mjs server:review:login-multiple"
+
+[tasks."server:review:tenant-change"]
+description = "画面確認用：テナント3件でテナント変更を固定応答で確認する（本番経路ではない）"
+run = "node scripts/run.mjs server:review:tenant-change"
 
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"

@@ -66,6 +66,10 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-foundry-revisit
+  server:review:tenant-change:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-tenant-change
   server:
     cmds:
       - task: build:server

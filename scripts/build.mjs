@@ -48,22 +48,26 @@ try {
     const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: multiple ? '34118' : '34117', AZFOUNDRYDECK_E2E_TENANTS: multiple ? 'multiple' : '' } });
-  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh'].includes(command)) {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh', 'run-server-review-tenant-change'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
     const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
     const deploymentRefreshReview = command === 'run-server-review-deployment-refresh';
+    const tenantChangeReview = command === 'run-server-review-tenant-change';
     // The deployment refresh review reuses the Foundry refresh fixture.
     const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview;
-    const dataDir = join(tmpdir(), `${app.id}-${deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const dataDir = join(tmpdir(), `${app.id}-${tenantChangeReview ? 'tenant-change-review' : deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
     // The refresh review resets its saved state on each launch.
-    if (foundryRefreshReview) rmSync(dataDir, { recursive: true, force: true });
+    if (foundryRefreshReview || tenantChangeReview) rmSync(dataDir, { recursive: true, force: true });
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
-      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
+      tenants: tenantChangeReview
+        ? [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }, { id: 'e2e-fabrikam-tenant', displayName: 'Fabrikam' }, { id: 'e2e-northwind-tenant', displayName: 'Northwind' }]
+        : [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+      selectedTenantId: 'e2e-azure-tenant',
     }));
     // Saved views live under the signed-in account and selected tenant.
     const viewDir = join(dataDir, 'azure-views', createHash('sha256').update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant'])).digest('hex'));
@@ -119,7 +123,7 @@ try {
       }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: '34119' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {
