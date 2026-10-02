@@ -128,11 +128,19 @@ jobs:
         run: node scripts/run.mjs ci
       - name: NSIS
         run: |
-          $nsis = Join-Path ${env:ProgramFiles(x86)} NSIS/makensis.exe
+          $nsisDirectory = Join-Path $env:RUNNER_TOOL_CACHE nsis/3.13
+          $nsis = Join-Path $nsisDirectory nsis-3.13/makensis.exe
           if (-not (Test-Path $nsis)) {
-            choco install nsis --yes --no-progress
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $page = Invoke-WebRequest -UseBasicParsing 'https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/nsis-3.13.zip/download'
+            $download = [System.Net.WebUtility]::HtmlDecode([regex]::Match($page.Content, 'data-release-url="([^"]+)"').Groups[1].Value)
+            $archive = Join-Path $env:RUNNER_TEMP nsis.zip
+            Invoke-WebRequest -UseBasicParsing $download -OutFile $archive
+            if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne 'BA63DFFC4410EE89193E1CB5A41989991BD77C61068DA17E3156D136B7B0B3D8') {
+              throw 'NSIS checksum mismatch'
+            }
+            Expand-Archive $archive -DestinationPath $nsisDirectory -Force
           }
+          "NSIS_EXE=$nsis" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Installer
         run: node scripts/run.mjs package:prepared
       - uses: actions/upload-artifact@v4
