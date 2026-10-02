@@ -34,7 +34,9 @@ function parts(page: Page) {
     menu,
     icon: header.getByRole('button', { name: 'アカウント' }),
     logout: menu.getByRole('menuitem', { name: 'ログアウト' }),
-    dialog: page.getByRole('dialog'),
+    dialog: page
+      .getByRole('dialog')
+      .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) }),
   };
 }
 

@@ -1,20 +1,12 @@
-export type AcquisitionPhase = 'waiting' | 'running' | 'completed';
+import type {
+  Progress,
+  SubscriptionProgress,
+} from '@bindings/azfoundrydeck/internal/foundry/models';
 
-export interface SubscriptionProgress {
-  id: string;
-  name: string;
-  phase: AcquisitionPhase;
-  foundryCount: number;
-}
-
-export interface FoundryProgress {
-  subscriptionSearch: 'searching' | 'completed';
+export type FoundryProgress = Omit<Progress, 'subscriptions'> & {
   subscriptions: SubscriptionProgress[];
-  selectedFoundryName: string;
-  modelPhase: AcquisitionPhase;
-  modelCount: number;
-  savePhase: AcquisitionPhase;
-}
+};
+export type AcquisitionPhase = Progress['modelPhase'];
 
 export const initialProgress: FoundryProgress = {
   subscriptionSearch: 'searching',

@@ -1,7 +1,11 @@
 import { Badge, Group, Loader, Modal, ScrollArea, Stack, Table, Text } from '@mantine/core';
 import type { FoundryProgress, AcquisitionPhase } from '../../features/foundry/progress';
 
-const colors = { waiting: 'gray', running: 'blue', completed: 'teal' };
+const colors: Record<AcquisitionPhase, string> = {
+  waiting: 'gray',
+  running: 'blue',
+  completed: 'teal',
+};
 
 function Status({ phase, runningLabel }: { phase: AcquisitionPhase; runningLabel: string }) {
   return (

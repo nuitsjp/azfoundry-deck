@@ -36,12 +36,8 @@ tasks:
       - node scripts/build.mjs server-e2e
   # Screen review with the e2e build (fixed sign-in, file store); not a production path.
   server:review:
-    env:
-      VITE_FOUNDRY_PROGRESS_REVIEW: '1'
     cmds:
-      - task: generate
-      - npm --prefix frontend run build
-      - node scripts/build.mjs server-e2e
+      - task: build:server:e2e
       - node scripts/build.mjs run-server-review
   server:
     cmds:

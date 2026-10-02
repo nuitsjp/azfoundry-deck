@@ -37,6 +37,10 @@ type appConfig struct {
 	Version    string `json:"version"`
 }
 
+func init() {
+	application.RegisterEvent[foundry.Progress](foundry.ProgressEvent)
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "起動できません:", err)
@@ -102,7 +106,7 @@ func run() error {
 			return fault.New("NOT_SIGNED_IN", "ログインしていません。")
 		}
 		return nil
-	}, filepath.Join(dir, "foundry-state.json"), logger)
+	}, filepath.Join(dir, "foundry-state.json"), logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, state, controls, logger)
 	options := application.Options{
