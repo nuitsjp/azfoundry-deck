@@ -6,6 +6,16 @@ import (
 	"path/filepath"
 )
 
+func read(path string) (InitialFoundryView, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return InitialFoundryView{}, err
+	}
+	var view InitialFoundryView
+	err = json.Unmarshal(data, &view)
+	return view, err
+}
+
 func save(path string, view InitialFoundryView) error {
 	data, err := json.MarshalIndent(view, "", "  ")
 	if err != nil {

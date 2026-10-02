@@ -2,8 +2,10 @@ package foundry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 
 	"azfoundrydeck/internal/fault"
@@ -42,12 +44,20 @@ func (s *Service) GetInitialView(ctx context.Context) (InitialFoundryView, error
 		if ctx.Err() != nil {
 			return InitialFoundryView{}, fault.Public(ctx.Err())
 		}
-		return InitialFoundryView{}, fault.New("FOUNDRY_LOAD_FAILED", "Foundry・デプロイモデルの取得またはファイル保存に失敗しました。")
+		return InitialFoundryView{}, fault.New("FOUNDRY_LOAD_FAILED", "Foundry・デプロイモデルの取得またはファイルの読み込み・保存に失敗しました。")
 	}
 	return view, nil
 }
 
 func (s *Service) load(ctx context.Context) (InitialFoundryView, error) {
+	view, err := read(s.file)
+	if !errors.Is(err, os.ErrNotExist) {
+		return view, err
+	}
+	return s.acquire(ctx)
+}
+
+func (s *Service) acquire(ctx context.Context) (InitialFoundryView, error) {
 	progress := Progress{
 		SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{},
 		ModelPhase: "waiting", SavePhase: "waiting",

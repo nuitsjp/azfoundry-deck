@@ -158,7 +158,7 @@ func TestDiscoveryFailureCancelsModelsAndKeepsSavedState(t *testing.T) {
 				t.Error("failed acquisition entered saving")
 			}
 		})
-	view, err := service.GetInitialView(ctx)
+	view, err := service.acquire(ctx)
 	if err == nil || !reflect.DeepEqual(view, InitialFoundryView{}) {
 		t.Fatalf("returned partial success: %#v, %v", view, err)
 	}

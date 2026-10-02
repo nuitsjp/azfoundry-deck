@@ -42,18 +42,17 @@ try {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
     run('go', ['build', '-trimpath', '-tags', 'server,production,e2e', '-o', serverE2E, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
-  } else if (command === 'run-server-review' || command === 'run-server-review-foundry') {
+  } else if (command === 'run-server-review') {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
-    const foundryReview = command === 'run-server-review-foundry';
-    const dataDir = join(tmpdir(), `${app.id}-${foundryReview ? 'foundry-review' : 'review'}`);
+    const dataDir = join(tmpdir(), `${app.id}-review`);
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
     }));
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryReview ? { WAILS_SERVER_PORT: '34116' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

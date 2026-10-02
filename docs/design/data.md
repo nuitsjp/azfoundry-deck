@@ -15,7 +15,7 @@ DB は使いません。アカウント識別情報は OS のクレデンシャ�
 | `foundries[].name` | 文字列 | Foundry の名称 |
 | `foundries[].subscriptionName` | 文字列 | 所属サブスクリプション名 |
 | `foundries[].resourceGroupName` | 文字列 | 所属リソースグループ名 |
-| `selectedFoundryId` | 文字列 | `foundries[].id` のいずれかを参照する初期選択 |
+| `selectedFoundryId` | 文字列 | `foundries[].id` のいずれかを参照する選択済み Foundry |
 | `deployments` | 配列 | 選択された Foundry のすべてのデプロイ済みモデル |
 | `deployments[].id` | 文字列 | デプロイの Azure リソース ID |
 | `deployments[].deploymentName` | 文字列 | デプロイ名 |
