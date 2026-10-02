@@ -1,0 +1,9 @@
+body {
+  margin: 0;
+}
+button,
+a,
+input,
+textarea {
+  -webkit-app-region: no-drag;
+}

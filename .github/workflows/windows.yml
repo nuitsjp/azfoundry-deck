@@ -1,0 +1,54 @@
+name: Windows checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [., reference]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+        with:
+          version: '2026.9.5'
+          working_directory: ${{ matrix.directory }}
+      - run: mise trust
+      - name: Dependencies and generated sources
+        run: mise run setup
+      - name: Browser
+        run: mise run setup:browser
+      - name: Verify
+        run: mise run verify
+      - name: Windows executable
+        run: mise run build
+      - name: NSIS
+        run: choco install nsis --yes --no-progress
+      - name: Installer
+        run: mise run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-${{ matrix.directory == '.' && 'project' || 'reference' }}
+          path: ${{ matrix.directory }}/bin/*-setup.exe
+      - name: Upload failed-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-e2e-${{ matrix.directory == '.' && 'project' || 'reference' }}
+          path: |
+            ${{ matrix.directory }}/frontend/playwright-report/
+            ${{ matrix.directory }}/frontend/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
