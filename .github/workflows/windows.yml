@@ -7,37 +7,147 @@ on:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.paths.outputs.matrix }}
+      changed: ${{ steps.paths.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select changed applications
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+              directories = ['.', 'reference']
+          else:
+              base = os.environ['BASE_SHA']
+              head = os.environ['HEAD_SHA']
+              if base == '0' * 40:
+                  command = ['git', 'ls-tree', '-r', '--name-only', '-z', head]
+              elif os.environ['EVENT_NAME'] == 'pull_request':
+                  command = ['git', 'diff', '--name-only', '--no-renames', '-z', f'{base}...{head}']
+              else:
+                  command = ['git', 'diff', '--name-only', '--no-renames', '-z', base, head]
+              paths = subprocess.check_output(command).decode('utf-8').split('\0')
+              paths = [path for path in paths if path]
+              shared_paths = {
+                  '.github/workflows/windows.yml',
+                  'scripts/doc_check.py',
+                  'docs/document-policy.md',
+                  'docs/standards/mock-driven-development.md',
+                  'LICENSE',
+              }
+              shared = any(path in shared_paths for path in paths)
+              directories = []
+              if shared or any(not path.startswith('reference/') for path in paths):
+                  directories.append('.')
+              if shared or any(path.startswith('reference/') for path in paths):
+                  directories.append('reference')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'matrix={json.dumps({"directory": directories})}\n')
+              output.write(f'changed={str(bool(directories)).lower()}\n')
+          print(f'Selected applications: {directories}')
+          PY
   build:
+    needs: changes
+    if: needs.changes.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     strategy:
       fail-fast: false
-      matrix:
-        directory: [., reference]
-    runs-on: windows-latest
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    runs-on: [self-hosted, Windows, X64, azfoundry-deck]
     timeout-minutes: 30
     defaults:
       run:
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -Command ". '{0}'"
         working-directory: ${{ matrix.directory }}
     env:
       CI: 'true'
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4
         with:
-          version: '2026.9.5'
-          working_directory: ${{ matrix.directory }}
-      - run: mise trust
-      - name: Dependencies and generated sources
-        run: mise run setup
+          clean: false
+      - name: Clean generated files while keeping dependencies
+        working-directory: .
+        run: git clean -ffdx -e frontend/node_modules/ -e reference/frontend/node_modules/
+      - name: Read tool versions
+        id: tools
+        run: |
+          $tools = Get-Content mise.toml -Raw
+          $go = [regex]::Match($tools, '(?m)^go = "([^"]+)"').Groups[1].Value
+          $python = [regex]::Match($tools, '(?m)^python = "([^"]+)"').Groups[1].Value
+          $wails = [regex]::Match((Get-Content go.mod -Raw), 'github.com/wailsapp/wails/v3 (\S+)').Groups[1].Value
+          "go=$go`npython=$python`nwails=$wails" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ matrix.directory }}/.nvmrc
+          package-manager-cache: false
+      - name: Python
+        env:
+          PYTHON_VERSION: ${{ steps.tools.outputs.python }}
+        run: |
+          $pythonDirectory = Join-Path $env:RUNNER_TOOL_CACHE "python-embedded/$env:PYTHON_VERSION"
+          if (-not (Test-Path (Join-Path $pythonDirectory python.exe))) {
+            $archive = Join-Path $env:RUNNER_TEMP python.zip
+            Invoke-WebRequest "https://www.python.org/ftp/python/$env:PYTHON_VERSION/python-$env:PYTHON_VERSION-embed-amd64.zip" -OutFile $archive -UseBasicParsing
+            Expand-Archive $archive -DestinationPath $pythonDirectory -Force
+          }
+          $pythonDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $pythonDirectory python.exe) --version
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ steps.tools.outputs.go }}
+          cache: false
+      - name: Wails CLI
+        env:
+          CLI_CACHE: ${{ runner.tool_cache }}/wails/${{ steps.tools.outputs.go }}/${{ steps.tools.outputs.wails }}
+        run: |
+          $cachedCLI = Join-Path $env:CLI_CACHE wails3.exe
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          if (-not (Test-Path $cachedCLI)) {
+            node scripts/run.mjs cli:install
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            New-Item -ItemType Directory -Force $env:CLI_CACHE | Out-Null
+            Copy-Item .tools/wails3.exe $cachedCLI
+          }
+          Copy-Item $cachedCLI .tools/wails3.exe
+          go env GOMODCACHE GOCACHE
+      - name: Dependencies
+        run: node scripts/run.mjs setup:dependencies --reuse-node-modules
       - name: Browser
-        run: mise run setup:browser
-      - name: Verify
-        run: mise run verify
-      - name: Windows executable
-        run: mise run build
+        working-directory: ${{ matrix.directory }}/frontend
+        run: npx playwright install --only-shell chromium
+      - name: Verify and build
+        run: node scripts/run.mjs ci
       - name: NSIS
-        run: choco install nsis --yes --no-progress
+        run: |
+          $nsisDirectory = Join-Path $env:RUNNER_TOOL_CACHE nsis/3.13
+          $nsis = Join-Path $nsisDirectory nsis-3.13/makensis.exe
+          if (-not (Test-Path $nsis)) {
+            $page = Invoke-WebRequest -UseBasicParsing 'https://sourceforge.net/projects/nsis/files/NSIS%203/3.13/nsis-3.13.zip/download'
+            $download = [System.Net.WebUtility]::HtmlDecode([regex]::Match($page.Content, 'data-release-url="([^"]+)"').Groups[1].Value)
+            $archive = Join-Path $env:RUNNER_TEMP nsis.zip
+            Invoke-WebRequest -UseBasicParsing $download -OutFile $archive
+            if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne 'BA63DFFC4410EE89193E1CB5A41989991BD77C61068DA17E3156D136B7B0B3D8') {
+              throw 'NSIS checksum mismatch'
+            }
+            Expand-Archive $archive -DestinationPath $nsisDirectory -Force
+          }
+          "NSIS_EXE=$nsis" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Installer
-        run: mise run package
+        run: node scripts/run.mjs package:prepared
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build-${{ matrix.directory == '.' && 'project' || 'reference' }}
