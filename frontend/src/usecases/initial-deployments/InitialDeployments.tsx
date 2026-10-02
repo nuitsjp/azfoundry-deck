@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   Combobox,
   Input,
@@ -12,22 +13,31 @@ import {
 import { loadInitialView } from '../../features/foundry/initial-view';
 import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
+import { initialProgress } from '../../features/foundry/progress';
+import { AcquisitionProgressModal } from './AcquisitionProgressModal';
 
 function foundryLabel(foundry: Foundry) {
   return `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`;
 }
 
 export function InitialDeployments() {
+  const [progress, setProgress] = useState(initialProgress);
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
-    queryFn: loadInitialView,
+    queryFn: () => loadInitialView(setProgress),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
   });
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
-  if (!view) return <ErrorNotice error={initial.error} />;
+  if (!view)
+    return (
+      <>
+        <AcquisitionProgressModal opened={initial.isPending} progress={progress} />
+        <ErrorNotice error={initial.error} />
+      </>
+    );
   const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId)!;
   const label = foundryLabel(selected);
 
