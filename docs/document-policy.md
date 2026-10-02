@@ -5,15 +5,15 @@
 <a id="adoption"></a>
 ## 1. 適用する標準
 
-導入状態: **未適用**。各項目を確定後に「適用済み」へ更新してください。
+導入状態: **適用済み**。
 
 | 項目 | 内容 |
 | --- | --- |
 | 配布元 | [aidd-project-template](https://github.com/nuitsjp/aidd-project-template) |
 | 設計・文書標準 | [project-template-design-and-documentation](standards/design-and-documentation.md) |
 | モック標準 | [project-template-mock-driven-development](standards/mock-driven-development.md) |
-| 採用元固定コミット | {{SOURCE_COMMIT}} |
-| プロジェクト固有の適用範囲と差分 | {{LOCAL_RULE_DIFFERENCES}} |
+| 採用元固定コミット | c4a6f4df348d746dfe8f5f554439f45a8f9a8807 |
+| プロジェクト固有の適用範囲と差分 | なし |
 
 採用後、設計・文書標準はすべての変更に適用し、モック標準の適用範囲は第2節で定めます。配布元管理の AGENTS・標準2件・`scripts/doc_check.py`・`.agents/skills/usecase-docs/` のスキルと雛形2件は同じ固定コミットから7ファイル一組で更新し、採用元固定コミット欄には実際に採用した40桁SHAを記載します。作成済みのプロジェクト文書は採用先で管理し、雛形全文は同期しません。現在有効な固有差分のみを上表に記載します（例: `scripts/doc_check.py` を実行できない環境、Playwright CLI が使えない対象の代替確認手段と適用範囲。差分がなければ「なし」）。確認手段を替えても利用者の承認は省略しません。配布元の更新は自動適用しません。
 
@@ -22,7 +22,7 @@
 
 ユースケースの主成功系列または拡張系列を新設・変更する作業に適用します。仕様文面を変更しない作業（確定済み仕様の不具合修正、振る舞いを変えない内部変更、文書修正）は対象外です（単体テスト等でのスタブ・モック利用とは区別します）。
 
-プロジェクト固有の除外範囲: {{MOCK_SCOPE}}
+プロジェクト固有の除外範囲: なし
 
 <a id="sources"></a>
 ## 3. 文書の役割と分割
