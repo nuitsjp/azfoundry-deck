@@ -95,7 +95,6 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const dialog = page.getByRole('dialog', { name: 'デプロイモデルを更新しています' });
   const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
   const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
   const modelsFetched = page.getByText(/件・最終取得 /);
   const assertModels = async (models: string[][]) => {
@@ -144,9 +143,10 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
     await expect(modelStatus).toContainText('取得中');
     await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
-    await expect(saveStatus).toContainText('待機中');
     await expect(dialog.getByRole('table')).toHaveCount(0);
-    await expect(dialog.getByText(/サブスクリプション|Foundry取得中/)).toHaveCount(0);
+    await expect(
+      dialog.getByText(/Foundry一覧の取得|ファイルへの保存|サブスクリプション/),
+    ).toHaveCount(0);
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -168,12 +168,8 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     const completed = snapshots.findIndex(
       (snapshot) => snapshot.modelPhase === 'completed' && snapshot.modelCount === 3,
     );
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
     expect(counted).toBeGreaterThan(0);
     expect(completed).toBeGreaterThan(counted);
-    expect(saving).toBeGreaterThan(completed);
-    expect(saved).toBeGreaterThan(saving);
   });
 
   await test.step('手順3', async () => {
@@ -189,8 +185,7 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
 
   await test.step('受け入れ条件', async () => {
     for (const snapshot of snapshots) {
-      expect(snapshot.subscriptionSearch).toBe('completed');
-      expect(snapshot.subscriptions).toEqual([]);
+      expect(snapshot.foundryPhase).toBe('completed');
       expect(snapshot.selectedFoundryName).toBe(production.name);
     }
     const state = readState();

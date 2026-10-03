@@ -56,12 +56,10 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
   );
   const savedFile = join(viewDir, 'foundry-state.json');
   const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const rows = dialog
-    .getByRole('table', { name: 'サブスクリプションの取得状況' })
-    .locator('tbody tr');
-  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
+  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const frames: string[] = [];
+  let dialogSize: { width: number; height: number } | null = null;
   // Observe the real server event boundary, including save phases that may share a React render.
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => frames.push(payload.toString()));
@@ -93,13 +91,13 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(dialog.getByRole('status')).toHaveText(
-      '完了 0 / 発見 0 件（検索中のため総数は未確定）',
-    );
-    await expect(rows).toHaveCount(0);
-    await expect(modelStatus).toContainText('待機中');
-    await expect(saveStatus).toContainText('待機中');
+    await expect(foundryStep).toContainText('取得中');
+    await expect(modelStep).toContainText('待機中');
+    await expect(dialog.getByText('ファイルへの保存')).toHaveCount(0);
+    await expect(dialog.getByText('サブスクリプション')).toHaveCount(0);
+    const box = await dialog.boundingBox();
+    dialogSize = box && { width: box.width, height: box.height };
+    expect(dialogSize).not.toBeNull();
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -109,43 +107,18 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
 
   await test.step('手順2', async () => {
     release('discovery');
-    await expect(rows).toHaveCount(3);
-    await expect(rows.locator('td:first-child')).toHaveText(subscriptions);
-    await expect(rows.locator('td:nth-child(2)')).toHaveText(['待機中', '待機中', '待機中']);
-    await expect(rows.locator('td:nth-child(3)')).toHaveText(['0 件', '0 件', '0 件']);
-    await expect(dialog.getByRole('status')).toHaveText(
-      '完了 0 / 発見 3 件（検索中のため総数は未確定）',
-    );
-
-    release('start');
-    await expect(dialog.getByText('サブスクリプションの検索完了', { exact: true })).toBeVisible();
-    await expect(rows.locator('td:nth-child(2)')).toHaveText([
-      'Foundry取得中',
-      'Foundry取得中',
-      'Foundry取得中',
-    ]);
-    await expect(rows.first().locator('td:nth-child(3)')).toHaveText('1 件');
-    await expect(
-      dialog.getByText('待機中 0 件・Foundry取得中 3 件', { exact: true }),
-    ).toBeVisible();
+    await expect(foundryStep).toContainText('完了');
+    await expect(foundryStep).toContainText('Foundry 3 件');
+    await expect(modelStep).toContainText('取得中');
     await expect(dialog.getByText(foundries[0].name, { exact: true })).toBeVisible();
-    await expect(modelStatus).toContainText('取得中');
-    await expect(dialog.getByRole('status')).toHaveText('完了 0 / 発見 3 件');
-
-    release('second');
-    await expect(rows.locator('td:first-child')).toHaveText([subscriptions[0], subscriptions[2]]);
-    await expect(dialog.getByRole('status')).toHaveText('完了 1 / 発見 3 件');
-    await expect(dialog.getByText(subscriptions[1], { exact: true })).toHaveCount(0);
-    release('models');
-    await expect(modelStatus).toContainText('完了');
-    await expect(dialog.getByText('取得したモデル 3 件', { exact: true })).toBeVisible();
-    await expect(rows).toHaveCount(2);
-    await expect(saveStatus).toContainText('待機中');
+    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    const box = await dialog.boundingBox();
+    expect(box && { width: box.width, height: box.height }).toEqual(dialogSize);
     expect(existsSync(savedFile)).toBe(false);
   });
 
   await test.step('手順3', async () => {
-    release('remaining');
+    release('models');
     await expect(dialog).toHaveCount(0);
     const savedView = JSON.parse(readFileSync(savedFile, 'utf8'));
     expect(savedView).toEqual({
@@ -202,23 +175,16 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
     const snapshots = frames
       .filter((frame) => frame.includes('foundry:progress'))
       .map((frame) => JSON.parse(frame).data as FoundryProgress);
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
-    expect(saving).toBeGreaterThanOrEqual(0);
-    expect(saved).toBeGreaterThan(saving);
+    // The model step never starts before the Foundry list completes, and no save phase exists.
+    for (const snapshot of snapshots) {
+      if (snapshot.modelPhase !== 'waiting') expect(snapshot.foundryPhase).toBe('completed');
+    }
     expect(snapshots.at(-1)).toEqual({
-      subscriptionSearch: 'completed',
-      subscriptions: foundries.map((foundry) => ({
-        id: foundry.id.split('/')[2],
-        name: foundry.subscriptionName,
-        phase: 'completed',
-        foundryCount: 1,
-      })),
+      foundryPhase: 'completed',
+      foundryCount: foundries.length,
       selectedFoundryName: foundries[0].name,
       modelPhase: 'completed',
       modelCount: models.length,
-      savePhase: 'completed',
     });
-    // The fixed source has three subscriptions; the eight-worker limit is checked with real Azure.
   });
 });

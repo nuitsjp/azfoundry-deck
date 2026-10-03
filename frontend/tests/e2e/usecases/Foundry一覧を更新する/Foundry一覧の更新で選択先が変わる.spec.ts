@@ -103,11 +103,9 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
   const refreshModels = page.getByRole('button', { name: 'モデルを更新' });
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const subscriptionRows = dialog.locator(
-    'table[aria-label="サブスクリプションの取得状況"] tbody tr',
-  );
-  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
+  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  let dialogSize: { width: number; height: number } | null = null;
   const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
   const modelsFetched = page.getByText(/件・最終取得 /);
   const assertModels = async (models: string[][]) => {
@@ -151,9 +149,12 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
   await test.step('手順1', async () => {
     await refresh.click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('発見 0 件', { exact: true })).toBeVisible();
-    await expect(modelStatus).toHaveCount(0);
+    await expect(foundryStep).toContainText('取得中');
+    await expect(modelStep).toContainText('待機中');
+    await expect(dialog.getByText('ファイルへの保存')).toHaveCount(0);
+    const box = await dialog.boundingBox();
+    dialogSize = box && { width: box.width, height: box.height };
+    expect(dialogSize).not.toBeNull();
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -168,30 +169,18 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
 
   await test.step('手順2', async () => {
     release('discovery');
-    await expect(subscriptionRows).toHaveCount(3);
-    await expect(subscriptionRows.nth(0)).toContainText(production.subscriptionName);
-    await expect(subscriptionRows.nth(0)).toContainText('待機中');
-    release('start');
-    await expect(dialog.getByText('サブスクリプションの検索完了', { exact: true })).toBeVisible();
-    await expect(subscriptionRows.filter({ hasText: 'Foundry取得中' })).toHaveCount(3);
-    release('second');
-    await expect(subscriptionRows).toHaveCount(2);
-    await expect(subscriptionRows.filter({ hasText: development.subscriptionName })).toHaveCount(0);
-    await expect(dialog.getByText('完了 1 / 発見 3 件', { exact: true })).toBeVisible();
-    await expect(modelStatus).toHaveCount(0);
-    await expect(saveStatus).toContainText('待機中');
+    await expect(foundryStep).toContainText('完了');
+    await expect(foundryStep).toContainText('Foundry 3 件');
     expect(readState()).toEqual(original);
   });
 
   await test.step('手順3', async () => {
-    release('remaining');
-    await expect(subscriptionRows).toHaveCount(0);
-    await expect(dialog.getByText('完了 3 / 発見 3 件', { exact: true })).toBeVisible();
+    await expect(modelStep).toContainText('取得中');
+    await expect(modelStep).not.toContainText('待機中');
     await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
-    await expect(modelStatus).toContainText('取得中');
-    await expect(modelStatus).not.toContainText('待機中');
     await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
-    await expect(saveStatus).toContainText('待機中');
+    const box = await dialog.boundingBox();
+    expect(box && { width: box.width, height: box.height }).toEqual(dialogSize);
     await expect(selected).toHaveText(label(legacy));
     await assertModels(legacyModels);
     expect(readState()).toEqual(original);
@@ -213,16 +202,12 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
 
   await test.step('手順4', async () => {
     await expect(dialog).toHaveCount(0);
-    const completed = snapshots.findIndex((snapshot) => snapshot.modelPhase === 'completed');
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
-    expect(saving).toBeGreaterThan(completed);
-    expect(saved).toBeGreaterThan(saving);
-    expect(snapshots.at(-1)).toMatchObject({
+    expect(snapshots.at(-1)).toEqual({
+      foundryPhase: 'completed',
+      foundryCount: refreshedFoundries.length,
       selectedFoundryName: production.name,
       modelPhase: 'completed',
       modelCount: 3,
-      savePhase: 'completed',
     });
     const state = readState();
     expect(state).toEqual({

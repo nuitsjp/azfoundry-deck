@@ -1,4 +1,5 @@
-import { Badge, Group, Loader, Modal, ScrollArea, Stack, Table, Text } from '@mantine/core';
+import { Badge, Box, Loader, Modal, Stack, Text } from '@mantine/core';
+import type { ReactNode } from 'react';
 import type { FoundryProgress, AcquisitionPhase } from '../../features/foundry/progress';
 
 const colors: Record<AcquisitionPhase, string> = {
@@ -7,11 +8,75 @@ const colors: Record<AcquisitionPhase, string> = {
   completed: 'teal',
 };
 
-function Status({ phase, runningLabel }: { phase: AcquisitionPhase; runningLabel: string }) {
+const labels: Record<AcquisitionPhase, string> = {
+  waiting: '待機中',
+  running: '取得中',
+  completed: '完了',
+};
+
+function Mark({ phase }: { phase: AcquisitionPhase }) {
+  if (phase === 'running') return <Loader size={16} />;
+  if (phase === 'completed')
+    return (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--mantine-color-teal-4)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 8.5l3.2 3.2L13 4.8" />
+      </svg>
+    );
   return (
-    <Badge color={colors[phase]} variant="light">
-      {phase === 'waiting' ? '待機中' : phase === 'running' ? runningLabel : '完了'}
-    </Badge>
+    <Box w={8} h={8} style={{ borderRadius: '50%', background: 'var(--mantine-color-dark-4)' }} />
+  );
+}
+
+// Every row keeps the same height and layout in every phase, so the modal never changes size.
+function Step({
+  label,
+  phase,
+  bordered,
+  children,
+}: {
+  label: string;
+  phase: AcquisitionPhase;
+  bordered?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Box
+      display="grid"
+      mih={68}
+      style={{
+        gridTemplateColumns: '20px auto minmax(0, 1fr) 64px',
+        alignItems: 'center',
+        columnGap: 12,
+        borderTop: bordered ? '1px solid var(--mantine-color-dark-4)' : undefined,
+      }}
+    >
+      <Box display="flex" style={{ justifyContent: 'center' }}>
+        <Mark phase={phase} />
+      </Box>
+      <Text
+        fw={phase === 'waiting' ? 500 : 600}
+        c={phase === 'waiting' ? 'dimmed' : undefined}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        {label}
+      </Text>
+      <Stack gap={0} ta="right" mih="2.9em" justify="center" miw={0}>
+        {children}
+      </Stack>
+      <Badge color={colors[phase]} variant="light" fullWidth>
+        {labels[phase]}
+      </Badge>
+    </Box>
   );
 }
 
@@ -25,27 +90,12 @@ export function AcquisitionProgressModal({
   mode?: 'initial' | 'change' | 'refresh' | 'deployments';
 }) {
   const modelsOnly = mode === 'change' || mode === 'deployments';
-  // A refresh fetches models only when the selected Foundry disappeared from the list.
-  const showModels = mode !== 'refresh' || progress.selectedFoundryName !== '';
-  const completed = progress.subscriptions.filter(
-    (subscription) => subscription.phase === 'completed',
-  ).length;
-  const waiting = progress.subscriptions.filter(
-    (subscription) => subscription.phase === 'waiting',
-  ).length;
-  const running = progress.subscriptions.filter(
-    (subscription) => subscription.phase === 'running',
-  ).length;
-  const searching = progress.subscriptionSearch === 'searching';
-  const pending = progress.subscriptions.filter(
-    (subscription) => subscription.phase !== 'completed',
-  );
 
   return (
     <Modal.Root
       opened={opened}
       onClose={() => {}}
-      size="lg"
+      size={640}
       centered
       closeOnEscape={false}
       closeOnClickOutside={false}
@@ -62,85 +112,29 @@ export function AcquisitionProgressModal({
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Stack gap="md">
-            {!modelsOnly && (
+          {!modelsOnly && (
+            <Step label="Foundry一覧の取得" phase={progress.foundryPhase as AcquisitionPhase}>
+              {progress.foundryPhase === 'completed' && (
+                <Text size="sm">Foundry {progress.foundryCount} 件</Text>
+              )}
+            </Step>
+          )}
+          <Step
+            label="デプロイモデルの取得"
+            phase={progress.modelPhase as AcquisitionPhase}
+            bordered={!modelsOnly}
+          >
+            {progress.selectedFoundryName !== '' && (
               <>
-                <Group gap="sm">
-                  {searching && <Loader size="sm" />}
-                  <Text fw={600}>
-                    {searching ? 'サブスクリプションを検索中' : 'サブスクリプションの検索完了'}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    発見 {progress.subscriptions.length} 件
-                  </Text>
-                </Group>
-                <Stack gap={4}>
-                  <Text size="sm" role="status">
-                    完了 {completed} / 発見 {progress.subscriptions.length} 件
-                    {searching ? '（検索中のため総数は未確定）' : ''}
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    待機中 {waiting} 件・Foundry取得中 {running} 件
-                  </Text>
-                </Stack>
-                <ScrollArea.Autosize mah={300} type="auto">
-                  <Table aria-label="サブスクリプションの取得状況" verticalSpacing="xs">
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>サブスクリプション</Table.Th>
-                        <Table.Th>状態</Table.Th>
-                        <Table.Th ta="right">Foundry</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {pending.map((subscription) => (
-                        <Table.Tr key={subscription.id}>
-                          <Table.Td style={{ overflowWrap: 'anywhere' }}>
-                            {subscription.name}
-                          </Table.Td>
-                          <Table.Td>
-                            <Status phase={subscription.phase} runningLabel="Foundry取得中" />
-                          </Table.Td>
-                          <Table.Td ta="right">{subscription.foundryCount} 件</Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                  {pending.length === 0 && (
-                    <Text size="sm" c="dimmed" py="md">
-                      {searching
-                        ? 'サブスクリプションの発見を待っています。'
-                        : 'すべてのサブスクリプションの取得が完了しました。'}
-                    </Text>
-                  )}
-                </ScrollArea.Autosize>
+                <Text size="sm" truncate="end" title={progress.selectedFoundryName}>
+                  {progress.selectedFoundryName}
+                </Text>
+                <Text size="sm" c="dimmed">
+                  取得したモデル {progress.modelCount} 件
+                </Text>
               </>
             )}
-            <Stack gap="xs" pt="xs" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
-              {showModels && (
-                <>
-                  <Group justify="space-between">
-                    <Text fw={600} size="sm">
-                      デプロイモデルの取得
-                    </Text>
-                    <Status phase={progress.modelPhase} runningLabel="取得中" />
-                  </Group>
-                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                    {progress.selectedFoundryName || '選択先のFoundryを探しています。'}
-                  </Text>
-                  <Text size="sm" c="dimmed" mb="xs">
-                    取得したモデル {progress.modelCount} 件
-                  </Text>
-                </>
-              )}
-              <Group justify="space-between">
-                <Text fw={600} size="sm">
-                  ファイルへの保存
-                </Text>
-                <Status phase={progress.savePhase} runningLabel="保存中" />
-              </Group>
-            </Stack>
-          </Stack>
+          </Step>
         </Modal.Body>
       </Modal.Content>
     </Modal.Root>

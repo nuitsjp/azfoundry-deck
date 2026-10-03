@@ -7,23 +7,26 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"azfoundrydeck/internal/fault"
-	"golang.org/x/sync/errgroup"
 )
 
 type Source interface {
-	Discover(context.Context, func(Foundry), func(DiscoveryProgress)) ([]Foundry, error)
+	Foundries(context.Context) ([]Foundry, error)
 	Deployments(context.Context, Foundry, func(int)) ([]Deployment, error)
 }
 
-// firstFoundry is the first discovered Foundry, or the end of discovery with none (err nil, none true).
-type firstFoundry struct {
-	foundry Foundry
-	none    bool
-	err     error
+// sortFoundries orders Foundries by subscription name, then Foundry name, so the first one is stable.
+func sortFoundries(foundries []Foundry) {
+	slices.SortStableFunc(foundries, func(a, b Foundry) int {
+		if c := strings.Compare(a.SubscriptionName, b.SubscriptionName); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 }
 
 type Service struct {
@@ -140,8 +143,8 @@ func (s *Service) change(ctx context.Context, file, id string) (InitialFoundryVi
 // file and then the state with that Foundry selected.
 func (s *Service) acquireModels(ctx context.Context, file string, view InitialFoundryView, selected Foundry) (InitialFoundryView, error) {
 	progress := Progress{
-		SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{},
-		SelectedFoundryName: selected.Name, ModelPhase: "running", SavePhase: "waiting",
+		FoundryPhase: "completed", FoundryCount: len(view.Foundries),
+		SelectedFoundryName: selected.Name, ModelPhase: "running",
 	}
 	s.emit(ProgressEvent, progress)
 	source, err := s.source()
@@ -159,8 +162,6 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 	progress.ModelPhase = "completed"
 	progress.ModelCount = len(models)
 	s.emit(ProgressEvent, progress)
-	progress.SavePhase = "running"
-	s.emit(ProgressEvent, progress)
 	if err := saveModels(modelsPath(file, selected.ID), savedModels{FetchedAt: fetchedAt, Deployments: models}); err != nil {
 		return InitialFoundryView{}, err
 	}
@@ -170,8 +171,6 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 	if err := save(file, view); err != nil {
 		return InitialFoundryView{}, err
 	}
-	progress.SavePhase = "completed"
-	s.emit(ProgressEvent, progress)
 	return view, nil
 }
 
@@ -237,31 +236,20 @@ func (s *Service) refresh(ctx context.Context, file string) (InitialFoundryView,
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	progress := Progress{
-		SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{},
-		ModelPhase: "waiting", SavePhase: "waiting",
-	}
-	var progressMu sync.Mutex
-	update := func(change func(*Progress)) {
-		progressMu.Lock()
-		defer progressMu.Unlock()
-		change(&progress)
-		s.emit(ProgressEvent, progress)
-	}
-	update(func(*Progress) {})
+	progress := Progress{FoundryPhase: "running", ModelPhase: "waiting"}
+	s.emit(ProgressEvent, progress)
 	source, err := s.source()
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	foundries, err := source.Discover(ctx, func(Foundry) {}, func(discovery DiscoveryProgress) {
-		update(func(p *Progress) {
-			p.SubscriptionSearch = discovery.SubscriptionSearch
-			p.Subscriptions = discovery.Subscriptions
-		})
-	})
+	foundries, err := source.Foundries(ctx)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
+	sortFoundries(foundries)
+	progress.FoundryPhase = "completed"
+	progress.FoundryCount = len(foundries)
+	s.emit(ProgressEvent, progress)
 	view.Foundries = foundries
 	view.FoundriesFetchedAt = fetchedNow()
 	listed := slices.ContainsFunc(foundries, func(foundry Foundry) bool { return foundry.ID == view.SelectedFoundryID })
@@ -271,27 +259,23 @@ func (s *Service) refresh(ctx context.Context, file string) (InitialFoundryView,
 		view.Deployments, view.DeploymentsFetchedAt = []Deployment{}, ""
 	} else if !listed {
 		selected := foundries[0]
-		update(func(p *Progress) {
-			p.SelectedFoundryName = selected.Name
-			p.ModelPhase = "running"
-		})
+		progress.SelectedFoundryName = selected.Name
+		progress.ModelPhase = "running"
+		s.emit(ProgressEvent, progress)
 		models, err := source.Deployments(ctx, selected, func(count int) {
-			update(func(p *Progress) { p.ModelCount = count })
+			progress.ModelCount = count
+			s.emit(ProgressEvent, progress)
 		})
 		if err != nil {
 			return InitialFoundryView{}, err
 		}
-		update(func(p *Progress) {
-			p.ModelPhase = "completed"
-			p.ModelCount = len(models)
-		})
+		progress.ModelPhase = "completed"
+		progress.ModelCount = len(models)
+		s.emit(ProgressEvent, progress)
 		view.SelectedFoundryID = selected.ID
 		view.Deployments = models
 		view.DeploymentsFetchedAt = fetchedNow()
-	}
-	update(func(p *Progress) { p.SavePhase = "running" })
-	if len(foundries) > 0 && !listed {
-		if err := saveModels(modelsPath(file, view.SelectedFoundryID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
+		if err := saveModels(modelsPath(file, selected.ID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
 			return InitialFoundryView{}, err
 		}
 	}
@@ -301,89 +285,52 @@ func (s *Service) refresh(ctx context.Context, file string) (InitialFoundryView,
 	if err := save(file, view); err != nil {
 		return InitialFoundryView{}, err
 	}
-	update(func(p *Progress) { p.SavePhase = "completed" })
 	return view, nil
 }
 
 func (s *Service) acquire(ctx context.Context, file string) (InitialFoundryView, error) {
-	progress := Progress{
-		SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{},
-		ModelPhase: "waiting", SavePhase: "waiting",
-	}
-	var progressMu sync.Mutex
-	update := func(change func(*Progress)) {
-		progressMu.Lock()
-		defer progressMu.Unlock()
-		change(&progress)
-		s.emit(ProgressEvent, progress)
-	}
-	update(func(*Progress) {})
+	progress := Progress{FoundryPhase: "running", ModelPhase: "waiting"}
+	s.emit(ProgressEvent, progress)
 	source, err := s.source()
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	group, workCtx := errgroup.WithContext(ctx)
-	first := make(chan firstFoundry, 1)
-	var once sync.Once
-	var view InitialFoundryView
-	group.Go(func() error {
-		foundries, err := source.Discover(workCtx, func(foundry Foundry) {
-			once.Do(func() { first <- firstFoundry{foundry: foundry} })
-		}, func(discovery DiscoveryProgress) {
-			update(func(p *Progress) {
-				p.SubscriptionSearch = discovery.SubscriptionSearch
-				p.Subscriptions = discovery.Subscriptions
-			})
-		})
-		once.Do(func() { first <- firstFoundry{none: err == nil, err: err} })
-		view.Foundries = foundries
-		view.FoundriesFetchedAt = fetchedNow()
-		return err
-	})
-	group.Go(func() error {
-		select {
-		case result := <-first:
-			if result.err != nil {
-				return result.err
-			}
-			if result.none {
-				return nil
-			}
-			foundry := result.foundry
-			view.SelectedFoundryID = foundry.ID
-			update(func(p *Progress) {
-				p.SelectedFoundryName = foundry.Name
-				p.ModelPhase = "running"
-			})
-			models, err := source.Deployments(workCtx, foundry, func(count int) {
-				update(func(p *Progress) { p.ModelCount = count })
-			})
-			view.Deployments = models
-			view.DeploymentsFetchedAt = fetchedNow()
-			if err == nil {
-				update(func(p *Progress) {
-					p.ModelPhase = "completed"
-					p.ModelCount = len(models)
-				})
-			}
-			return err
-		case <-workCtx.Done():
-			return workCtx.Err()
-		}
-	})
-	if err := group.Wait(); err != nil {
+	foundries, err := source.Foundries(ctx)
+	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	update(func(p *Progress) { p.SavePhase = "running" })
+	sortFoundries(foundries)
+	progress.FoundryPhase = "completed"
+	progress.FoundryCount = len(foundries)
+	s.emit(ProgressEvent, progress)
+	view := InitialFoundryView{Foundries: foundries, FoundriesFetchedAt: fetchedNow()}
 	// No Foundry is a normal result: only the empty list and its fetch time are saved.
-	if len(view.Foundries) == 0 {
+	if len(foundries) == 0 {
 		view.Foundries, view.Deployments = []Foundry{}, []Deployment{}
-	} else if err := saveModels(modelsPath(file, view.SelectedFoundryID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
-		return InitialFoundryView{}, err
+	} else {
+		selected := foundries[0]
+		view.SelectedFoundryID = selected.ID
+		progress.SelectedFoundryName = selected.Name
+		progress.ModelPhase = "running"
+		s.emit(ProgressEvent, progress)
+		models, err := source.Deployments(ctx, selected, func(count int) {
+			progress.ModelCount = count
+			s.emit(ProgressEvent, progress)
+		})
+		if err != nil {
+			return InitialFoundryView{}, err
+		}
+		progress.ModelPhase = "completed"
+		progress.ModelCount = len(models)
+		s.emit(ProgressEvent, progress)
+		view.Deployments = models
+		view.DeploymentsFetchedAt = fetchedNow()
+		if err := saveModels(modelsPath(file, selected.ID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: models}); err != nil {
+			return InitialFoundryView{}, err
+		}
 	}
 	if err := save(file, view); err != nil {
 		return InitialFoundryView{}, err
 	}
-	update(func(p *Progress) { p.SavePhase = "completed" })
 	return view, nil
 }

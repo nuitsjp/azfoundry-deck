@@ -55,7 +55,8 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
   const updateFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
   const updateModels = page.getByRole('button', { name: 'モデルを更新' });
   const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
+  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -110,8 +111,8 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
   await test.step('手順1', async () => {
     await updateFoundries.click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(saveStatus).toContainText('待機中');
+    await expect(foundryStep).toContainText('取得中');
+    await expect(modelStep).toContainText('待機中');
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -125,17 +126,15 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
 
   await test.step('手順2', async () => {
     writeFileSync(join(app.dataDir, 'e2e-foundry-discovery-release'), '');
-    await expect.poll(() => snapshots.some((s) => s.subscriptionSearch === 'completed')).toBe(true);
+    await expect.poll(() => snapshots.some((s) => s.foundryPhase === 'completed')).toBe(true);
     // 選択先がなく、モデルの取得は行わない。
     expect(snapshots.every((s) => s.selectedFoundryName === '' && s.modelCount === 0)).toBe(true);
     expect(snapshots.some((s) => s.modelPhase === 'running')).toBe(false);
-    await expect(dialog.getByText('デプロイモデルの取得', { exact: true })).toHaveCount(0);
+    expect(snapshots.at(-1)).toMatchObject({ foundryCount: 0, modelPhase: 'waiting' });
   });
 
   await test.step('手順3', async () => {
     await expect(dialog).toHaveCount(0);
-    expect(snapshots.some((s) => s.savePhase === 'running')).toBe(true);
-    expect(snapshots.some((s) => s.savePhase === 'completed')).toBe(true);
     await assertEmptyHome();
   });
 

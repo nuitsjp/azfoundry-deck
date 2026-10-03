@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -33,81 +32,19 @@ type fixedSource struct{}
 
 func NewFixedSource() Source { return fixedSource{} }
 
-func (fixedSource) Discover(ctx context.Context, discovered func(Foundry), report func(DiscoveryProgress)) ([]Foundry, error) {
-	// AZFOUNDRYDECK_E2E_FOUNDRIES=none: one subscription is searched and holds no Foundry.
-	if os.Getenv("AZFOUNDRYDECK_E2E_FOUNDRIES") == "none" {
-		subscription := SubscriptionProgress{ID: "review-empty", Name: "Contoso Empty Subscription", Phase: "running"}
-		report(DiscoveryProgress{SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{subscription}})
-		if err := waitForRelease(ctx, "discovery"); err != nil {
-			return nil, err
-		}
-		subscription.Phase = "completed"
-		report(DiscoveryProgress{SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{subscription}})
-		return []Foundry{}, ctx.Err()
-	}
-	foundries := []Foundry{
-		{ID: "/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast", Name: "contoso-foundry-production-japaneast", SubscriptionName: "Contoso AI Production Subscription", ResourceGroupName: "rg-ai-production-japaneast"},
-		{ID: "/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development", Name: "contoso-foundry-development", SubscriptionName: "Contoso Development", ResourceGroupName: "rg-ai-development"},
-		{ID: "/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research", Name: "contoso-foundry-research", SubscriptionName: "Contoso Research", ResourceGroupName: "rg-ai-research"},
-	}
+func (fixedSource) Foundries(ctx context.Context) ([]Foundry, error) {
 	if err := waitForRelease(ctx, "discovery"); err != nil {
 		return nil, err
 	}
-	progress := DiscoveryProgress{SubscriptionSearch: "searching", Subscriptions: make([]SubscriptionProgress, len(foundries))}
-	for i, foundry := range foundries {
-		progress.Subscriptions[i] = SubscriptionProgress{ID: strings.Split(foundry.ID, "/")[2], Name: foundry.SubscriptionName, Phase: "waiting"}
+	// AZFOUNDRYDECK_E2E_FOUNDRIES=none: no Foundry is readable.
+	if os.Getenv("AZFOUNDRYDECK_E2E_FOUNDRIES") == "none" {
+		return []Foundry{}, ctx.Err()
 	}
-	publish := func() {
-		snapshot := progress
-		snapshot.Subscriptions = append([]SubscriptionProgress{}, progress.Subscriptions...)
-		report(snapshot)
-	}
-	publish()
-	if err := waitForRelease(ctx, "start"); err != nil {
-		return nil, err
-	}
-	progress.SubscriptionSearch = "completed"
-	publish()
-	if os.Getenv("AZFOUNDRYDECK_E2E_HOLD_FOUNDRY") == "1" {
-		for i := range progress.Subscriptions {
-			progress.Subscriptions[i].Phase = "running"
-		}
-		progress.Subscriptions[0].FoundryCount = 1
-		publish()
-		discovered(foundries[0])
-		if err := waitForRelease(ctx, "second"); err != nil {
-			return nil, err
-		}
-		progress.Subscriptions[1].FoundryCount = 1
-		progress.Subscriptions[1].Phase = "completed"
-		publish()
-		discovered(foundries[1])
-		if err := waitForRelease(ctx, "remaining"); err != nil {
-			return nil, err
-		}
-		for _, i := range []int{0, 2} {
-			progress.Subscriptions[i].FoundryCount = 1
-			progress.Subscriptions[i].Phase = "completed"
-			publish()
-			if i == 2 {
-				discovered(foundries[i])
-			}
-		}
-		return foundries, ctx.Err()
-	}
-	for i, foundry := range foundries {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		progress.Subscriptions[i].Phase = "running"
-		publish()
-		progress.Subscriptions[i].FoundryCount = 1
-		publish()
-		discovered(foundry)
-		progress.Subscriptions[i].Phase = "completed"
-		publish()
-	}
-	return foundries, ctx.Err()
+	return []Foundry{
+		{ID: "/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast", Name: "contoso-foundry-production-japaneast", SubscriptionName: "Contoso AI Production Subscription", ResourceGroupName: "rg-ai-production-japaneast"},
+		{ID: "/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development", Name: "contoso-foundry-development", SubscriptionName: "Contoso Development", ResourceGroupName: "rg-ai-development"},
+		{ID: "/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research", Name: "contoso-foundry-research", SubscriptionName: "Contoso Research", ResourceGroupName: "rg-ai-research"},
+	}, ctx.Err()
 }
 
 func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func(int)) ([]Deployment, error) {
