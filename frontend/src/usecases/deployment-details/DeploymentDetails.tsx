@@ -1,9 +1,50 @@
-import { Badge, Button, Group, Loader, Stack, Table, Text, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Stack,
+  Table,
+  Text,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { getDeploymentDetail } from '../../features/foundry/deployment-detail';
 import type { Deployment, DeploymentDetail } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
+
+function EditIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+      />
+    </svg>
+  );
+}
 
 const upgradePolicyLabels = new Map([
   ['OnceNewDefaultVersionAvailable', 'Upgrade to new default'],
@@ -24,9 +65,11 @@ function fetchedAt(value: string) {
 export function DeploymentDetails({
   deployments,
   busy,
+  onDelete,
 }: {
   deployments: Deployment[];
   busy: boolean;
+  onDelete: (deployment: Deployment) => void;
 }) {
   const [selectedID, setSelectedID] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
@@ -134,16 +177,33 @@ export function DeploymentDetails({
           </Stack>
         ) : detail ? (
           <>
-            <Group className="deployment-detail-title" justify="space-between" wrap="nowrap">
-              <Title order={3}>{detail.deploymentName}</Title>
-              {detail.provisioningState && (
-                <Badge
-                  color={detail.provisioningState === 'Succeeded' ? 'green' : 'gray'}
-                  variant="light"
+            <Group
+              className="deployment-detail-title"
+              justify="space-between"
+              align="center"
+              wrap="nowrap"
+            >
+              <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                <Title order={3}>{detail.deploymentName}</Title>
+                {detail.provisioningState && (
+                  <Badge
+                    color={detail.provisioningState === 'Succeeded' ? 'green' : 'gray'}
+                    variant="light"
+                  >
+                    {detail.provisioningState}
+                  </Badge>
+                )}
+              </Group>
+              <Tooltip label="Edit deployment">
+                <ActionIcon
+                  variant="default"
+                  size={32}
+                  aria-label="Edit deployment"
+                  disabled={busy}
                 >
-                  {detail.provisioningState}
-                </Badge>
-              )}
+                  <EditIcon />
+                </ActionIcon>
+              </Tooltip>
             </Group>
             <dl className="deployment-detail-fields">
               <dt>Model</dt>
@@ -167,6 +227,23 @@ export function DeploymentDetails({
                     detail.versionUpgradePolicy)}
               </dd>
             </dl>
+            <div className="deployment-detail-actions">
+              <Tooltip label="Delete deployment">
+                <ActionIcon
+                  color="red"
+                  variant="subtle"
+                  size={32}
+                  aria-label="Delete deployment"
+                  disabled={busy}
+                  onClick={() => {
+                    const target = deployments.find((deployment) => deployment.id === detail.id);
+                    if (target) onDelete(target);
+                  }}
+                >
+                  <TrashIcon />
+                </ActionIcon>
+              </Tooltip>
+            </div>
             <footer className="deployment-detail-footer">
               Last fetched {fetchedAt(detail.fetchedAt)}
             </footer>

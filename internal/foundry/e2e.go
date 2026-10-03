@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"time"
 )
 
@@ -69,8 +71,41 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 	if err := waitForRelease(ctx, "models"); err != nil {
 		return nil, err
 	}
+	deployments = slices.DeleteFunc(deployments, func(deployment Deployment) bool { return deleted.has(deployment.ID) })
 	report(len(deployments))
 	return deployments, ctx.Err()
+}
+
+// deleted remembers deployments removed through the fixed source, so later fetches omit them.
+var deleted = deletedSet{ids: map[string]bool{}}
+
+type deletedSet struct {
+	mu  sync.Mutex
+	ids map[string]bool
+}
+
+func (d *deletedSet) has(id string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.ids[id]
+}
+
+func (d *deletedSet) add(id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.ids[id] = true
+}
+
+func (fixedSource) DeleteDeployment(ctx context.Context, foundry Foundry, deployment Deployment) error {
+	if err := waitForRelease(ctx, "delete"); err != nil {
+		return err
+	}
+	// AZFOUNDRYDECK_E2E_FAIL=delete: Azure rejects the deletion (for example, insufficient permission).
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "delete" {
+		return fmt.Errorf("simulated deployment deletion failure")
+	}
+	deleted.add(deployment.ID)
+	return ctx.Err()
 }
 
 func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deployment Deployment) (DeploymentDetail, error) {
