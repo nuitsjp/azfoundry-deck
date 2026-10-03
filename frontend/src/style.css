@@ -143,7 +143,7 @@ textarea {
 .deployment-detail-actions {
   margin-top: auto;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   padding: 12px 20px;
 }

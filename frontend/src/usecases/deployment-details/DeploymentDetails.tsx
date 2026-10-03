@@ -177,16 +177,33 @@ export function DeploymentDetails({
           </Stack>
         ) : detail ? (
           <>
-            <Group className="deployment-detail-title" justify="space-between" wrap="nowrap">
-              <Title order={3}>{detail.deploymentName}</Title>
-              {detail.provisioningState && (
-                <Badge
-                  color={detail.provisioningState === 'Succeeded' ? 'green' : 'gray'}
-                  variant="light"
+            <Group
+              className="deployment-detail-title"
+              justify="space-between"
+              align="center"
+              wrap="nowrap"
+            >
+              <Group gap="xs" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+                <Title order={3}>{detail.deploymentName}</Title>
+                {detail.provisioningState && (
+                  <Badge
+                    color={detail.provisioningState === 'Succeeded' ? 'green' : 'gray'}
+                    variant="light"
+                  >
+                    {detail.provisioningState}
+                  </Badge>
+                )}
+              </Group>
+              <Tooltip label="Edit deployment">
+                <ActionIcon
+                  variant="default"
+                  size={32}
+                  aria-label="Edit deployment"
+                  disabled={busy}
                 >
-                  {detail.provisioningState}
-                </Badge>
-              )}
+                  <EditIcon />
+                </ActionIcon>
+              </Tooltip>
             </Group>
             <dl className="deployment-detail-fields">
               <dt>Model</dt>
@@ -211,16 +228,6 @@ export function DeploymentDetails({
               </dd>
             </dl>
             <div className="deployment-detail-actions">
-              <Tooltip label="Edit deployment">
-                <ActionIcon
-                  variant="default"
-                  size={32}
-                  aria-label="Edit deployment"
-                  disabled={busy}
-                >
-                  <EditIcon />
-                </ActionIcon>
-              </Tooltip>
               <Tooltip label="Delete deployment">
                 <ActionIcon
                   color="red"
