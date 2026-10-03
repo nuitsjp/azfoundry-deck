@@ -37,6 +37,11 @@ const savedModels = [
   ['saved-production-embedding', 'saved-embedding-model', 'saved-version-2'],
 ];
 const legacyModels = [['legacy-chat', 'legacy-model', 'legacy-version']];
+const fetchedModels = [
+  ['chat-production', 'gpt-4.1', '2025-04-14'],
+  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
+  ['embeddings', 'text-embedding-3-large', '1'],
+];
 const deployments = (foundry: { id: string }, models: string[][]) =>
   models.map(([deploymentName, modelName, version]) => ({
     id: `${foundry.id}/deployments/${deploymentName}`,
@@ -47,8 +52,8 @@ const deployments = (foundry: { id: string }, models: string[][]) =>
 const savedAt = '2001-02-03T13:05:06+09:00';
 const original: InitialFoundryView = {
   foundries: savedFoundries,
-  selectedFoundryId: production.id,
-  deployments: deployments(production, savedModels),
+  selectedFoundryId: legacy.id,
+  deployments: deployments(legacy, legacyModels),
   foundriesFetchedAt: savedAt,
   deploymentsFetchedAt: savedAt,
 };
@@ -64,7 +69,7 @@ const displayed = (value: string) => {
 // Every source stage waits for its release file, so each progress state is observable.
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
-test('Foundry一覧を更新する', async ({ page, app }) => {
+test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => {
   const viewDir = join(
     app.dataDir,
     'azure-views',
@@ -85,12 +90,6 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   const productionText = savedModelFile(savedModels, production);
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
-  const prepare = (view: InitialFoundryView) => {
-    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-    writeFileSync(stateFile, JSON.stringify(view));
-    writeFileSync(modelFile(production), productionText);
-    writeFileSync(modelFile(legacy), savedModelFile(legacyModels, legacy));
-  };
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -101,11 +100,13 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   });
   const selected = page.locator('button[aria-label="Foundry"]');
   const refresh = page.getByRole('button', { name: 'Foundry一覧を更新' });
+  const refreshModels = page.getByRole('button', { name: 'モデルを更新' });
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
   const subscriptionRows = dialog.locator(
     'table[aria-label="サブスクリプションの取得状況"] tbody tr',
   );
+  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
   const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
   const modelsFetched = page.getByText(/件・最終取得 /);
@@ -117,7 +118,7 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   };
   const readState = () => JSON.parse(readFileSync(stateFile, 'utf8')) as InitialFoundryView;
 
-  await test.step('開始条件', async () => {
+  await test.step('分岐条件', async () => {
     writeFileSync(
       join(app.dataDir, 'e2e-authentication-record.json'),
       JSON.stringify({
@@ -131,14 +132,17 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    prepare(original);
+    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
+    writeFileSync(stateFile, JSON.stringify(original));
+    writeFileSync(modelFile(production), productionText);
+    writeFileSync(modelFile(legacy), savedModelFile(legacyModels, legacy));
     await app.restart();
     await page.goto(app.url);
     await expect(page.getByRole('banner')).toContainText('Contoso');
-    await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
+    await expect(selected).toHaveText(label(legacy));
+    await assertModels(legacyModels);
     await expect(foundriesFetched).toHaveText(`Foundry一覧の最終取得 ${displayed(savedAt)}`);
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
+    await expect(modelsFetched).toHaveText(`1 件・最終取得 ${displayed(savedAt)}`);
     await refresh.hover();
     await expect(page.getByRole('tooltip')).toHaveText('Foundry一覧を更新');
     expect(snapshots).toEqual([]);
@@ -149,14 +153,16 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
     await expect(dialog.getByText('発見 0 件', { exact: true })).toBeVisible();
+    await expect(modelStatus).toHaveCount(0);
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
     await expect(dialog).toBeVisible();
     await expect(selected).toBeDisabled();
     await expect(refresh).toBeDisabled();
-    await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
+    await expect(refreshModels).toBeDisabled();
+    await expect(selected).toHaveText(label(legacy));
+    await assertModels(legacyModels);
     expect(readState()).toEqual(original);
   });
 
@@ -172,35 +178,84 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
     await expect(subscriptionRows).toHaveCount(2);
     await expect(subscriptionRows.filter({ hasText: development.subscriptionName })).toHaveCount(0);
     await expect(dialog.getByText('完了 1 / 発見 3 件', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('デプロイモデルの取得', { exact: true })).toHaveCount(0);
+    await expect(modelStatus).toHaveCount(0);
     await expect(saveStatus).toContainText('待機中');
     expect(readState()).toEqual(original);
   });
 
   await test.step('手順3', async () => {
     release('remaining');
-    await expect(dialog).toHaveCount(0);
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
-    expect(saving).toBeGreaterThan(0);
-    expect(saved).toBeGreaterThan(saving);
-    const state = readState();
-    expect(state).toEqual({
-      ...original,
-      foundries: refreshedFoundries,
-      foundriesFetchedAt: expect.any(String),
-    });
-    expect(state.foundriesFetchedAt).not.toBe(savedAt);
-    await expect(foundriesFetched).toHaveText(
-      `Foundry一覧の最終取得 ${displayed(state.foundriesFetchedAt)}`,
+    await expect(subscriptionRows).toHaveCount(0);
+    await expect(dialog.getByText('完了 3 / 発見 3 件', { exact: true })).toBeVisible();
+    await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
+    await expect(modelStatus).toContainText('取得中');
+    await expect(modelStatus).not.toContainText('待機中');
+    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(saveStatus).toContainText('待機中');
+    await expect(selected).toHaveText(label(legacy));
+    await assertModels(legacyModels);
+    expect(readState()).toEqual(original);
+    expect(readFileSync(modelFile(production), 'utf8')).toBe(productionText);
+    expect(existsSync(modelFile(legacy))).toBe(true);
+    release('models');
+    await expect
+      .poll(() => snapshots.some((snapshot) => snapshot.modelPhase === 'completed'))
+      .toBe(true);
+    const counted = snapshots.findIndex(
+      (snapshot) => snapshot.modelPhase === 'running' && snapshot.modelCount === 3,
     );
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
-    await expect(selected).toBeEnabled();
-    await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
+    const completed = snapshots.findIndex(
+      (snapshot) => snapshot.modelPhase === 'completed' && snapshot.modelCount === 3,
+    );
+    expect(counted).toBeGreaterThan(0);
+    expect(completed).toBeGreaterThan(counted);
   });
 
   await test.step('手順4', async () => {
+    await expect(dialog).toHaveCount(0);
+    const completed = snapshots.findIndex((snapshot) => snapshot.modelPhase === 'completed');
+    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
+    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
+    expect(saving).toBeGreaterThan(completed);
+    expect(saved).toBeGreaterThan(saving);
+    expect(snapshots.at(-1)).toMatchObject({
+      selectedFoundryName: production.name,
+      modelPhase: 'completed',
+      modelCount: 3,
+      savePhase: 'completed',
+    });
+    const state = readState();
+    expect(state).toEqual({
+      foundries: refreshedFoundries,
+      selectedFoundryId: production.id,
+      deployments: deployments(production, fetchedModels),
+      foundriesFetchedAt: expect.any(String),
+      deploymentsFetchedAt: expect.any(String),
+    });
+    expect(state.foundriesFetchedAt).not.toBe(savedAt);
+    expect(state.deploymentsFetchedAt).not.toBe(savedAt);
+    expect(Date.parse(state.foundriesFetchedAt)).toBeLessThanOrEqual(
+      Date.parse(state.deploymentsFetchedAt),
+    );
+    expect(JSON.parse(readFileSync(modelFile(production), 'utf8'))).toEqual({
+      fetchedAt: state.deploymentsFetchedAt,
+      deployments: state.deployments,
+    });
+    expect(existsSync(modelFile(legacy))).toBe(false);
+    await expect(selected).toBeEnabled();
+    await expect(refresh).toBeEnabled();
+    await expect(refreshModels).toBeEnabled();
+    await expect(selected).toHaveText(label(production));
+    await assertModels(fetchedModels);
+    await expect(foundriesFetched).toHaveText(
+      `Foundry一覧の最終取得 ${displayed(state.foundriesFetchedAt)}`,
+    );
+    await expect(modelsFetched).toHaveText(
+      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+    );
+  });
+
+  await test.step('手順5', async () => {
     await selected.click();
     await expect(page.getByRole('option')).toHaveText(refreshedFoundries.map(label));
     await expect(page.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
@@ -209,23 +264,29 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   });
 
   await test.step('受け入れ条件', async () => {
-    // Kept selection: no model acquisition, its model file untouched, removed Foundry's file deleted.
-    for (const snapshot of snapshots) {
-      expect(snapshot.selectedFoundryName).toBe('');
-      expect(snapshot.modelPhase).toBe('waiting');
+    const modelProgress = snapshots.filter((snapshot) => snapshot.selectedFoundryName !== '');
+    expect(modelProgress[0]).toMatchObject({
+      selectedFoundryName: production.name,
+      modelPhase: 'running',
+      modelCount: 0,
+    });
+    for (const snapshot of modelProgress) {
+      expect(snapshot.selectedFoundryName).toBe(production.name);
+      expect(snapshot.modelPhase).not.toBe('waiting');
     }
-    expect(readFileSync(modelFile(production), 'utf8')).toBe(productionText);
-    expect(existsSync(modelFile(legacy))).toBe(false);
     const refreshed = readState();
+    snapshots.length = 0;
     await app.restart();
     await page.goto(app.url);
     await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
+    await assertModels(fetchedModels);
     await expect(foundriesFetched).toHaveText(
       `Foundry一覧の最終取得 ${displayed(refreshed.foundriesFetchedAt)}`,
     );
-
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
+    await expect(modelsFetched).toHaveText(
+      `3 件・最終取得 ${displayed(refreshed.deploymentsFetchedAt)}`,
+    );
     expect(readState()).toEqual(refreshed);
+    expect(snapshots).toEqual([]);
   });
 });
