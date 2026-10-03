@@ -139,3 +139,13 @@ textarea {
     padding-right: 16px;
   }
 }
+
+.deployment-detail-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+}
+.deployment-detail-actions + .deployment-detail-footer {
+  margin-top: 0;
+}

@@ -77,7 +77,6 @@ export function DeploymentDetails({
                 <Table.Th>Deployment</Table.Th>
                 <Table.Th>Model</Table.Th>
                 <Table.Th>Version</Table.Th>
-                <Table.Th aria-label="Actions" />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -104,21 +103,6 @@ export function DeploymentDetails({
                   </Table.Td>
                   <Table.Td>{deployment.modelName}</Table.Td>
                   <Table.Td>{deployment.version}</Table.Td>
-                  <Table.Td>
-                    <Button
-                      variant="subtle"
-                      color="red"
-                      size="compact-xs"
-                      aria-label={`Delete ${deployment.deploymentName}`}
-                      disabled={busy || fetchDetail.isPending}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(deployment);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -185,6 +169,23 @@ export function DeploymentDetails({
                     detail.versionUpgradePolicy)}
               </dd>
             </dl>
+            <div className="deployment-detail-actions">
+              <Button variant="default" size="xs" disabled={busy}>
+                Edit
+              </Button>
+              <Button
+                color="red"
+                variant="light"
+                size="xs"
+                disabled={busy}
+                onClick={() => {
+                  const target = deployments.find((deployment) => deployment.id === detail.id);
+                  if (target) onDelete(target);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
             <footer className="deployment-detail-footer">
               Last fetched {fetchedAt(detail.fetchedAt)}
             </footer>
