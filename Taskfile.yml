@@ -74,6 +74,10 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-deployment-add
+  server:review:deployment-update:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-deployment-update
   server:review:foundry-revisit:
     cmds:
       - task: build:server:e2e

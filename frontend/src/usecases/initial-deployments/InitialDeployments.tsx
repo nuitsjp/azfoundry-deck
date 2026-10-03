@@ -16,14 +16,21 @@ import {
 import { changeFoundry } from '../../features/foundry/change-view';
 import { createDeployment } from '../../features/foundry/create-deployment';
 import { deleteDeployment } from '../../features/foundry/delete-deployment';
+import { updateDeployment } from '../../features/foundry/update-deployment';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
 import { refreshDeployments } from '../../features/foundry/refresh-deployments';
-import type { Deployment, DeploymentCreateSpec, Foundry } from '../../features/foundry/models';
+import type {
+  Deployment,
+  DeploymentCreateSpec,
+  DeploymentUpdateSpec,
+  Foundry,
+} from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
 import { AddDeploymentModal } from './AddDeploymentModal';
+import { EditDeploymentModal } from './EditDeploymentModal';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -58,6 +65,11 @@ export function InitialDeployments() {
   const [refreshProgress, setRefreshProgress] = useState<FoundryProgress | null>(null);
   const [modelsProgress, setModelsProgress] = useState<FoundryProgress | null>(null);
   const [detailRevision, setDetailRevision] = useState(0);
+  const [detailRefresh, setDetailRefresh] = useState(0);
+  const [editTarget, setEditTarget] = useState<Deployment | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<FoundryProgress | null>(null);
+  const [updateError, setUpdateError] = useState<unknown>(null);
   const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null);
   const [deleteProgress, setDeleteProgress] = useState<FoundryProgress | null>(null);
   const [addOpened, setAddOpened] = useState(false);
@@ -98,6 +110,28 @@ export function InitialDeployments() {
     },
     onSettled: () => setDeleteTarget(null),
   });
+  const update = useMutation({
+    mutationFn: (spec: DeploymentUpdateSpec) => updateDeployment(spec),
+    onSuccess: async (view) => {
+      setUpdateProgress({
+        foundryPhase: 'completed',
+        foundryCount: view.foundries.length,
+        selectedFoundryName: editTarget?.deploymentName ?? '',
+        modelPhase: 'completed',
+        modelCount: view.deployments.length,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setEditTarget(null);
+      setUpdateError(null);
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRefresh((value) => value + 1);
+    },
+    onError: (err) => setUpdateError(err),
+    onSettled: () => {
+      setUpdating(false);
+      setUpdateProgress(null);
+    },
+  });
   const deploy = useMutation({
     mutationFn: (spec: DeploymentCreateSpec) => createDeployment(spec),
     onSuccess: async (view, spec) => {
@@ -122,7 +156,7 @@ export function InitialDeployments() {
       setDeployProgress(null);
     },
   });
-  const busy = useIsMutating() > 0 || deploying;
+  const busy = useIsMutating() > 0 || deploying || updating;
 
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
@@ -170,6 +204,32 @@ export function InitialDeployments() {
       {deployProgress && (
         <AcquisitionProgressModal opened={deploying} progress={deployProgress} mode="deploy" />
       )}
+      {updateProgress && (
+        <AcquisitionProgressModal opened={updating} progress={updateProgress} mode="update" />
+      )}
+      <EditDeploymentModal
+        deploymentID={editTarget?.id ?? null}
+        busy={updating}
+        error={updateError}
+        onClose={() => {
+          if (updating) return;
+          setEditTarget(null);
+          setUpdateError(null);
+        }}
+        onClearError={() => setUpdateError(null)}
+        onUpdate={(spec) => {
+          setUpdateError(null);
+          setUpdating(true);
+          setUpdateProgress({
+            foundryPhase: 'completed',
+            foundryCount: view.foundries.length,
+            selectedFoundryName: editTarget?.deploymentName ?? '',
+            modelPhase: 'running',
+            modelCount: 0,
+          });
+          setTimeout(() => update.mutate(spec), 700);
+        }}
+      />
       <AddDeploymentModal
         opened={addOpened}
         onClose={() => {
@@ -353,7 +413,9 @@ export function InitialDeployments() {
             key={`${view.selectedFoundryId}:${detailRevision}`}
             deployments={view.deployments}
             busy={busy}
+            refreshToken={detailRefresh}
             onDelete={setDeleteTarget}
+            onEdit={setEditTarget}
           />
         </div>
       </section>

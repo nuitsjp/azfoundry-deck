@@ -8,8 +8,8 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの最新の明細の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加。 |
-| 今回の対象外 | サブスクリプション・Foundry の操作、モデルデプロイの変更、および上記以外の参照（別ユースケースとして順次追加する）。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの最新の明細の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
+| 今回の対象外 | サブスクリプション・Foundry の操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
 ## 2. 制約・品質要求・受け入れ条件
@@ -40,6 +40,7 @@
 | [デプロイモデルの詳細を確認する](usecases/デプロイモデルの詳細を確認する/README.md) | Azure にログイン済みの Foundry 運用者 | 一覧から選んだデプロイモデルの最新の設定と状態を確認する | 8 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルを削除する](usecases/デプロイモデルを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry のデプロイモデルを Azure 上で削除し、Home画面の一覧を最新にする | 9 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルを追加する](usecases/デプロイモデルを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry に新しいデプロイモデルを作成し、一覧へ反映する | 10 | [UCP-1](design/UCP-1.md) | 対象 |
+| [デプロイモデルの設定を変更する](usecases/デプロイモデルの設定を変更する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry にある既存のデプロイモデルの設定を Azure 上で変更し、一覧と明細を最新にする | 11 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -78,7 +79,7 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | モデル明細の画面確認用起動 | `mise run server:review:deployment-detail` | `http://127.0.0.1:34123/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。モデル一覧は3件、明細は未選択で空。`chat-production` の行のどこを押しても明細にモデル `gpt-4.1`、SKU `GlobalStandard`、Capacity `50,000 / 160,000 TPM`、Upgrade policy `Upgrade to new default` を表示する。`chat-mini` は `100,000 / 250,000 TPM` と `Upgrade on retirement`、`embeddings` は SKU `Standard`、`20,000 / 80,000 TPM` と `No automatic upgrade` となる。同じモデルを再選択しても取得日時を更新する。認証と外部取得のみ固定応答で、明細の取得呼び出しと表示は通常と同じ処理を通す。実 Azure と本番保存先には触れない |
 | 明細の画面確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` または `mise run dev` | 通常ビルドは固定応答を含まない。明細を選ぶと実 Azure からデプロイ・モデル定義・共有クォータを毎回取得する。Capacity は設定済み容量／割り当て可能上限と単位を表示し、失敗時は `DEPLOYMENT_DETAIL_FAILED` と `Retry` を表示する。画面確認用データを本番へ持ち込まない |
 | デプロイモデル削除の画面確認用起動 | `mise run server:review:deployment-delete` | `http://127.0.0.1:34124/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。モデル一覧は `chat-production`・`chat-mini`・`embeddings` の3件。外部の取得と削除だけが固定応答で、削除したデプロイは以降の取得から除かれる。保存・削除後の再取得・表示は通常と同じ処理を通す。実 Azure には触れない |
-| デプロイモデル削除の確認 | 起動後、`chat-mini` 行を選んで右側の明細を表示し、明細下部右端のゴミ箱アイコン（Delete）を押してダイアログで「Cancel」を押す。もう一度ゴミ箱アイコンを押し、ダイアログの「Delete」を押す。デプロイ名右端の鉛筆アイコン（Edit）は仮のボタンで、押しても何も起きない | ダイアログは Foundry 名・デプロイ名・「This cannot be undone.」を表示し、Cancel では一覧が3件のまま。削除後は進捗モーダル「Deleting deployment」（応答が速いため短い状態は目視できないことがある）が閉じ、一覧が `chat-production`・`embeddings` の2件になり、件数と最終取得日時が更新される。再読み込み後も2件のまま |
+| デプロイモデル削除の確認 | 起動後、`chat-mini` 行を選んで右側の明細を表示し、明細下部右端のゴミ箱アイコン（Delete）を押してダイアログで「Cancel」を押す。もう一度ゴミ箱アイコンを押し、ダイアログの「Delete」を押す | ダイアログは Foundry 名・デプロイ名・「This cannot be undone.」を表示し、Cancel では一覧が3件のまま。削除後は進捗モーダル「Deleting deployment」（応答が速いため短い状態は目視できないことがある）が閉じ、一覧が `chat-production`・`embeddings` の2件になり、件数と最終取得日時が更新される。再読み込み後も2件のまま |
 | デプロイモデル削除の失敗確認 | 起動前に `$env:AZFOUNDRYDECK_E2E_FAIL='delete'` を設定し、`mise run server:review:deployment-delete` を起動する。同じ手順で削除する | 一覧は3件のまま、ページ本文の先頭に `DEPLOYMENT_DELETE_FAILED` と理由を赤いバナーで表示し、「×」で閉じられる。「Delete」を再度押せる。終了後に `Remove-Item Env:AZFOUNDRYDECK_E2E_FAIL` で失敗注入を解除する |
 | デプロイモデル削除の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | 通常ビルドは固定応答を含まない。実 Azure への削除は `armcognitiveservices.DeploymentsClient` で実行され、完了後に選択中 Foundry のモデルを Azure から再取得して保存・表示を更新する |
 | 通常構成でのデプロイモデルの削除 | `mise run server` で Home画面を開き、モデル明細の右下にあるゴミ箱アイコンを押して削除する | 実 Azure 上でデプロイを削除し、モデル一覧とモデルファイルを更新する（未検証。段階5で利用者が確認） |
@@ -86,6 +87,10 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | デプロイモデル追加の確認 | 起動後、「+ Add deployment」ボタンを押し、カタログ取得中を経て「Add deployment」モーダルを開く。左ペインでフィルター（検索・Publisher・Deployment option・Tasks）を試し、モデルを選択して右ペインで Deployment name や Capacity 等を確認・設定して「Deploy」を押す | カタログ取得中のプログレスを経て左右2ペインのモーダルが表示される。左ペインでリアルタイム絞り込みができ、モデル選択時に Deployment name が自動設定される。Standard モデルでは Capacity（生数値）の直接入力とスライダーが連動し、Pay-as-you-go では料金レートが表示される。「Deploy」を押すと単一ステップの進捗モーダル「Deploying model」（Deploy: Loading → Completed）が表示され、完了後に自動で閉じて一覧へ新規デプロイが追加反映される |
 | デプロイモデル追加の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | 通常ビルドは固定応答を含まない。実 Azure へのデプロイ作成は実 SDK で実行され、完了後に選択中 Foundry のモデルを Azure から再取得して保存・表示を更新する |
 | 通常構成でのデプロイモデルの追加 | `mise run server` で Home画面を開き、「+ Add deployment」ボタンを押して新規デプロイを追加する | 実 Azure 上でモデルをデプロイし、モデル一覧とモデルファイルを更新する（未検証。段階5で利用者が確認） |
+| デプロイモデル設定変更の画面確認用起動 | `mise run server:review:deployment-update` | `http://127.0.0.1:34126/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。モデル一覧は `chat-production`・`chat-mini`・`embeddings` の3件。認証と外部取得だけが固定応答で、設定の取得・変更と変更後の再取得は通常と同じ処理を通す。実 Azure には触れない |
+| デプロイモデル設定変更の確認 | 起動後、`chat-production` 行を選んで明細を表示し、明細見出しの Edit deployment を押す。Version を `2024-11-20`、Capacity を `80,000`、Upgrade policy を `Upgrade on retirement` に変えて Update を押す | 設定モーダル Edit deployment が開き、Deployment name・Model・SKU は変更できない。初期値は Version `2025-04-14`、Capacity `50,000 / 160,000 TPM`、Upgrade policy `Upgrade to new default` で、値が変わるまで Update は無効。Update 後は進捗モーダル Updating deployment（Step: Update）が閉じ、一覧の Version が `2024-11-20` になり、同じ行の明細が Capacity `80,000 / 160,000 TPM` と Upgrade policy `Upgrade on retirement` になる。件数は3件のまま、最終取得日時が更新される |
+| デプロイモデル設定変更の失敗確認 | 起動前に `$env:AZFOUNDRYDECK_E2E_FAIL='update'` を設定し、`mise run server:review:deployment-update` を起動する。同じ手順で Update を押す | 進捗モーダルだけが閉じ、設定モーダルは入力値を保持したまま開いている。モーダル内に `DEPLOYMENT_UPDATE_FAILED` と理由が表示され、Update を再度押せる。一覧は変更前のまま。設定取得の失敗は `$env:AZFOUNDRYDECK_E2E_FAIL='update-settings'` で、変更を開始せず同じエラーコードと Retry をモーダル内に表示する。終了後に `Remove-Item Env:AZFOUNDRYDECK_E2E_FAIL` で失敗注入を解除する |
+| デプロイモデル設定変更の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | 通常ビルドは固定応答を含まない。設定変更の Azure 接続はまだなく、呼び出しは失敗し、固定応答には切り替わらない |
 
 | 1件テナントのサインイン画面確認用起動 | `mise run server:review:login` | `http://127.0.0.1:34117/` が未ログインで開く。起動のたびに空の一時フォルダー `AzFoundryDeck-login-review-...` を作り、端末にパスを表示する。「Azureにログイン」を押すと、ブラウザーを開かずに固定応答で認証し、唯一の候補 ID `e2e-azure-tenant`、表示名 `Contoso` が選択される。認証記録のテナント ID `e2e-tenant` は候補 ID と異なる。ヘッダーのプルダウンとユーザーアイコンへのマウスオーバーで選択名・アカウント名 `operator@contoso.onmicrosoft.com` を確認する。実 Azure・資格情報マネージャー・永続キャッシュには触れない。一覧・選択のファイル保存とアカウント・テナント別の閲覧保存先決定は通常と同じ処理を通す。実 Azure と本番の保存先はこの確認用構成の検証対象に含めない。構成は [サインイン設計](design/UCP-1.md#ブラウザーでazureにサインインする) を参照する |
 | サインイン画面確認用構成の終了と実処理への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` または `mise run dev` | 確認用の一時データを通常データへ持ち込まず、実 Azure の認証経路に切り替わる。通常構成には実認証・テナント一覧取得と一覧・選択の永続保存を接続している。実 Azure の認証と本番保存先の確認には通常構成を使う |

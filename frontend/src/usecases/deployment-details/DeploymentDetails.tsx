@@ -65,17 +65,25 @@ function fetchedAt(value: string) {
 export function DeploymentDetails({
   deployments,
   busy,
+  refreshToken = 0,
   onDelete,
+  onEdit,
 }: {
   deployments: Deployment[];
   busy: boolean;
+  refreshToken?: number;
   onDelete: (deployment: Deployment) => void;
+  onEdit: (deployment: Deployment) => void;
 }) {
   const [selectedID, setSelectedID] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
   const request = useRef(0);
   const mounted = useRef(true);
+  const selectedIDRef = useRef<string | null>(null);
+  const fetchDetailRef = useRef<{
+    mutate: (variables: { id: string; sequence: number }) => void;
+  } | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -96,9 +104,21 @@ export function DeploymentDetails({
       }
     },
   });
+  fetchDetailRef.current = fetchDetail;
+
+  useEffect(() => {
+    if (!refreshToken) return;
+    const id = selectedIDRef.current;
+    if (!id) return;
+    setSelectedID(id);
+    setDetail(null);
+    setError(null);
+    fetchDetailRef.current?.mutate({ id, sequence: ++request.current });
+  }, [refreshToken]);
 
   function selectDeployment(id: string) {
     if (busy || fetchDetail.isPending) return;
+    selectedIDRef.current = id;
     setSelectedID(id);
     setDetail(null);
     setError(null);
@@ -200,6 +220,10 @@ export function DeploymentDetails({
                   size={32}
                   aria-label="Edit deployment"
                   disabled={busy}
+                  onClick={() => {
+                    const target = deployments.find((deployment) => deployment.id === detail.id);
+                    if (target) onEdit(target);
+                  }}
                 >
                   <EditIcon />
                 </ActionIcon>
