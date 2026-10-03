@@ -19,8 +19,10 @@ type Source interface {
 	Deployments(context.Context, Foundry, func(int)) ([]Deployment, error)
 }
 
+// firstFoundry is the first discovered Foundry, or the end of discovery with none (err nil, none true).
 type firstFoundry struct {
 	foundry Foundry
+	none    bool
 	err     error
 }
 
@@ -332,12 +334,7 @@ func (s *Service) acquire(ctx context.Context, file string) (InitialFoundryView,
 				p.Subscriptions = discovery.Subscriptions
 			})
 		})
-		once.Do(func() {
-			if err == nil {
-				err = fmt.Errorf("no Foundry was discovered")
-			}
-			first <- firstFoundry{err: err}
-		})
+		once.Do(func() { first <- firstFoundry{none: err == nil, err: err} })
 		view.Foundries = foundries
 		view.FoundriesFetchedAt = fetchedNow()
 		return err
@@ -347,6 +344,9 @@ func (s *Service) acquire(ctx context.Context, file string) (InitialFoundryView,
 		case result := <-first:
 			if result.err != nil {
 				return result.err
+			}
+			if result.none {
+				return nil
 			}
 			foundry := result.foundry
 			view.SelectedFoundryID = foundry.ID
@@ -374,7 +374,10 @@ func (s *Service) acquire(ctx context.Context, file string) (InitialFoundryView,
 		return InitialFoundryView{}, err
 	}
 	update(func(p *Progress) { p.SavePhase = "running" })
-	if err := saveModels(modelsPath(file, view.SelectedFoundryID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
+	// No Foundry is a normal result: only the empty list and its fetch time are saved.
+	if len(view.Foundries) == 0 {
+		view.Foundries, view.Deployments = []Foundry{}, []Deployment{}
+	} else if err := saveModels(modelsPath(file, view.SelectedFoundryID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
 		return InitialFoundryView{}, err
 	}
 	if err := save(file, view); err != nil {

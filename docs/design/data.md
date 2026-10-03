@@ -40,16 +40,16 @@ Foundry とモデルの保存先は、アカウントと選択テナントの組
 | `foundries[].name` | 文字列 | Foundry の名称 |
 | `foundries[].subscriptionName` | 文字列 | 所属サブスクリプション名 |
 | `foundries[].resourceGroupName` | 文字列 | 所属リソースグループ名 |
-| `selectedFoundryId` | 文字列 | `foundries[].id` のいずれかを参照する選択済み Foundry |
+| `selectedFoundryId` | 文字列 | `foundries[].id` のいずれかを参照する選択済み Foundry。`foundries` が空の場合は空文字列 |
 | `deployments` | 配列 | 選択された Foundry のすべてのデプロイ済みモデル |
 | `deployments[].id` | 文字列 | デプロイの Azure リソース ID |
 | `deployments[].deploymentName` | 文字列 | デプロイ名 |
 | `deployments[].modelName` | 文字列 | モデル名 |
 | `deployments[].version` | 文字列 | モデルのバージョン |
 | `foundriesFetchedAt` | 文字列 | Foundry 一覧の取得が完了した時刻（RFC 3339、ローカル時刻のオフセットと秒を含む） |
-| `deploymentsFetchedAt` | 文字列 | 表示中のモデルの取得が完了した時刻（同じ形式） |
+| `deploymentsFetchedAt` | 文字列 | 表示中のモデルの取得が完了した時刻（同じ形式）。モデルを取得していない場合は空文字列 |
 
-一覧と選択、現在表示するモデル、それぞれの取得日時を一つの JSON として保存します。すべての項目は必須です。このファイルの項目と形式は Foundry の変更後も同じです。認証情報やトークンは保存しません。
+一覧と選択、現在表示するモデル、それぞれの取得日時を一つの JSON として保存します。すべての項目は必須です。このファイルの項目と形式は Foundry の変更後も同じです。参照可能な Foundry が0件の場合は、`foundries` と `deployments` を空配列、`selectedFoundryId` と `deploymentsFetchedAt` を空文字列として `foundry-state.json` だけを保存し、`foundry-models/` にはファイルを作りません。認証情報やトークンは保存しません。
 
 Home画面で保存済みの Foundry 一覧・選択済み Foundry・モデル一覧が存在しない場合は、Azure から取得して保存します。保存済みファイルが存在して読み込みに成功した場合は、保存された一覧・選択・モデルを復元し、Azure からの取得と再保存は行いません。
 
@@ -68,7 +68,7 @@ Home画面で保存済みの Foundry 一覧・選択済み Foundry・モデル�
 
 | 処理 | `foundriesFetchedAt` | `deploymentsFetchedAt` とモデルファイルの `fetchedAt` |
 | --- | --- | --- |
-| 初回閲覧 | Foundry 一覧の取得完了時刻 | 選択先のモデルの取得完了時刻 |
+| 初回閲覧 | Foundry 一覧の取得完了時刻 | 選択先のモデルの取得完了時刻（Foundry が0件の場合は空文字列） |
 | Foundry の変更でモデルを取得する | 変更しない | 取得完了時刻 |
 | Foundry の変更で保存済みモデルを使う | 変更しない | モデルファイルの `fetchedAt` |
 | Foundry の変更で変更前のモデルをファイルに残す | 変更しない | 状態ファイルの `deploymentsFetchedAt` |

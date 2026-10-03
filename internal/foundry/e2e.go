@@ -34,6 +34,17 @@ type fixedSource struct{}
 func NewFixedSource() Source { return fixedSource{} }
 
 func (fixedSource) Discover(ctx context.Context, discovered func(Foundry), report func(DiscoveryProgress)) ([]Foundry, error) {
+	// AZFOUNDRYDECK_E2E_FOUNDRIES=none: one subscription is searched and holds no Foundry.
+	if os.Getenv("AZFOUNDRYDECK_E2E_FOUNDRIES") == "none" {
+		subscription := SubscriptionProgress{ID: "review-empty", Name: "Contoso Empty Subscription", Phase: "running"}
+		report(DiscoveryProgress{SubscriptionSearch: "searching", Subscriptions: []SubscriptionProgress{subscription}})
+		if err := waitForRelease(ctx, "discovery"); err != nil {
+			return nil, err
+		}
+		subscription.Phase = "completed"
+		report(DiscoveryProgress{SubscriptionSearch: "completed", Subscriptions: []SubscriptionProgress{subscription}})
+		return []Foundry{}, ctx.Err()
+	}
 	foundries := []Foundry{
 		{ID: "/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast", Name: "contoso-foundry-production-japaneast", SubscriptionName: "Contoso AI Production Subscription", ResourceGroupName: "rg-ai-production-japaneast"},
 		{ID: "/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development", Name: "contoso-foundry-development", SubscriptionName: "Contoso Development", ResourceGroupName: "rg-ai-development"},

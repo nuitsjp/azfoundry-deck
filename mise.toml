@@ -61,6 +61,10 @@ run = "node scripts/run.mjs server:review:login-multiple"
 description = "画面確認用：テナント3件でテナント変更を固定応答で確認する（本番経路ではない）"
 run = "node scripts/run.mjs server:review:tenant-change"
 
+[tasks."server:review:no-foundry"]
+description = "画面確認用：Foundryが1件もない状態の初回閲覧を固定応答で確認する（本番経路ではない）"
+run = "node scripts/run.mjs server:review:no-foundry"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

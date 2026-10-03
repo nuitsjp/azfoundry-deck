@@ -85,8 +85,9 @@ export function InitialDeployments() {
         <ErrorNotice error={initial.error} />
       </>
     );
-  const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId)!;
-  const label = foundryLabel(selected);
+  // With no Foundry, nothing is selected and the dropdown and the models are empty.
+  const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId);
+  const label = selected ? foundryLabel(selected) : '';
 
   return (
     <Stack gap="lg">
@@ -198,7 +199,7 @@ export function InitialDeployments() {
             <ActionIcon
               variant="default"
               aria-label="モデルを更新"
-              disabled={busy}
+              disabled={busy || !selected}
               onClick={() => {
                 setModelsProgress(null);
                 refreshModels.mutate();
@@ -208,7 +209,8 @@ export function InitialDeployments() {
             </ActionIcon>
           </Tooltip>
           <Text size="xs" c="dimmed">
-            {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
+            {view.deployments.length} 件
+            {view.deploymentsFetchedAt && `・最終取得 ${fetchedAt(view.deploymentsFetchedAt)}`}
           </Text>
         </Group>
         <Table.ScrollContainer minWidth={480}>
