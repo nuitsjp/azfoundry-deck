@@ -170,13 +170,13 @@ export function DeploymentDetails({
               </dd>
             </dl>
             <div className="deployment-detail-actions">
-              <Button variant="default" size="xs" disabled={busy}>
+              <Button variant="default" size="xs" w={72} disabled={busy}>
                 Edit
               </Button>
               <Button
                 color="red"
-                variant="light"
                 size="xs"
+                w={72}
                 disabled={busy}
                 onClick={() => {
                   const target = deployments.find((deployment) => deployment.id === detail.id);
