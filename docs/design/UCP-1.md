@@ -241,7 +241,7 @@ sequenceDiagram
 
 Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内でログイン済みの確認、保存済み一覧からの選択中の Foundry と指定デプロイの識別を行い、`DeploymentDeleteSource.DeleteDeployment` で Azure 上の削除を完了させる。成功後は既存の `acquireModels` で選択中の Foundry のモデルを取得し直し、そのモデルファイルと状態ファイルを置き換えて返す。削除が失敗した場合は何も保存せず、`DEPLOYMENT_DELETE_FAILED` を返す。画面は成功後に明細を破棄し、失敗時は一覧を変えずにエラーを表示する。
 
-画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource.DeleteDeployment` が削除の固定応答を返し、削除したデプロイの ID をプロセス内に記憶して以降のモデル取得から除く。`AZFOUNDRYDECK_E2E_FAIL=delete` で削除を失敗させ、`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-delete-release` で解放するまで削除を保留する。通常ビルドはこの固定応答を含まず、`azureSource` には `DeleteDeployment` をまだ実装していない（実処理は段階4）。起動と終了は [実行手順](../project.md#commands) に従う。
+画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource.DeleteDeployment` が削除の固定応答を返し、削除したデプロイの ID をプロセス内に記憶して以降のモデル取得から除く。`AZFOUNDRYDECK_E2E_FAIL=delete` で削除を失敗させ、`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-delete-release` で解放するまで削除を保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_delete.go` の `azureSource.DeleteDeployment` が Azure SDK の `armcognitiveservices.DeploymentsClient.BeginDelete` を呼び、削除完了まで待機する。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
 
 ## エラーの表示
 
