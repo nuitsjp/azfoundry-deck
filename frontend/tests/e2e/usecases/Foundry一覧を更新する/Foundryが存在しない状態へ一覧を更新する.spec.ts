@@ -51,12 +51,12 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
   const modelFile = (owner: { id: string }) =>
     join(modelsDir, `${createHash('sha256').update(owner.id).digest('hex')}.json`);
   const selected = page.locator('button[aria-label="Foundry"]');
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const updateFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
-  const updateModels = page.getByRole('button', { name: 'モデルを更新' });
-  const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
-  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
+  const updateFoundries = page.getByRole('button', { name: 'Refresh Foundries' });
+  const updateModels = page.getByRole('button', { name: 'Refresh models' });
+  const dialog = page.getByRole('dialog', { name: 'Refreshing Foundries' });
+  const foundryStep = dialog.getByText('Foundries', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('Deployments', { exact: true }).locator('..');
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -72,7 +72,7 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
     await expect(page.getByRole('option')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(modelRows).toHaveCount(0);
-    await expect(page.getByText('0 件', { exact: true })).toBeVisible();
+    await expect(page.getByText('0', { exact: true })).toBeVisible();
     await expect(updateFoundries).toBeEnabled();
     await expect(updateModels).toBeDisabled();
   };
@@ -111,8 +111,8 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
   await test.step('手順1', async () => {
     await updateFoundries.click();
     await expect(dialog).toBeVisible();
-    await expect(foundryStep).toContainText('取得中');
-    await expect(modelStep).toContainText('待機中');
+    await expect(foundryStep).toContainText('Loading');
+    await expect(modelStep).toContainText('Waiting');
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);

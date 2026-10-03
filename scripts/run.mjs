@@ -66,7 +66,7 @@ try {
       if (!windows) throw new Error('Desktop development is Windows-only. Use server for browser verification.');
       // Wails の既定 9245 は他プロダクトの開発サーバーと競合するため、専用ポートを使う。
       run(cli, ['dev'], root, { WAILS_VITE_PORT: '9301' });
-    } else if (['build', 'package', 'package:prepared', 'ci', 'server', 'server:review', 'server:review:login', 'server:review:login-multiple', 'server:review:foundry-change', 'server:review:foundry-revisit', 'server:review:foundry-refresh', 'server:review:deployment-refresh', 'server:review:tenant-change', 'server:review:no-foundry', 'server:review:foundry-empty', 'server:review:tenant-revisit', 'verify', 'test:core', 'generate'].includes(command)) {
+    } else if (['build', 'package', 'package:prepared', 'ci', 'server', 'server:review', 'server:review:login', 'server:review:login-multiple', 'server:review:foundry-change', 'server:review:foundry-revisit', 'server:review:foundry-refresh', 'server:review:deployment-refresh', 'server:review:deployment-detail', 'server:review:tenant-change', 'server:review:no-foundry', 'server:review:foundry-empty', 'server:review:tenant-revisit', 'verify', 'test:core', 'generate'].includes(command)) {
       run(cli, ['task', command]);
     } else throw new Error(`Unknown command: ${command}`);
   }

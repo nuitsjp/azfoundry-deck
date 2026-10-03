@@ -48,12 +48,13 @@ try {
     const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: multiple ? '34118' : '34117', AZFOUNDRYDECK_E2E_TENANTS: multiple ? 'multiple' : '' } });
-  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh', 'run-server-review-tenant-change', 'run-server-review-no-foundry', 'run-server-review-foundry-empty', 'run-server-review-tenant-revisit'].includes(command)) {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh', 'run-server-review-tenant-change', 'run-server-review-no-foundry', 'run-server-review-foundry-empty', 'run-server-review-tenant-revisit', 'run-server-review-deployment-detail'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
     const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
     const deploymentRefreshReview = command === 'run-server-review-deployment-refresh';
+    const deploymentDetailReview = command === 'run-server-review-deployment-detail';
     const tenantRevisitReview = command === 'run-server-review-tenant-revisit';
     // The revisit review is the tenant change fixture plus saved views of another tenant.
     const tenantChangeReview = command === 'run-server-review-tenant-change' || tenantRevisitReview;
@@ -61,7 +62,10 @@ try {
     const foundryEmptyReview = command === 'run-server-review-foundry-empty';
     // The deployment refresh review reuses the Foundry refresh fixture.
     const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview || foundryEmptyReview;
-    const dataDir = join(tmpdir(), `${app.id}-${tenantRevisitReview ? 'tenant-revisit-review' : foundryEmptyReview ? 'foundry-empty-review' : noFoundryReview ? 'no-foundry-review' : tenantChangeReview ? 'tenant-change-review' : deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const dataDir = deploymentDetailReview
+      ? mkdtempSync(join(tmpdir(), `${app.id}-deployment-detail-review-`))
+      : join(tmpdir(), `${app.id}-${tenantRevisitReview ? 'tenant-revisit-review' : foundryEmptyReview ? 'foundry-empty-review' : noFoundryReview ? 'no-foundry-review' : tenantChangeReview ? 'tenant-change-review' : deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    if (deploymentDetailReview) console.log(`review data directory: ${dataDir}`);
     // The refresh review resets its saved state on each launch.
     if (foundryRefreshReview || tenantChangeReview || noFoundryReview) rmSync(dataDir, { recursive: true, force: true });
     mkdirSync(dataDir, { recursive: true });
@@ -146,7 +150,7 @@ try {
       }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: tenantRevisitReview ? '34122' : '34119' } : {}), ...(noFoundryReview ? { WAILS_SERVER_PORT: '34120', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryEmptyReview ? { WAILS_SERVER_PORT: '34121', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(deploymentDetailReview ? { WAILS_SERVER_PORT: '34123' } : {}), ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: tenantRevisitReview ? '34122' : '34119' } : {}), ...(noFoundryReview ? { WAILS_SERVER_PORT: '34120', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryEmptyReview ? { WAILS_SERVER_PORT: '34121', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

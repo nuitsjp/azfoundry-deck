@@ -100,9 +100,9 @@ test('すべての候補からテナントを選択し、保存後に閲覧を�
     );
     await header.locator('.mantine-Avatar-root').hover();
     await expect(page.getByRole('tooltip')).toHaveText('operator@contoso.onmicrosoft.com');
-    await expect(
-      page.getByRole('table', { name: 'デプロイ済みモデル' }).locator('tbody tr'),
-    ).toHaveCount(3);
+    await expect(page.getByRole('table', { name: 'Deployments' }).locator('tbody tr')).toHaveCount(
+      3,
+    );
   });
   await test.step('受け入れ条件', async () => {
     const record = JSON.parse(readFileSync(recordFile, 'utf8'));
@@ -169,7 +169,7 @@ test.describe('選択保存の失敗', () => {
         await expect(tenant).toBeEnabled();
         await expect(confirm).toBeEnabled();
         await expect(page.getByRole('button', { name: 'Foundry', exact: true })).toHaveCount(0);
-        await expect(page.getByRole('table', { name: 'デプロイ済みモデル' })).toHaveCount(0);
+        await expect(page.getByRole('table', { name: 'Deployments' })).toHaveCount(0);
         await expect(page.getByRole('banner').locator('.mantine-Avatar-root')).toHaveCount(0);
         const record = JSON.parse(
           readFileSync(join(app.dataDir, 'e2e-authentication-record.json'), 'utf8'),

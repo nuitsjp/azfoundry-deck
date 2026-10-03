@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   Button,
@@ -29,6 +29,7 @@ export function AccountBadge() {
   const account = status.data?.phase === Phase.SignedIn ? status.data.account : null;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const change = useChangeTenant();
+  const loadingDetails = useIsMutating({ mutationKey: ['foundry', 'deployment-detail'] }) > 0;
   if (!account?.selectedTenantId || !account.tenants) return null;
   const selected = account.tenants.find((tenant) => tenant.id === account.selectedTenantId);
   return (
@@ -49,7 +50,7 @@ export function AccountBadge() {
               rightSection={<Combobox.Chevron />}
               rightSectionPointerEvents="none"
               onClick={() => combobox.toggleDropdown()}
-              disabled={change.isPending}
+              disabled={change.isPending || loadingDetails}
               w={220}
               styles={{ input: { textAlign: 'left' } }}
             >

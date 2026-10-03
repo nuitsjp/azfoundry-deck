@@ -45,7 +45,7 @@ const deployments = models.map(([deploymentName, modelName, version]) => ({
 }));
 const savedAt = '2026-09-01T09:00:00+09:00';
 const label = (item: (typeof foundries)[number]) =>
-  `${item.name}（${item.subscriptionName} - ${item.resourceGroupName}）`;
+  `${item.name} (${item.subscriptionName} - ${item.resourceGroupName})`;
 // The browser runs on the same machine, so local time matches.
 const displayed = (value: string) => {
   const time = new Date(value);
@@ -66,7 +66,7 @@ test('テナントを変更し再閲覧する', async ({ page, app }) => {
   const header = page.getByRole('banner');
   const tenantButton = header.getByRole('button', { name: 'テナント', exact: true });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
   const snapshots: FoundryProgress[] = [];
   let changeCalls = 0;
   page.on('websocket', (socket) => {
@@ -90,8 +90,10 @@ test('テナントを変更し再閲覧する', async ({ page, app }) => {
     for (const [index, model] of models.entries()) {
       await expect(modelRows.nth(index).locator('td')).toHaveText(model);
     }
-    await expect(page.getByText(`Foundry一覧の最終取得 ${displayed(savedAt)}`)).toBeVisible();
-    await expect(page.getByText(`2 件・最終取得 ${displayed(savedAt)}`)).toBeVisible();
+    await expect(
+      page.getByText(`Last fetched ${displayed(savedAt)}`, { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(`2 · Last fetched ${displayed(savedAt)}`)).toBeVisible();
   };
   let fabrikamText = '';
   let fabrikamModified = 0;

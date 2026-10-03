@@ -49,7 +49,7 @@ const expected: InitialFoundryView = {
   deploymentsFetchedAt: '2001-02-03T13:05:08+09:00',
 };
 const labels = foundries.map(
-  (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
+  (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
 
 // No external acquisition can finish: every source gate remains unreleased.
@@ -105,7 +105,7 @@ test('Foundryを変更し再閲覧する', async ({ page, app }) => {
         ...element.querySelectorAll('[role="dialog"]'),
       ];
       for (const dialog of dialogs) {
-        if (dialog.textContent?.includes('デプロイモデルを取得しています')) observations.count++;
+        if (dialog.textContent?.includes('Loading deployments')) observations.count++;
       }
     };
     new MutationObserver((records) => {
@@ -116,8 +116,8 @@ test('Foundryを変更し再閲覧する', async ({ page, app }) => {
     }).observe(document, { childList: true, subtree: true, characterData: true });
   });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
+  const dialog = page.getByRole('dialog', { name: 'Loading deployments' });
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries())

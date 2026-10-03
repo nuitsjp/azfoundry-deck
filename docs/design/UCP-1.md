@@ -70,7 +70,7 @@ sequenceDiagram
 
 Home画面はログイン済みになったときに `Service.GetInitialView` を呼び、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx` で Foundry とデプロイ済みモデルを表示する。サービスは保存済みファイルを先に確認し、ファイルが存在しない場合だけ以下の初回取得を行う。保存済みの場合は [再閲覧](#デプロイモデルの再閲覧) に従う。入出力の型は `internal/foundry/models.go` の `Foundry`、`Deployment`、`InitialFoundryView` を Wails のバインディングで生成し、`frontend/src/features/foundry/models.ts` から再公開する。Foundry はリソース ID で識別し、選択済み Foundry を `selectedFoundryId` で参照する。
 
-進捗モーダルは `FoundryProgress` を受け取り、「Foundry一覧の取得」と「デプロイモデルの取得」の2行を、開いた時点から完了まで固定の高さで表示する。各行は待機中・取得中・完了と回転表示、行の右側の結果（Foundry 件数、選択した Foundry の名称とモデル件数）を示す。行の増減や経過時間の表示はしない。ファイル保存は一瞬のため進捗に表さない。処理中は Escape と外側クリックでも閉じない。結果取得と保存の成功後に自動で閉じる。取得失敗は既存の Home画面のエラー表示に従う。
+進捗モーダルは `FoundryProgress` を受け取り、「Foundries」と「Deployments」の2行を、開いた時点から完了まで固定の高さで表示する。各行は待機中・取得中・完了と回転表示、行の右側の結果（Foundry 件数、選択した Foundry の名称とモデル件数）を示す。行の増減や経過時間の表示はしない。ファイル保存は一瞬のため進捗に表さない。処理中は Escape と外側クリックでも閉じない。結果取得と保存の成功後に自動で閉じる。取得失敗は既存の Home画面のエラー表示に従う。
 
 進捗の主体は Go サービスで、`internal/foundry/progress.go` の `Progress` に Foundry 一覧・モデルの各状態（待機中・取得中・完了）と Foundry 件数、選択先の名称、モデル件数をまとめ、状態の変化ごとに通知する。処理は直列なので排他制御は置かない。`main.go` で型付きの Wails イベント `foundry:progress` を登録し、サービスから通知する。型は Wails のバインディングで生成し、`frontend/src/features/foundry/progress.ts` から `FoundryProgress` として再公開する。初回閲覧ローダーは `GetInitialView` の呼び出し前にイベントを購読し、成功・失敗のどちらでも購読を解除する。進捗の状態は結果とは別に画面で保持する。
 
@@ -119,7 +119,7 @@ Go サービスはログイン済みを確認し、`foundry-state.json` に保�
 
 取得したモデルと保存されたモデルのどちらを使う場合も、変更先の選択とモデルを `foundry-state.json` に保存し、成功後に結果を返す。読み込み・JSON の復元・取得・保存の失敗時は既存の `FOUNDRY_LOAD_FAILED` を返し、固定応答や取得へのフォールバックは行わない。ファイルの形式と保存順序は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
-`AcquisitionProgressModal` は変更時に「デプロイモデルの取得」の1行だけを表示し、Foundry 一覧取得の行を省く。処理中は元の選択とモデルを維持し、変更を受け付けない。成功後に React Query の閲覧結果を置き換える。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。モデル取得の進捗イベントが通知されない場合はモーダルを表示しない。
+`AcquisitionProgressModal` は変更時に「Deployments」の1行だけを表示し、Foundry 一覧取得の行を省く。処理中は元の選択とモデルを維持し、変更を受け付けない。成功後に React Query の閲覧結果を置き換える。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。モデル取得の進捗イベントが通知されない場合はモーダルを表示しない。
 
 画面確認用の E2E ビルドでは外部取得の `foundry.Source` だけを固定応答に差し替え、変更先ごとのモデル取得、ファイルの読み込み・保存、選択の更新と進捗表示は本番と同じ処理を通す。固定応答のモデルは Production が3件、Development が3件、Research が1件で、実 Azure のモデル取得の検証には使わない。
 
@@ -137,7 +137,7 @@ Go サービスはログイン済みを確認し、`foundry-state.json` に保�
 
 画面は `frontend/src/features/foundry/refresh-view.ts` から `Service.RefreshFoundries` を呼ぶ。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。
 
-Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んだ後、初回閲覧と同じ `Source.Foundries` で Foundry 一覧を取得し、「Foundry一覧の取得」の状態と件数を通知する。一覧が空の場合は、[Foundryが存在しない状態へ一覧を更新する](#foundryが存在しない状態へ一覧を更新する) の扱いに従う。選択中の Foundry が更新後の一覧に含まれる場合は選択とモデルを維持し、モデルを取得しない。含まれない場合は一覧の最初の Foundry を選択し、`Source.Deployments` で全ページを取得して、選択先の名称・モデル取得状態・累積件数を通知する。選択中の Foundry が残る場合、「デプロイモデルの取得」は待機中のまま保存へ進む。
+Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んだ後、初回閲覧と同じ `Source.Foundries` で Foundry 一覧を取得し、「Foundries」の状態と件数を通知する。一覧が空の場合は、[Foundryが存在しない状態へ一覧を更新する](#foundryが存在しない状態へ一覧を更新する) の扱いに従う。選択中の Foundry が更新後の一覧に含まれる場合は選択とモデルを維持し、モデルを取得しない。含まれない場合は一覧の最初の Foundry を選択し、`Source.Deployments` で全ページを取得して、選択先の名称・モデル取得状態・累積件数を通知する。選択中の Foundry が残る場合、「Deployments」は待機中のまま保存へ進む。
 
 選択し直した場合だけそのモデルファイルを保存し、更新後の一覧に含まれない Foundry のモデルファイルを削除して、最後に一覧・選択・モデル・取得日時を `foundry-state.json` に保存する。保存成功後に結果を返す。読み込み・取得・保存・削除のいずれかが失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返し、固定データや保存済みファイルへのフォールバックは行わない。取得日時の設定時点と保存形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
@@ -163,7 +163,7 @@ sequenceDiagram
   U->>U: 進捗イベントの購読を解除し、閲覧結果を置き換える
 ```
 
-`AcquisitionProgressModal` は `refresh` の表示で題名を「Foundry一覧を更新しています」とし、Foundry 一覧とモデルの2行を最初から表示して、モデルの行は選択先が変わる場合だけ取得中にする。処理中は元の一覧・選択・モデルを維持し、プルダウンと更新ボタンを無効にする。最終取得日時は `InitialFoundryView` の `foundriesFetchedAt` と `deploymentsFetchedAt` を、画面でローカル時刻の `YYYY-MM-DD HH:mm` に変換して表示する。
+`AcquisitionProgressModal` は `refresh` の表示で題名を「Refreshing Foundries」とし、Foundry 一覧とモデルの2行を最初から表示して、モデルの行は選択先が変わる場合だけ取得中にする。処理中は元の一覧・選択・モデルを維持し、プルダウンと更新ボタンを無効にする。最終取得日時は `InitialFoundryView` の `foundriesFetchedAt` と `deploymentsFetchedAt` を、画面でローカル時刻の `YYYY-MM-DD HH:mm` に変換して表示する。
 
 画面確認用構成は `scripts/build.mjs` の起動準備で、固定の認証記録と、Production・Development・Legacy の Foundry 一覧、Production と Legacy のモデルファイル、Production を選択した状態ファイルを用意する（取得日時はすべて `2026-09-01T09:00:00+09:00`）。外部取得の `foundry.Source` だけを E2E 用の固定応答（Production・Development・Research）に差し替え、一覧の更新・モデル取得・ファイルの保存と削除・進捗表示は本番と同じ処理を通す。実 Azure の一覧取得の検証には使わない。
 
@@ -173,7 +173,7 @@ sequenceDiagram
 
 Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んで選択中の Foundry を一覧から特定する。保存済みのモデルファイルの有無にかかわらず `Source.Deployments` で全ページを取得し、モデル取得状態とページごとの累積件数を通知する。取得後にそのモデルファイルを置き換え、モデルと取得日時を `foundry-state.json` に保存して結果を返す。Foundry の一覧は再取得せず、ほかの Foundry のモデルファイルは変更しない。取得・通知・保存は Foundry を変更して初回閲覧する場合と同じ `acquireModels` を使う。読み込み・取得・保存の失敗時は既存の `FOUNDRY_LOAD_FAILED` を返し、固定データや保存済みファイルへのフォールバックは行わない。取得日時と保存形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
-`AcquisitionProgressModal` は `deployments` の表示で題名を「デプロイモデルを更新しています」とし、モデル取得の行だけを表示する。処理中は元のモデルを維持し、プルダウンと両方の更新ボタンを無効にする。成功後に React Query の閲覧結果を置き換える。
+`AcquisitionProgressModal` は `deployments` の表示で題名を「Refreshing models」とし、モデル取得の行だけを表示する。処理中は元のモデルを維持し、プルダウンと両方の更新ボタンを無効にする。成功後に React Query の閲覧結果を置き換える。
 
 画面確認用構成は Foundry一覧の更新と同じ保存済みファイル（Production のモデル2件）を用意し、外部取得の `foundry.Source` だけを E2E 用の固定応答（Production のモデル3件）に差し替える。モデル取得・ファイル保存・進捗表示は本番と同じ処理を通す。実 Azure のモデル取得の検証には使わない。
 
@@ -191,9 +191,9 @@ Go サービスはログイン済みであることを確認し、同じテナ�
 
 初回閲覧の取得は、Foundry 一覧の取得が成功し、参照可能な Foundry が1件もなかった場合を、エラーにせず正常な結果として扱う。Go サービスの `acquire` は、一覧の取得が終わるまで最初の Foundry が見つからなかったことを、選択先がない結果（エラーなし）としてモデル取得側へ伝える。モデル取得側はモデルを取得せず、モデルファイルも保存しない。空の一覧、選択なし（`selectedFoundryId` は空文字列）、空のモデル、一覧の取得日時だけを `foundry-state.json` に保存し、保存の成功後に結果を返す。取得または保存に失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返す。
 
-画面は、`foundries` が空の結果を受け取ると、特別な案内を出さず、選択なしの Foundry のプルダウン（選択肢なし）と、空のデプロイ済みモデルの一覧（0 件）を表示する。選択中の Foundry がないため「モデルを更新」ボタンは無効にし、モデルの最終取得日時は表示しない。「Foundry一覧を更新」ボタンと Foundry 一覧の最終取得日時は通常どおり表示する。進捗モーダルは通常の初回閲覧と同じ表示とする。保存済みの結果から再閲覧する場合も、同じ表示になり、取得し直さない。
+画面は、`foundries` が空の結果を受け取ると、特別な案内を出さず、選択なしの Foundry のプルダウン（選択肢なし）と、空のデプロイ済みモデルの一覧（0 件）を表示する。選択中の Foundry がないため「Refresh models」ボタンは無効にし、モデルの最終取得日時は表示しない。「Refresh Foundries」ボタンと Foundry 一覧の最終取得日時は通常どおり表示する。進捗モーダルは通常の初回閲覧と同じ表示とする。保存済みの結果から再閲覧する場合も、同じ表示になり、取得し直さない。
 
-画面確認用の E2E ビルドでは、外部取得の `foundry.Source` だけを固定応答に差し替える。`AZFOUNDRYDECK_E2E_FOUNDRIES=none` のとき、一覧の取得は Foundry を返さない。保存・読み込み・表示は本番と同じ処理を通す。「Foundry一覧を更新」で再取得した結果が0件の場合の扱いは、別の拡張シナリオで定める。現状は既存の `FOUNDRY_LOAD_FAILED` を返す。
+画面確認用の E2E ビルドでは、外部取得の `foundry.Source` だけを固定応答に差し替える。`AZFOUNDRYDECK_E2E_FOUNDRIES=none` のとき、一覧の取得は Foundry を返さない。保存・読み込み・表示は本番と同じ処理を通す。「Refresh Foundries」で再取得した結果が0件の場合の扱いは、別の拡張シナリオで定める。現状は既存の `FOUNDRY_LOAD_FAILED` を返す。
 
 ## Foundryが存在しない状態へ一覧を更新する
 
@@ -208,6 +208,32 @@ Foundry 一覧の更新で、Foundry 一覧の取得が成功し、参照可能�
 テナントの変更の呼び出しと、変更先のトークン取得・選択保存は、[テナントを変更し初回閲覧する](#テナントを変更し初回閲覧する) と同じである。成功後に React Query の Foundry 関連の結果を破棄すると、Home は既存の再閲覧と同じく、変更先のアカウント・テナントの閲覧保存先の `foundry-state.json` を読み込む。ファイルが存在して読み込みに成功すれば、保存された Foundry 一覧・選択・モデルをそのまま表示し、外部取得の `foundry.Source` を作らず、進捗イベントを通知せず、再保存もしない。保存された選択を維持し、最初の Foundry には変更しない。変更前のテナントの閲覧保存先は変更しない。読み込みや復元に失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返す。
 
 画面確認用の E2E ビルドでは、トークン取得と一覧取得の外部境界だけを固定応答に差し替える。確認用起動 `server:review:tenant-revisit` は、`Fabrikam` の閲覧保存先に、Foundry 2件（2件目を選択）と、固定応答にないモデル2件を用意する。
+
+## 一覧からデプロイモデルの明細を表示する
+
+Home画面のモデル領域は、[明細シナリオ](../usecases/デプロイモデルの詳細を確認する/scenarios/一覧からデプロイモデルの明細を表示する.md) の共通外枠と左右同幅の一覧・明細を `frontend/src/usecases/deployment-details/DeploymentDetails.tsx` で表示する。一覧のデプロイ ID を `frontend/src/features/foundry/deployment-detail.ts` から `Service.GetDeploymentDetail` へ渡す。入出力は `internal/foundry/detail.go` の `DeploymentDetail` を Wails で生成し、`frontend/src/features/foundry/models.ts` から再公開する。
+
+Go サービスは既存の操作ロック内でログイン済みの確認と、保存済み一覧から選択中の Foundry・指定デプロイの識別を行い、`DeploymentDetailSource.DeploymentDetail` を毎回呼ぶ。取得成功時に取得日時を付けて返す。明細の読み書きやキャッシュは設けず、一覧の保存形式も変更しない。明細取得の失敗は `DEPLOYMENT_DETAIL_FAILED` と英語の理由を返す。
+
+画面は行全体のクリックまたはデプロイ名のキーボード操作で取得を開始し、取得前に以前の明細を破棄する。TanStack Query の mutation は結果を返さず、表示中の明細だけをコンポーネントの状態に保持する。mutation の `gcTime` は0とし、結果を再利用しない。取得中は既存の取得・更新操作と追加のモデル選択を無効にし、ヘッダーのテナント選択も同じ mutation の実行状態で無効にする。Foundry が変わるか、一覧またはモデルの更新が成功するとコンポーネントを再作成し、選択と表示を破棄する。更新の成功回数をキーに含め、取得日時が同じ場合も破棄する。破棄後のリクエストの結果は表示しない。失敗時は右の明細領域だけにエラーと `Retry` を表示する。
+
+```mermaid
+sequenceDiagram
+  participant U as Home画面
+  participant S as Foundry サービス
+  participant K as 明細取得境界
+  U->>U: 一覧のデプロイを選び以前の明細を破棄
+  U->>S: GetDeploymentDetail(デプロイID)
+  S->>S: ログイン状態と選択先を確認
+  S->>K: 選択先の明細を取得
+  K-->>S: 明細
+  S-->>U: 明細と取得日時
+  U->>U: 右側に明細を表示
+```
+
+画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が明細取得の固定応答を返す。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_detail.go` の `azureSource.DeploymentDetail` が Azure SDK の Deployments Get、Accounts Get/ListModels、Usages List を呼ぶ。モデルの形式・名前・版と SKU 名で定義を選び、その `usageName` をリージョンの共有クォータへ照合する。UI・サービス・入出力の型は両構成で共有する。固定の認証・Foundry とモデル一覧を使う専用起動で確認し、明細の識別と表示、取得日時の設定は共通処理を通す。起動と終了は [実行手順](../project.md#commands) に従う。
+
+明細の容量契約は設定済み容量 `capacity`、割り当て可能上限 `capacityMaximum`、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限し、許可値または設定の刻みに切り下げる。Standard 系の単位はデプロイの token レートなら TPM、request のみなら RPM とし、秒単位のレートを毎分へ変換して設定容量あたりの倍率を求める。Provisioned 系は PTU とする。モデル定義・容量換算・クォータが不明な項目は補完せず、取得できた値だけを返す。必要なモデル定義と共有クォータは明細取得ごとに取得し、キャッシュしない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
 
 ## エラーの表示
 

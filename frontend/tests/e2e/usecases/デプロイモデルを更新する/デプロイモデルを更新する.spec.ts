@@ -47,7 +47,7 @@ const original: InitialFoundryView = {
   deploymentsFetchedAt: savedAt,
 };
 const label = (foundry: typeof production) =>
-  `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`;
+  `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`;
 // The browser runs on the same machine, so local time matches.
 const displayed = (value: string) => {
   const time = new Date(value);
@@ -90,13 +90,13 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     });
   });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const refreshFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
-  const refresh = page.getByRole('button', { name: 'モデルを更新' });
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを更新しています' });
-  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
-  const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
-  const modelsFetched = page.getByText(/件・最終取得 /);
+  const refreshFoundries = page.getByRole('button', { name: 'Refresh Foundries' });
+  const refresh = page.getByRole('button', { name: 'Refresh models' });
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
+  const dialog = page.getByRole('dialog', { name: 'Refreshing models' });
+  const modelStatus = dialog.getByText('Deployments', { exact: true }).locator('..');
+  const foundriesFetched = page.getByText(/^Last fetched /);
+  const modelsFetched = page.getByText(/ · Last fetched /);
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
@@ -131,9 +131,9 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(selected).toHaveText(label(production));
     await assertModels(savedModels);
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
+    await expect(modelsFetched).toHaveText(`2 · Last fetched ${displayed(savedAt)}`);
     await refresh.hover();
-    await expect(page.getByRole('tooltip')).toHaveText('モデルを更新');
+    await expect(page.getByRole('tooltip')).toHaveText('Refresh models');
     expect(snapshots).toEqual([]);
   });
 
@@ -141,12 +141,10 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await refresh.click();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
-    await expect(modelStatus).toContainText('取得中');
-    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(modelStatus).toContainText('Loading');
+    await expect(dialog.getByText('0 models', { exact: true })).toBeVisible();
     await expect(dialog.getByRole('table')).toHaveCount(0);
-    await expect(
-      dialog.getByText(/Foundry一覧の取得|ファイルへの保存|サブスクリプション/),
-    ).toHaveCount(0);
+    await expect(dialog.getByText(/Foundries|ファイルへの保存|サブスクリプション/)).toHaveCount(0);
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -178,9 +176,9 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
     await expect(modelsFetched).toHaveText(
-      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
     );
-    await expect(foundriesFetched).toHaveText(`Foundry一覧の最終取得 ${displayed(savedAt)}`);
+    await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
   });
 
   await test.step('受け入れ条件', async () => {
@@ -206,7 +204,7 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
     await expect(modelsFetched).toHaveText(
-      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
     );
 
     // Switching away and back restores the refreshed models from their file.
@@ -219,7 +217,7 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
     await expect(modelsFetched).toHaveText(
-      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
     );
   });
 });

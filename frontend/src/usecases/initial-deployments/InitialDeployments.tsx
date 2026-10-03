@@ -7,13 +7,10 @@ import {
   Input,
   InputBase,
   Stack,
-  Table,
   Text,
-  Title,
   Tooltip,
   useCombobox,
 } from '@mantine/core';
-import { changeTenantKey } from '../../features/auth/queries';
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
@@ -22,9 +19,10 @@ import type { Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
+import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
-  return `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`;
+  return `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`;
 }
 
 // Local time as YYYY-MM-DD HH:mm.
@@ -54,6 +52,7 @@ export function InitialDeployments() {
   const [changeProgress, setChangeProgress] = useState<FoundryProgress | null>(null);
   const [refreshProgress, setRefreshProgress] = useState<FoundryProgress | null>(null);
   const [modelsProgress, setModelsProgress] = useState<FoundryProgress | null>(null);
+  const [detailRevision, setDetailRevision] = useState(0);
   const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
@@ -68,14 +67,19 @@ export function InitialDeployments() {
   });
   const refresh = useMutation({
     mutationFn: () => refreshFoundries(setRefreshProgress),
-    onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
+    onSuccess: (view) => {
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+    },
   });
   const refreshModels = useMutation({
     mutationFn: () => refreshDeployments(setModelsProgress),
-    onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
+    onSuccess: (view) => {
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+    },
   });
-  const changingTenant = useIsMutating({ mutationKey: changeTenantKey }) > 0;
-  const busy = change.isPending || refresh.isPending || refreshModels.isPending || changingTenant;
+  const busy = useIsMutating() > 0;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view)
@@ -180,32 +184,36 @@ export function InitialDeployments() {
               </Combobox.Options>
             </Combobox.Dropdown>
           </Combobox>
-          <Tooltip label="Foundry一覧を更新">
-            <ActionIcon
-              variant="default"
-              size={36}
-              aria-label="Foundry一覧を更新"
-              disabled={busy}
-              onClick={() => {
-                setRefreshProgress(null);
-                refresh.mutate();
-              }}
-            >
-              <RefreshIcon />
-            </ActionIcon>
-          </Tooltip>
+          <Group gap="sm" wrap="nowrap" h={36}>
+            <Tooltip label="Refresh Foundries">
+              <ActionIcon
+                variant="default"
+                size={36}
+                aria-label="Refresh Foundries"
+                disabled={busy}
+                onClick={() => {
+                  setRefreshProgress(null);
+                  refresh.mutate();
+                }}
+              >
+                <RefreshIcon />
+              </ActionIcon>
+            </Tooltip>
+            <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              Last fetched {fetchedAt(view.foundriesFetchedAt)}
+            </Text>
+          </Group>
         </Group>
-        <Text size="xs" c="dimmed">
-          Foundry一覧の最終取得 {fetchedAt(view.foundriesFetchedAt)}
-        </Text>
       </Stack>
-      <Stack gap="xs">
-        <Group gap="sm" align="center">
-          <Title order={4}>デプロイ済みモデル</Title>
-          <Tooltip label="モデルを更新">
+      <section aria-label="Deployments and details">
+        <Group className="deployment-workspace-title" justify="flex-start" gap="sm">
+          <Text size="sm" fw={500}>
+            Deployed Models
+          </Text>
+          <Tooltip label="Refresh models">
             <ActionIcon
-              variant="default"
-              aria-label="モデルを更新"
+              variant="subtle"
+              aria-label="Refresh models"
               disabled={busy || !selected}
               onClick={() => {
                 setModelsProgress(null);
@@ -216,31 +224,18 @@ export function InitialDeployments() {
             </ActionIcon>
           </Tooltip>
           <Text size="xs" c="dimmed">
-            {view.deployments.length} 件
-            {view.deploymentsFetchedAt && `・最終取得 ${fetchedAt(view.deploymentsFetchedAt)}`}
+            {view.deployments.length}
+            {view.deploymentsFetchedAt && ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
           </Text>
         </Group>
-        <Table.ScrollContainer minWidth={480}>
-          <Table aria-label="デプロイ済みモデル" striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>デプロイ名</Table.Th>
-                <Table.Th>モデル名</Table.Th>
-                <Table.Th>バージョン</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {view.deployments.map((deployment) => (
-                <Table.Tr key={deployment.id}>
-                  <Table.Td>{deployment.deploymentName}</Table.Td>
-                  <Table.Td>{deployment.modelName}</Table.Td>
-                  <Table.Td>{deployment.version}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      </Stack>
+        <div className="deployment-workspace">
+          <DeploymentDetails
+            key={`${view.selectedFoundryId}:${detailRevision}`}
+            deployments={view.deployments}
+            busy={busy}
+          />
+        </div>
+      </section>
     </Stack>
   );
 }

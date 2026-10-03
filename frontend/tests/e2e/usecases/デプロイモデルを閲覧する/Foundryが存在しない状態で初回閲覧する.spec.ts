@@ -24,13 +24,13 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
       .digest('hex'),
   );
   const savedFile = join(viewDir, 'foundry-state.json');
-  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
-  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  const dialog = page.getByRole('dialog', { name: 'Loading deployments' });
+  const foundryStep = dialog.getByText('Foundries', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('Deployments', { exact: true }).locator('..');
   const foundry = page.locator('button[aria-label="Foundry"]');
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const updateFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
-  const updateModels = page.getByRole('button', { name: 'モデルを更新' });
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
+  const updateFoundries = page.getByRole('button', { name: 'Refresh Foundries' });
+  const updateModels = page.getByRole('button', { name: 'Refresh models' });
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -47,12 +47,10 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
     await expect(page.getByRole('option')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(modelRows).toHaveCount(0);
-    await expect(page.getByText('0 件', { exact: true })).toBeVisible();
+    await expect(page.getByText('0', { exact: true })).toBeVisible();
     await expect(updateFoundries).toBeEnabled();
     await expect(updateModels).toBeDisabled();
-    await expect(
-      page.getByText(/Foundry一覧の最終取得 \d{4}-\d{2}-\d{2} \d{2}:\d{2}/),
-    ).toBeVisible();
+    await expect(page.getByText(/Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeVisible();
   };
 
   await test.step('分岐条件', async () => {
@@ -79,8 +77,8 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
     await socket;
     writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
     await expect(dialog).toBeVisible();
-    await expect(foundryStep).toContainText('取得中');
-    await expect(modelStep).toContainText('待機中');
+    await expect(foundryStep).toContainText('Loading');
+    await expect(modelStep).toContainText('Waiting');
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
