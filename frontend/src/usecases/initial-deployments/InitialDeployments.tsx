@@ -184,50 +184,49 @@ export function InitialDeployments() {
               </Combobox.Options>
             </Combobox.Dropdown>
           </Combobox>
-          <Tooltip label="Refresh Foundries">
-            <ActionIcon
-              variant="default"
-              size={36}
-              aria-label="Refresh Foundries"
-              disabled={busy}
-              onClick={() => {
-                setRefreshProgress(null);
-                refresh.mutate();
-              }}
-            >
-              <RefreshIcon />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-        <Text size="xs" c="dimmed">
-          Last fetched {fetchedAt(view.foundriesFetchedAt)}
-        </Text>
-      </Stack>
-      <section aria-label="Deployments and details">
-        <Group className="deployment-workspace-title" justify="space-between" gap="sm">
-          <Text size="sm" fw={500}>
-            Deployed Models
-          </Text>
-          <Group gap="sm">
-            <Text size="xs" c="dimmed">
-              {view.deployments.length}
-              {view.deploymentsFetchedAt &&
-                ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
-            </Text>
-            <Tooltip label="Refresh models">
+          <Group gap="sm" wrap="nowrap" h={36}>
+            <Tooltip label="Refresh Foundries">
               <ActionIcon
-                variant="subtle"
-                aria-label="Refresh models"
-                disabled={busy || !selected}
+                variant="default"
+                size={36}
+                aria-label="Refresh Foundries"
+                disabled={busy}
                 onClick={() => {
-                  setModelsProgress(null);
-                  refreshModels.mutate();
+                  setRefreshProgress(null);
+                  refresh.mutate();
                 }}
               >
                 <RefreshIcon />
               </ActionIcon>
             </Tooltip>
+            <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              Last fetched {fetchedAt(view.foundriesFetchedAt)}
+            </Text>
           </Group>
+        </Group>
+      </Stack>
+      <section aria-label="Deployments and details">
+        <Group className="deployment-workspace-title" justify="flex-start" gap="sm">
+          <Text size="sm" fw={500}>
+            Deployed Models
+          </Text>
+          <Tooltip label="Refresh models">
+            <ActionIcon
+              variant="subtle"
+              aria-label="Refresh models"
+              disabled={busy || !selected}
+              onClick={() => {
+                setModelsProgress(null);
+                refreshModels.mutate();
+              }}
+            >
+              <RefreshIcon />
+            </ActionIcon>
+          </Tooltip>
+          <Text size="xs" c="dimmed">
+            {view.deployments.length}
+            {view.deploymentsFetchedAt && ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
+          </Text>
         </Group>
         <div className="deployment-workspace">
           <DeploymentDetails
