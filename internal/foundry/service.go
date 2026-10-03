@@ -262,13 +262,14 @@ func (s *Service) refresh(ctx context.Context, file string) (InitialFoundryView,
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	if len(foundries) == 0 {
-		return InitialFoundryView{}, fmt.Errorf("no Foundry was discovered")
-	}
 	view.Foundries = foundries
 	view.FoundriesFetchedAt = fetchedNow()
 	listed := slices.ContainsFunc(foundries, func(foundry Foundry) bool { return foundry.ID == view.SelectedFoundryID })
-	if !listed {
+	if len(foundries) == 0 {
+		// No Foundry is a normal result: nothing is selected and no models are fetched.
+		view.Foundries, view.SelectedFoundryID = []Foundry{}, ""
+		view.Deployments, view.DeploymentsFetchedAt = []Deployment{}, ""
+	} else if !listed {
 		selected := foundries[0]
 		update(func(p *Progress) {
 			p.SelectedFoundryName = selected.Name
@@ -289,7 +290,7 @@ func (s *Service) refresh(ctx context.Context, file string) (InitialFoundryView,
 		view.DeploymentsFetchedAt = fetchedNow()
 	}
 	update(func(p *Progress) { p.SavePhase = "running" })
-	if !listed {
+	if len(foundries) > 0 && !listed {
 		if err := saveModels(modelsPath(file, view.SelectedFoundryID), savedModels{FetchedAt: view.DeploymentsFetchedAt, Deployments: view.Deployments}); err != nil {
 			return InitialFoundryView{}, err
 		}

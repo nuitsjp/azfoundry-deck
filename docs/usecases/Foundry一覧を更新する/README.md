@@ -21,6 +21,7 @@ Azure にログイン済みで、Home画面に Foundry 一覧を表示してい�
 ## シナリオ
 
 - [Foundry一覧を更新する](scenarios/Foundry一覧を更新する.md)
+- [Foundryが存在しない状態へ一覧を更新する](scenarios/Foundryが存在しない状態へ一覧を更新する.md)
 
 ## 実現パターン
 

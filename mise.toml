@@ -65,6 +65,10 @@ run = "node scripts/run.mjs server:review:tenant-change"
 description = "画面確認用：Foundryが1件もない状態の初回閲覧を固定応答で確認する（本番経路ではない）"
 run = "node scripts/run.mjs server:review:no-foundry"
 
+[tasks."server:review:foundry-empty"]
+description = "画面確認用：保存済みのFoundryがある状態から、一覧の更新でFoundryが0件になることを固定応答で確認する（本番経路ではない）"
+run = "node scripts/run.mjs server:review:foundry-empty"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"
