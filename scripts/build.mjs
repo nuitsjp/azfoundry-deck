@@ -48,25 +48,52 @@ try {
     const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-login-review-`));
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: multiple ? '34118' : '34117', AZFOUNDRYDECK_E2E_TENANTS: multiple ? 'multiple' : '' } });
-  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh'].includes(command)) {
+  } else if (['run-server-review', 'run-server-review-foundry-change', 'run-server-review-foundry-revisit', 'run-server-review-foundry-refresh', 'run-server-review-deployment-refresh', 'run-server-review-tenant-change', 'run-server-review-no-foundry', 'run-server-review-foundry-empty', 'run-server-review-tenant-revisit'].includes(command)) {
     // Screen review only, not a production path: the e2e build starts signed in
     // from a fixed record in a fixed temporary data directory.
     const foundryChangeReview = command === 'run-server-review-foundry-change';
     const foundryRevisitReview = command === 'run-server-review-foundry-revisit';
     const deploymentRefreshReview = command === 'run-server-review-deployment-refresh';
+    const tenantRevisitReview = command === 'run-server-review-tenant-revisit';
+    // The revisit review is the tenant change fixture plus saved views of another tenant.
+    const tenantChangeReview = command === 'run-server-review-tenant-change' || tenantRevisitReview;
+    const noFoundryReview = command === 'run-server-review-no-foundry';
+    const foundryEmptyReview = command === 'run-server-review-foundry-empty';
     // The deployment refresh review reuses the Foundry refresh fixture.
-    const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview;
-    const dataDir = join(tmpdir(), `${app.id}-${deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
+    const foundryRefreshReview = command === 'run-server-review-foundry-refresh' || deploymentRefreshReview || foundryEmptyReview;
+    const dataDir = join(tmpdir(), `${app.id}-${tenantRevisitReview ? 'tenant-revisit-review' : foundryEmptyReview ? 'foundry-empty-review' : noFoundryReview ? 'no-foundry-review' : tenantChangeReview ? 'tenant-change-review' : deploymentRefreshReview ? 'deployment-refresh-review' : foundryRefreshReview ? 'foundry-refresh-review' : foundryRevisitReview ? 'foundry-revisit-review' : foundryChangeReview ? 'foundry-change-review' : 'review'}`);
     // The refresh review resets its saved state on each launch.
-    if (foundryRefreshReview) rmSync(dataDir, { recursive: true, force: true });
+    if (foundryRefreshReview || tenantChangeReview || noFoundryReview) rmSync(dataDir, { recursive: true, force: true });
     mkdirSync(dataDir, { recursive: true });
     writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
       authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
       tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
-      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
+      tenants: tenantChangeReview
+        ? [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }, { id: 'e2e-fabrikam-tenant', displayName: 'Fabrikam' }, { id: 'e2e-northwind-tenant', displayName: 'Northwind' }]
+        : [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }],
+      selectedTenantId: 'e2e-azure-tenant',
     }));
     // Saved views live under the signed-in account and selected tenant.
     const viewDir = join(dataDir, 'azure-views', createHash('sha256').update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant'])).digest('hex'));
+    if (tenantRevisitReview) {
+      // File boundary only: Fabrikam already has saved views (its second Foundry selected, with
+      // models the fixed source never returns), so changing to it must not reach the external source.
+      const fabrikamDir = join(dataDir, 'azure-views', createHash('sha256').update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-fabrikam-tenant'])).digest('hex'));
+      const foundries = [
+        { id: '/subscriptions/saved-fabrikam/resourceGroups/rg-fabrikam-production/providers/Microsoft.CognitiveServices/accounts/fabrikam-foundry-production', name: 'fabrikam-foundry-production', subscriptionName: 'Fabrikam Production Subscription', resourceGroupName: 'rg-fabrikam-production' },
+        { id: '/subscriptions/saved-fabrikam/resourceGroups/rg-fabrikam-research/providers/Microsoft.CognitiveServices/accounts/fabrikam-foundry-research', name: 'fabrikam-foundry-research', subscriptionName: 'Fabrikam Research Subscription', resourceGroupName: 'rg-fabrikam-research' },
+      ];
+      const models = [
+        { id: `${foundries[1].id}/deployments/fabrikam-research-chat`, deploymentName: 'fabrikam-research-chat', modelName: 'gpt-4.1', version: '2025-04-14' },
+        { id: `${foundries[1].id}/deployments/fabrikam-research-embedding`, deploymentName: 'fabrikam-research-embedding', modelName: 'text-embedding-3-large', version: '1' },
+      ];
+      const fetchedAt = '2026-09-01T09:00:00+09:00';
+      mkdirSync(join(fabrikamDir, 'foundry-models'), { recursive: true });
+      writeFileSync(join(fabrikamDir, 'foundry-models', `${createHash('sha256').update(foundries[1].id).digest('hex')}.json`), JSON.stringify({ fetchedAt, deployments: models }, null, 2));
+      writeFileSync(join(fabrikamDir, 'foundry-state.json'), JSON.stringify({
+        foundries, selectedFoundryId: foundries[1].id, deployments: models, foundriesFetchedAt: fetchedAt, deploymentsFetchedAt: fetchedAt,
+      }, null, 2));
+    }
     if (foundryRevisitReview) {
       // File boundary only: reset the review fixture on launch, then use the real
       // Go read/change/save operations and the production frontend unchanged.
@@ -119,7 +146,7 @@ try {
       }, null, 2));
     }
     console.log(`review data directory: ${dataDir}`);
-    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(foundryChangeReview || foundryRevisitReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: tenantRevisitReview ? '34122' : '34119' } : {}), ...(noFoundryReview ? { WAILS_SERVER_PORT: '34120', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryEmptyReview ? { WAILS_SERVER_PORT: '34121', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryRevisitReview ? { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } : {}) } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

@@ -37,6 +37,7 @@ Home画面の取得進捗モーダルは、Go サービスが通知する Wails 
 
 - Azure SDK の呼び出しは Go 側のサービスに限り、フロントエンドは Azure へ直接接続しない。
 - ログイン状態はメモリで保持する。アカウント識別情報は `go-keyring` で OS のクレデンシャルマネージャーの汎用資格情報 `AzFoundryDeck:AuthenticationRecord` に、トークンは `azidentity/cache` の永続キャッシュ（名前 `azfoundrydeck`、Windows では DPAPI 暗号化ファイル）に保存する。保存手段の根拠は [確認した事実](project.md#design) を参照する。
+- 失敗は、エラーコードと理由を利用者に表示する。表示形式と表示場所は [エラーの表示](design/UCP-1.md#エラーの表示) に従う。
 - デプロイモデルの閲覧で取得した Foundry の一覧、選択済みの Foundry、選択された Foundry の全デプロイ済みモデルをファイルに保存し、Foundry を変更しても変更前のモデルを保持する。保存形式と保存先は [データ設計](design/data.md#foundry-とデプロイモデル) を参照する。
 
 現在の設計が満たすべき制約と適用範囲を記述します。第1〜3節で表せる構成や責務は各節へ集約します。外部仕様に依存する場合は [確認した事実](project.md#design) を参照します。

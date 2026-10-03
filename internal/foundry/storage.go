@@ -86,6 +86,9 @@ func saveJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
 	file, err := os.CreateTemp(filepath.Dir(path), ".foundry-state-*.tmp")
 	if err != nil {
 		return err

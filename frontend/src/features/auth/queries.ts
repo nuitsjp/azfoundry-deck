@@ -37,3 +37,16 @@ export function useSelectTenant() {
     onSuccess: (status) => client.setQueryData(statusKey, status),
   });
 }
+
+export const changeTenantKey = ['tenant', 'change'] as const;
+export function useChangeTenant() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: changeTenantKey,
+    mutationFn: (tenantId: string) => Auth.ChangeTenant(tenantId),
+    onSuccess: (status) => {
+      client.removeQueries({ queryKey: ['foundry'] });
+      client.setQueryData(statusKey, status);
+    },
+  });
+}

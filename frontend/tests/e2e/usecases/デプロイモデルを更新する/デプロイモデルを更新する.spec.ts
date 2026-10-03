@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 import type { InitialFoundryView } from '../../../../src/features/foundry/models';
@@ -17,26 +17,20 @@ const development = {
   subscriptionName: 'Contoso Development',
   resourceGroupName: 'rg-ai-development',
 };
-const research = {
-  id: '/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research',
-  name: 'contoso-foundry-research',
-  subscriptionName: 'Contoso Research',
-  resourceGroupName: 'rg-ai-research',
-};
-// Saved only: the e2e fixed source no longer returns it.
-const legacy = {
-  id: '/subscriptions/review-legacy/resourceGroups/rg-ai-legacy/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-legacy',
-  name: 'contoso-foundry-legacy',
-  subscriptionName: 'Contoso Legacy',
-  resourceGroupName: 'rg-ai-legacy',
-};
-const savedFoundries = [production, development, legacy];
-const refreshedFoundries = [production, development, research];
+const foundries = [production, development];
 const savedModels = [
   ['saved-production-chat', 'saved-production-model', 'saved-version-1'],
   ['saved-production-embedding', 'saved-embedding-model', 'saved-version-2'],
 ];
-const legacyModels = [['legacy-chat', 'legacy-model', 'legacy-version']];
+const developmentModels = [
+  ['saved-development-chat', 'saved-development-model', 'saved-version-3'],
+];
+// The e2e fixed source returns these for Production.
+const fetchedModels = [
+  ['chat-production', 'gpt-4.1', '2025-04-14'],
+  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
+  ['embeddings', 'text-embedding-3-large', '1'],
+];
 const deployments = (foundry: { id: string }, models: string[][]) =>
   models.map(([deploymentName, modelName, version]) => ({
     id: `${foundry.id}/deployments/${deploymentName}`,
@@ -46,7 +40,7 @@ const deployments = (foundry: { id: string }, models: string[][]) =>
   }));
 const savedAt = '2001-02-03T13:05:06+09:00';
 const original: InitialFoundryView = {
-  foundries: savedFoundries,
+  foundries,
   selectedFoundryId: production.id,
   deployments: deployments(production, savedModels),
   foundriesFetchedAt: savedAt,
@@ -61,10 +55,10 @@ const displayed = (value: string) => {
   return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
 };
 
-// Every source stage waits for its release file, so each progress state is observable.
+// Model acquisition waits for its release file; discovery is never released.
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
-test('Foundry一覧を更新する', async ({ page, app }) => {
+test('デプロイモデルを更新する', async ({ page, app }) => {
   const viewDir = join(
     app.dataDir,
     'azure-views',
@@ -79,18 +73,14 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
       'foundry-models',
       `${createHash('sha256').update(foundry.id).digest('hex')}.json`,
     );
-  const savedModelFile = (models: string[][], foundry: { id: string }) =>
+  const savedModelFile = (foundry: { id: string }, models: string[][]) =>
     JSON.stringify({ fetchedAt: savedAt, deployments: deployments(foundry, models) }, null, 2) +
     '\n';
-  const productionText = savedModelFile(savedModels, production);
-  const release = (stage: string) =>
-    writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
-  const prepare = (view: InitialFoundryView) => {
-    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-    writeFileSync(stateFile, JSON.stringify(view));
-    writeFileSync(modelFile(production), productionText);
-    writeFileSync(modelFile(legacy), savedModelFile(legacyModels, legacy));
-  };
+  const fileIdentity = (path: string) => ({
+    text: readFileSync(path, 'utf8'),
+    mtimeMs: statSync(path).mtimeMs,
+  });
+  let developmentFile: ReturnType<typeof fileIdentity>;
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -100,12 +90,11 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
     });
   });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const refresh = page.getByRole('button', { name: 'Foundry一覧を更新' });
+  const refreshFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
+  const refresh = page.getByRole('button', { name: 'モデルを更新' });
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const subscriptionRows = dialog.locator(
-    'table[aria-label="サブスクリプションの取得状況"] tbody tr',
-  );
+  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを更新しています' });
+  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
   const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
   const modelsFetched = page.getByText(/件・最終取得 /);
@@ -117,7 +106,7 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   };
   const readState = () => JSON.parse(readFileSync(stateFile, 'utf8')) as InitialFoundryView;
 
-  await test.step('分岐条件', async () => {
+  await test.step('開始条件', async () => {
     writeFileSync(
       join(app.dataDir, 'e2e-authentication-record.json'),
       JSON.stringify({
@@ -131,29 +120,39 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    prepare(original);
+    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
+    writeFileSync(stateFile, JSON.stringify(original));
+    writeFileSync(modelFile(production), savedModelFile(production, savedModels));
+    writeFileSync(modelFile(development), savedModelFile(development, developmentModels));
+    const oldTime = new Date('2001-02-03T04:05:06Z');
+    utimesSync(modelFile(development), oldTime, oldTime);
+    developmentFile = fileIdentity(modelFile(development));
     await app.restart();
     await page.goto(app.url);
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(selected).toHaveText(label(production));
     await assertModels(savedModels);
-    await expect(foundriesFetched).toHaveText(`Foundry一覧の最終取得 ${displayed(savedAt)}`);
     await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
     await refresh.hover();
-    await expect(page.getByRole('tooltip')).toHaveText('Foundry一覧を更新');
+    await expect(page.getByRole('tooltip')).toHaveText('モデルを更新');
     expect(snapshots).toEqual([]);
   });
 
   await test.step('手順1', async () => {
     await refresh.click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('発見 0 件', { exact: true })).toBeVisible();
+    await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
+    await expect(modelStatus).toContainText('取得中');
+    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(saveStatus).toContainText('待機中');
+    await expect(dialog.getByRole('table')).toHaveCount(0);
+    await expect(dialog.getByText(/サブスクリプション|Foundry取得中/)).toHaveCount(0);
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
     await expect(dialog).toBeVisible();
     await expect(selected).toBeDisabled();
+    await expect(refreshFoundries).toBeDisabled();
     await expect(refresh).toBeDisabled();
     await expect(selected).toHaveText(label(production));
     await assertModels(savedModels);
@@ -161,71 +160,71 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   });
 
   await test.step('手順2', async () => {
-    release('discovery');
-    await expect(subscriptionRows).toHaveCount(3);
-    await expect(subscriptionRows.nth(0)).toContainText(production.subscriptionName);
-    await expect(subscriptionRows.nth(0)).toContainText('待機中');
-    release('start');
-    await expect(dialog.getByText('サブスクリプションの検索完了', { exact: true })).toBeVisible();
-    await expect(subscriptionRows.filter({ hasText: 'Foundry取得中' })).toHaveCount(3);
-    release('second');
-    await expect(subscriptionRows).toHaveCount(2);
-    await expect(subscriptionRows.filter({ hasText: development.subscriptionName })).toHaveCount(0);
-    await expect(dialog.getByText('完了 1 / 発見 3 件', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('デプロイモデルの取得', { exact: true })).toHaveCount(0);
-    await expect(saveStatus).toContainText('待機中');
-    expect(readState()).toEqual(original);
+    writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+    await expect(dialog).toHaveCount(0);
+    const counted = snapshots.findIndex(
+      (snapshot) => snapshot.modelPhase === 'running' && snapshot.modelCount === 3,
+    );
+    const completed = snapshots.findIndex(
+      (snapshot) => snapshot.modelPhase === 'completed' && snapshot.modelCount === 3,
+    );
+    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
+    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
+    expect(counted).toBeGreaterThan(0);
+    expect(completed).toBeGreaterThan(counted);
+    expect(saving).toBeGreaterThan(completed);
+    expect(saved).toBeGreaterThan(saving);
   });
 
   await test.step('手順3', async () => {
-    release('remaining');
-    await expect(dialog).toHaveCount(0);
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
-    expect(saving).toBeGreaterThan(0);
-    expect(saved).toBeGreaterThan(saving);
     const state = readState();
-    expect(state).toEqual({
-      ...original,
-      foundries: refreshedFoundries,
-      foundriesFetchedAt: expect.any(String),
-    });
-    expect(state.foundriesFetchedAt).not.toBe(savedAt);
-    await expect(foundriesFetched).toHaveText(
-      `Foundry一覧の最終取得 ${displayed(state.foundriesFetchedAt)}`,
-    );
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
     await expect(selected).toBeEnabled();
     await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
-  });
-
-  await test.step('手順4', async () => {
-    await selected.click();
-    await expect(page.getByRole('option')).toHaveText(refreshedFoundries.map(label));
-    await expect(page.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
-    for (const option of await page.getByRole('option').all()) await expect(option).toBeVisible();
-    await page.keyboard.press('Escape');
+    await assertModels(fetchedModels);
+    await expect(modelsFetched).toHaveText(
+      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+    );
+    await expect(foundriesFetched).toHaveText(`Foundry一覧の最終取得 ${displayed(savedAt)}`);
   });
 
   await test.step('受け入れ条件', async () => {
-    // Kept selection: no model acquisition, its model file untouched, removed Foundry's file deleted.
     for (const snapshot of snapshots) {
-      expect(snapshot.selectedFoundryName).toBe('');
-      expect(snapshot.modelPhase).toBe('waiting');
+      expect(snapshot.subscriptionSearch).toBe('completed');
+      expect(snapshot.subscriptions).toEqual([]);
+      expect(snapshot.selectedFoundryName).toBe(production.name);
     }
-    expect(readFileSync(modelFile(production), 'utf8')).toBe(productionText);
-    expect(existsSync(modelFile(legacy))).toBe(false);
-    const refreshed = readState();
+    const state = readState();
+    expect(state).toEqual({
+      ...original,
+      deployments: deployments(production, fetchedModels),
+      deploymentsFetchedAt: expect.any(String),
+    });
+    expect(state.deploymentsFetchedAt).not.toBe(savedAt);
+    expect(JSON.parse(readFileSync(modelFile(production), 'utf8'))).toEqual({
+      fetchedAt: state.deploymentsFetchedAt,
+      deployments: state.deployments,
+    });
+    expect(fileIdentity(modelFile(development))).toEqual(developmentFile);
+
     await app.restart();
     await page.goto(app.url);
     await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
-    await expect(foundriesFetched).toHaveText(
-      `Foundry一覧の最終取得 ${displayed(refreshed.foundriesFetchedAt)}`,
+    await assertModels(fetchedModels);
+    await expect(modelsFetched).toHaveText(
+      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
     );
 
-    await expect(modelsFetched).toHaveText(`2 件・最終取得 ${displayed(savedAt)}`);
-    expect(readState()).toEqual(refreshed);
+    // Switching away and back restores the refreshed models from their file.
+    await selected.click();
+    await page.getByRole('option', { name: label(development), exact: true }).click();
+    await expect(selected).toHaveText(label(development));
+    await assertModels(developmentModels);
+    await selected.click();
+    await page.getByRole('option', { name: label(production), exact: true }).click();
+    await expect(selected).toHaveText(label(production));
+    await assertModels(fetchedModels);
+    await expect(modelsFetched).toHaveText(
+      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+    );
   });
 });

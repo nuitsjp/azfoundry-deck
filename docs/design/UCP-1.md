@@ -4,8 +4,8 @@
 
 | 役割 | 責務 | 実装パス |
 | --- | --- | --- |
-| 画面 | ボタンと状態（未ログイン・サインイン待ち・ログイン済み・失敗）の表示、ユーザーアイコンのメニューからのログアウト | `frontend/src/usecases/azure-login/AzureLogin.tsx`、`frontend/src/usecases/azure-logout/AccountMenu.tsx`、`frontend/src/features/auth/queries.ts` |
-| Go サービス | ログインの実行、保存済み認証記録・テナント一覧・選択からの起動時復元、ログアウト、ログイン状態の保持、認証記録・テナント一覧・選択の同一 JSON での保存・読み出し・削除、永続キャッシュのファイル削除 | `internal/azauth/service.go`、`internal/azauth/login_record.go`、`internal/azauth/credential_manager.go`、`internal/azauth/token_cache_windows.go`、`record_store.go` |
+| 画面 | ボタンと状態（未ログイン・サインイン待ち・ログイン済み・失敗）の表示、ユーザーアイコンのメニューからのログアウト、ヘッダーのテナントプルダウンからのテナント変更の呼び出しと失敗バナーの表示 | `frontend/src/usecases/azure-login/AzureLogin.tsx`、`frontend/src/routes/index.tsx`、`frontend/src/shared/ErrorNotice.tsx`、`frontend/src/usecases/azure-logout/AccountMenu.tsx`、`frontend/src/features/auth/queries.ts` |
+| Go サービス | ログインの実行、保存済み認証記録・テナント一覧・選択からの起動時復元、ログイン済みでのテナント変更（変更先のトークン取得と選択保存）、ログアウト、ログイン状態の保持、認証記録・テナント一覧・選択の同一 JSON での保存・読み出し・削除、永続キャッシュのファイル削除 | `internal/azauth/service.go`、`internal/azauth/login_record.go`、`internal/azauth/credential_manager.go`、`internal/azauth/token_cache_windows.go`、`record_store.go` |
 | 起動時の接続 | アカウントと選択テナントに応じた閲覧保存先の決定、ログアウト時の全閲覧保存先と旧保存先の削除 | `main.go` |
 | Azure SDK | `azidentity` によるブラウザー認証、トークン取得と永続キャッシュへの保存、永続キャッシュからのブラウザーを開かないトークン取得、ARM からのテナント一覧取得 | `internal/azauth/browser.go` |
 | Home画面 | ログイン済みでの閲覧要求、検索・Foundry取得・モデル取得・保存の進捗モーダル、Foundry の選択変更と Foundry 一覧・デプロイモデルの更新、プルダウンとデプロイ済みモデル・最終取得日時の表示、取得結果のメモリ保持 | `frontend/src/routes/index.tsx`、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx`、`frontend/src/usecases/initial-deployments/AcquisitionProgressModal.tsx`、`frontend/src/features/foundry/initial-view.ts`、`frontend/src/features/foundry/change-view.ts`、`frontend/src/features/foundry/refresh-view.ts`、`frontend/src/features/foundry/refresh-deployments.ts`、`frontend/src/features/foundry/progress.ts` |
@@ -141,11 +141,11 @@ Go サービスはログイン済みを確認し、`foundry-state.json` に保�
 
 ## Foundry一覧を更新する
 
-この処理は、[Foundry一覧を更新する](../usecases/デプロイモデルを閲覧する/scenarios/Foundry一覧を更新する.md)と[Foundry一覧の更新で選択先が変わる](../usecases/デプロイモデルを閲覧する/scenarios/Foundry一覧の更新で選択先が変わる.md)の両シナリオで共用する。
+この処理は、[Foundry一覧を更新する](../usecases/Foundry一覧を更新する/scenarios/Foundry一覧を更新する.md)と[Foundry一覧の更新で選択先が変わる](../usecases/Foundry一覧を更新する/scenarios/Foundry一覧の更新で選択先が変わる.md)の両シナリオで共用する。
 
 画面は `frontend/src/features/foundry/refresh-view.ts` から `Service.RefreshFoundries` を呼ぶ。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。
 
-Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んだ後、初回閲覧と同じ `Source.Discover` でサブスクリプション検索と Foundry 一覧の全ページ取得を行い、検索・サブスクリプションごとの進捗を通知する。一覧が空なら失敗とする。選択中の Foundry が更新後の一覧に含まれる場合は選択とモデルを維持し、モデルを取得しない。含まれない場合は一覧の最初の Foundry を選択し、`Source.Deployments` で全ページを取得して、選択先の名称・モデル取得状態・累積件数を通知する。
+Go サービスはログイン済みを確認し、`foundry-state.json` を読み込んだ後、初回閲覧と同じ `Source.Discover` でサブスクリプション検索と Foundry 一覧の全ページ取得を行い、検索・サブスクリプションごとの進捗を通知する。一覧が空の場合は、[Foundryが存在しない状態へ一覧を更新する](#foundryが存在しない状態へ一覧を更新する) の扱いに従う。選択中の Foundry が更新後の一覧に含まれる場合は選択とモデルを維持し、モデルを取得しない。含まれない場合は一覧の最初の Foundry を選択し、`Source.Deployments` で全ページを取得して、選択先の名称・モデル取得状態・累積件数を通知する。
 
 保存中を通知した後、選択し直した場合だけそのモデルファイルを保存し、更新後の一覧に含まれない Foundry のモデルファイルを削除して、最後に一覧・選択・モデル・取得日時を `foundry-state.json` に保存する。保存成功後に完了を通知して結果を返す。読み込み・取得・保存・削除のいずれかが失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返し、固定データや保存済みファイルへのフォールバックは行わない。取得日時の設定時点と保存形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
@@ -184,3 +184,48 @@ Go サービスはログイン済みを確認し、`foundry-state.json` を読�
 `AcquisitionProgressModal` は `deployments` の表示で題名を「デプロイモデルを更新しています」とし、モデル取得と保存の行だけを表示する。処理中は元のモデルを維持し、プルダウンと両方の更新ボタンを無効にする。成功後に React Query の閲覧結果を置き換える。
 
 画面確認用構成は Foundry一覧の更新と同じ保存済みファイル（Production のモデル2件）を用意し、外部取得の `foundry.Source` だけを E2E 用の固定応答（Production のモデル3件）に差し替える。モデル取得・ファイル保存・進捗表示は本番と同じ処理を通す。実 Azure のモデル取得の検証には使わない。
+
+## テナントを変更し初回閲覧する
+
+画面は、ヘッダーのテナントプルダウンで現在と異なるテナントが選ばれたときだけ `features/auth/queries.ts` の `useChangeTenant` から `Service.ChangeTenant` にテナント ID を渡す。同じテナントを選んだ場合は呼び出さない。呼び出し中は `changeTenantKey` のミューテーションとして扱い、プルダウンと、Home の Foundry 変更・Foundry 一覧の更新・モデルの更新の各操作を無効にする。失敗は `routes/index.tsx` が `ErrorNotice` のバナーとしてページ本文の先頭に表示し、右上の「×」で閉じる。
+
+Go サービスはログイン済みであることを確認し、同じテナントなら現在の状態をそのまま返す。異なるテナントなら、保存済みのテナント一覧に含まれることを確認し、変更先の選択を持つ認証記録でトークンをブラウザーを開かずに取得してから、その認証記録を保存する。トークン取得と保存の両方に成功した後にだけメモリ上の状態を更新する。失敗時は変更前の選択と状態を維持し、`SELECT_TENANT_FAILED` を返す。無効なテナント ID は `INVALID_TENANT`、ログイン前は `NOT_SIGNED_IN` を返す。
+
+成功後、画面は React Query の Foundry 関連の結果を破棄して状態を置き換える。Home は既存の Foundry の初回閲覧を、変更先のアカウント・テナントの閲覧保存先に対して行う。保存済みの閲覧結果がなければ、既存の初回取得と進捗モーダルを使う。変更前のテナントの閲覧保存先は変更しない。閲覧に失敗した場合の表示は既存の `FOUNDRY_LOAD_FAILED` に従う。保存済みの閲覧結果がある場合の処理は、別の拡張で扱う。
+
+画面確認用の E2E ビルドでは、トークン取得と一覧取得の外部境界だけを固定応答に差し替える。確認用起動 `server:review:tenant-change` は、テナント3件（Contoso、Fabrikam、Northwind）の認証記録を置く。実 Azure でのトークン取得は検証対象に含めない。
+
+## Foundryが存在しない状態で初回閲覧する
+
+初回閲覧の取得は、サブスクリプションの検索と Foundry の取得が成功し、参照可能な Foundry が1件もなかった場合を、エラーにせず正常な結果として扱う。Go サービスの `acquire` は、一覧の取得が終わるまで最初の Foundry が見つからなかったことを、選択先がない結果（エラーなし）としてモデル取得側へ伝える。モデル取得側はモデルを取得せず、モデルファイルも保存しない。空の一覧、選択なし（`selectedFoundryId` は空文字列）、空のモデル、一覧の取得日時だけを `foundry-state.json` に保存し、保存の成功後に結果を返す。取得または保存に失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返す。
+
+画面は、`foundries` が空の結果を受け取ると、特別な案内を出さず、選択なしの Foundry のプルダウン（選択肢なし）と、空のデプロイ済みモデルの一覧（0 件）を表示する。選択中の Foundry がないため「モデルを更新」ボタンは無効にし、モデルの最終取得日時は表示しない。「Foundry一覧を更新」ボタンと Foundry 一覧の最終取得日時は通常どおり表示する。進捗モーダルは通常の初回閲覧と同じ表示とする。保存済みの結果から再閲覧する場合も、同じ表示になり、取得し直さない。
+
+画面確認用の E2E ビルドでは、外部取得の `foundry.Source` だけを固定応答に差し替える。`AZFOUNDRYDECK_E2E_FOUNDRIES=none` のとき、検索はサブスクリプション1件を処理して Foundry を返さない。保存・読み込み・表示は本番と同じ処理を通す。「Foundry一覧を更新」で再取得した結果が0件の場合の扱いは、別の拡張シナリオで定める。現状は既存の `FOUNDRY_LOAD_FAILED` を返す。
+
+## Foundryが存在しない状態へ一覧を更新する
+
+Foundry 一覧の更新で、サブスクリプションの検索と Foundry の取得が成功し、参照可能な Foundry が1件もなかった場合は、エラーにせず正常な結果として扱う。Go サービスの `refresh` は、更新後の一覧を空にし、選択を空文字列、モデルを空、モデルの取得日時を空文字列にして、モデルを取得しない。保存済みのすべての Foundry のモデルファイルを削除し、空の一覧と一覧の取得日時を `foundry-state.json` に保存した後、結果を返す。取得・削除・保存のいずれかが失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返し、保存が成功するまで更新前の一覧・選択・モデルを維持する。保存形式は [データ設計](data.md#foundry-とデプロイモデル) の0件の場合と同じである。
+
+画面は、既存の更新と同じ進捗モーダルを使い、選択先がないためモデル取得の欄を表示しない。成功後は React Query の結果を空の一覧で置き換え、[0件の初回閲覧](#foundryが存在しない状態で初回閲覧する) と同じ表示にする。
+
+画面確認用の E2E ビルドでは、外部取得の `foundry.Source` だけを固定応答に差し替える。確認用起動 `server:review:foundry-empty` は、保存済みの Foundry 3件と一部のモデルファイルを用意し、`AZFOUNDRYDECK_E2E_FOUNDRIES=none` により更新の取得結果を0件にする。
+
+## テナントを変更し再閲覧する
+
+テナントの変更の呼び出しと、変更先のトークン取得・選択保存は、[テナントを変更し初回閲覧する](#テナントを変更し初回閲覧する) と同じである。成功後に React Query の Foundry 関連の結果を破棄すると、Home は既存の再閲覧と同じく、変更先のアカウント・テナントの閲覧保存先の `foundry-state.json` を読み込む。ファイルが存在して読み込みに成功すれば、保存された Foundry 一覧・選択・モデルをそのまま表示し、外部取得の `foundry.Source` を作らず、進捗イベントを通知せず、再保存もしない。保存された選択を維持し、最初の Foundry には変更しない。変更前のテナントの閲覧保存先は変更しない。読み込みや復元に失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返す。
+
+画面確認用の E2E ビルドでは、トークン取得と一覧取得の外部境界だけを固定応答に差し替える。確認用起動 `server:review:tenant-revisit` は、`Fabrikam` の閲覧保存先に、Foundry 2件（2件目を選択）と、固定応答にないモデル2件を用意する。
+
+## エラーの表示
+
+Go サービスが返す失敗は、`fault` の公開形式（エラーコードと理由）で画面に渡り、画面は `shared/errors.ts` の `publicError` で `code` と `message` を取り出す。画面は、コードと理由の両方を必ず表示し、内部の原因（`cause`）は表示しない。原因は診断ログにだけ記録する。失敗した操作は、変更前の状態と表示を維持する。
+
+| 失敗が起きる場所 | 表示形式 | 閉じ方 |
+| --- | --- | --- |
+| Home画面の操作（テナントの変更、Foundry の変更、Foundry 一覧・モデルの更新） | ページ本文の先頭に、赤いバナー（`ErrorNotice`）を表示する。見出しにコード、本文に理由を表示する | 右上の「×」のみで閉じる。同じ操作が成功すると自動で消える |
+| Home画面の読み込み（初回閲覧、再閲覧） | 同じバナーを本文の先頭に表示する。「×」は付けない | 再読み込みまたは再実行で消える |
+| ログイン・テナント選択のモーダル、ユーザーアイコンのメニュー | その入れ物の中に、`コード: 理由` を1行の小さな赤字で表示する。バナーにはしない | 再試行で消える |
+| 利用者のキャンセル（`CANCELLED`） | バナーの色を灰色にする | 他のバナーと同じ |
+
+バナーは1箇所のコンポーネント `ErrorNotice` に集約し、画面ごとに独自の見た目を作らない。

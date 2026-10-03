@@ -66,6 +66,22 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-foundry-revisit
+  server:review:tenant-revisit:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-tenant-revisit
+  server:review:foundry-empty:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-foundry-empty
+  server:review:no-foundry:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-no-foundry
+  server:review:tenant-change:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-tenant-change
   server:
     cmds:
       - task: build:server

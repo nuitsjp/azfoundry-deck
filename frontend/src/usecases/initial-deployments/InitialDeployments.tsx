@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActionIcon,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   useCombobox,
 } from '@mantine/core';
+import { changeTenantKey } from '../../features/auth/queries';
 import { changeFoundry } from '../../features/foundry/change-view';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
@@ -73,7 +74,8 @@ export function InitialDeployments() {
     mutationFn: () => refreshDeployments(setModelsProgress),
     onSuccess: (view) => client.setQueryData(['foundry', 'initial-view'], view),
   });
-  const busy = change.isPending || refresh.isPending || refreshModels.isPending;
+  const changingTenant = useIsMutating({ mutationKey: changeTenantKey }) > 0;
+  const busy = change.isPending || refresh.isPending || refreshModels.isPending || changingTenant;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view)
@@ -83,8 +85,9 @@ export function InitialDeployments() {
         <ErrorNotice error={initial.error} />
       </>
     );
-  const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId)!;
-  const label = foundryLabel(selected);
+  // With no Foundry, nothing is selected and the dropdown and the models are empty.
+  const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId);
+  const label = selected ? foundryLabel(selected) : '';
 
   return (
     <Stack gap="lg">
@@ -109,7 +112,14 @@ export function InitialDeployments() {
           mode="deployments"
         />
       )}
-      <ErrorNotice error={change.error || refresh.error || refreshModels.error} />
+      <ErrorNotice
+        error={change.error || refresh.error || refreshModels.error}
+        onClose={() => {
+          change.reset();
+          refresh.reset();
+          refreshModels.reset();
+        }}
+      />
       <Stack gap={6}>
         <Group gap="xs" align="flex-end" wrap="nowrap">
           <Combobox
@@ -196,7 +206,7 @@ export function InitialDeployments() {
             <ActionIcon
               variant="default"
               aria-label="モデルを更新"
-              disabled={busy}
+              disabled={busy || !selected}
               onClick={() => {
                 setModelsProgress(null);
                 refreshModels.mutate();
@@ -206,7 +216,8 @@ export function InitialDeployments() {
             </ActionIcon>
           </Tooltip>
           <Text size="xs" c="dimmed">
-            {view.deployments.length} 件・最終取得 {fetchedAt(view.deploymentsFetchedAt)}
+            {view.deployments.length} 件
+            {view.deploymentsFetchedAt && `・最終取得 ${fetchedAt(view.deploymentsFetchedAt)}`}
           </Text>
         </Group>
         <Table.ScrollContainer minWidth={480}>

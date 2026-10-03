@@ -101,7 +101,7 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     }
   };
 
-  await test.step('分岐条件', async () => {
+  await test.step('開始条件', async () => {
     writeFileSync(
       join(app.dataDir, 'e2e-authentication-record.json'),
       JSON.stringify({
