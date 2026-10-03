@@ -5,6 +5,8 @@ import type {
   ModelCatalogItem,
   ModelSKUItem,
   DeploymentCreateSpec,
+  DeploymentSettings,
+  DeploymentUpdateSpec,
   InitialFoundryView as BoundInitialView,
 } from '@bindings/azfoundrydeck/internal/foundry/models';
 
@@ -15,6 +17,8 @@ export type {
   ModelCatalogItem,
   ModelSKUItem,
   DeploymentCreateSpec,
+  DeploymentSettings,
+  DeploymentUpdateSpec,
 };
 
 // A successful Go response always initializes both slices, including empty deployments.

@@ -87,7 +87,7 @@ export function AcquisitionProgressModal({
 }: {
   opened: boolean;
   progress: FoundryProgress;
-  mode?: 'initial' | 'change' | 'refresh' | 'deployments' | 'delete' | 'deploy';
+  mode?: 'initial' | 'change' | 'refresh' | 'deployments' | 'delete' | 'deploy' | 'update';
 }) {
   const modelsOnly = mode !== 'initial' && mode !== 'refresh';
 
@@ -113,7 +113,9 @@ export function AcquisitionProgressModal({
                   ? 'Deleting deployment'
                   : mode === 'deploy'
                     ? 'Deploying model'
-                    : 'Loading deployments'}
+                    : mode === 'update'
+                      ? 'Updating deployment'
+                      : 'Loading deployments'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -125,7 +127,15 @@ export function AcquisitionProgressModal({
             </Step>
           )}
           <Step
-            label={mode === 'delete' ? 'Delete' : mode === 'deploy' ? 'Deploy' : 'Deployments'}
+            label={
+              mode === 'delete'
+                ? 'Delete'
+                : mode === 'deploy'
+                  ? 'Deploy'
+                  : mode === 'update'
+                    ? 'Update'
+                    : 'Deployments'
+            }
             phase={progress.modelPhase as AcquisitionPhase}
             bordered={!modelsOnly}
           >
@@ -134,7 +144,7 @@ export function AcquisitionProgressModal({
                 <Text size="sm" truncate="end" title={progress.selectedFoundryName}>
                   {progress.selectedFoundryName}
                 </Text>
-                {mode !== 'delete' && mode !== 'deploy' && (
+                {mode !== 'delete' && mode !== 'deploy' && mode !== 'update' && (
                   <Text size="sm" c="dimmed">
                     {progress.modelCount} models
                   </Text>

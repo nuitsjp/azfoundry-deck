@@ -73,6 +73,7 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 	}
 	deployments = slices.DeleteFunc(deployments, func(deployment Deployment) bool { return deleted.has(deployment.ID) })
 	deployments = append(deployments, created.get(foundry.ID)...)
+	deployments = patched.apply(deployments)
 	report(len(deployments))
 	return deployments, ctx.Err()
 }
@@ -133,13 +134,25 @@ func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deploy
 		capacityMaximum = 80000
 		policy = "NoAutoUpgrade"
 	}
-	return DeploymentDetail{
+	detail := DeploymentDetail{
 		ID: deployment.ID, DeploymentName: deployment.DeploymentName,
 		ModelName: deployment.ModelName, Version: deployment.Version,
 		SKUName: &sku, Capacity: &capacity, CapacityMaximum: &capacityMaximum,
 		CapacityUnit: &capacityUnit, ProvisioningState: &state,
 		VersionUpgradePolicy: &policy,
-	}, ctx.Err()
+	}
+	if patch, ok := patched.get(deployment.ID); ok {
+		if patch.Version != "" {
+			detail.Version = patch.Version
+		}
+		if patch.Capacity != nil {
+			detail.Capacity = patch.Capacity
+		}
+		if patch.Policy != "" {
+			detail.VersionUpgradePolicy = &patch.Policy
+		}
+	}
+	return detail, ctx.Err()
 }
 
 // created remembers deployments created through the fixed source.
@@ -317,5 +330,110 @@ func (fixedSource) CreateDeployment(ctx context.Context, foundry Foundry, spec D
 		ModelName:      spec.ModelName,
 		Version:        spec.Version,
 	})
+	return ctx.Err()
+}
+
+// patched remembers deployment setting changes so later list and detail fetches return them.
+var patched = patchStore{items: map[string]deploymentPatch{}}
+
+type deploymentPatch struct {
+	Version  string
+	Capacity *float64
+	Policy   string
+}
+
+type patchStore struct {
+	mu    sync.Mutex
+	items map[string]deploymentPatch
+}
+
+func (p *patchStore) get(id string) (deploymentPatch, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	patch, ok := p.items[id]
+	return patch, ok
+}
+
+func (p *patchStore) set(id string, patch deploymentPatch) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.items[id] = patch
+}
+
+func (p *patchStore) apply(deployments []Deployment) []Deployment {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for i := range deployments {
+		patch, ok := p.items[deployments[i].ID]
+		if ok && patch.Version != "" {
+			deployments[i].Version = patch.Version
+		}
+	}
+	return deployments
+}
+
+func (fixedSource) DeploymentSettings(ctx context.Context, foundry Foundry, deployment Deployment) (DeploymentSettings, error) {
+	if err := waitForRelease(ctx, "update-settings"); err != nil {
+		return DeploymentSettings{}, err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "update-settings" {
+		return DeploymentSettings{}, fmt.Errorf("simulated deployment settings retrieval failure")
+	}
+	sku := "GlobalStandard"
+	capacity := float64(50000)
+	capacityMaximum := float64(160000)
+	capacityUnit := "TPM"
+	policy := "OnceNewDefaultVersionAvailable"
+	versions := []string{"2025-04-14", "2024-11-20"}
+	switch deployment.ModelName {
+	case "gpt-4.1-mini":
+		capacity = 100000
+		capacityMaximum = 250000
+		policy = "OnceCurrentVersionExpired"
+		versions = []string{"2025-04-14", "2024-07-18"}
+	case "text-embedding-3-large":
+		sku = "Standard"
+		capacity = 20000
+		capacityMaximum = 80000
+		policy = "NoAutoUpgrade"
+		versions = []string{"1", "2"}
+	}
+	settings := DeploymentSettings{
+		DeploymentID: deployment.ID, DeploymentName: deployment.DeploymentName,
+		ModelName: deployment.ModelName, SKUName: sku, Option: "Standard",
+		Version: deployment.Version, Versions: versions,
+		Capacity: &capacity, CapacityMaximum: &capacityMaximum, CapacityUnit: &capacityUnit,
+		UpgradePolicy: policy,
+	}
+	if patch, ok := patched.get(deployment.ID); ok {
+		if patch.Version != "" {
+			settings.Version = patch.Version
+		}
+		if patch.Capacity != nil {
+			settings.Capacity = patch.Capacity
+		}
+		if patch.Policy != "" {
+			settings.UpgradePolicy = patch.Policy
+		}
+	}
+	if !slices.Contains(settings.Versions, settings.Version) {
+		settings.Versions = append([]string{settings.Version}, settings.Versions...)
+	}
+	return settings, ctx.Err()
+}
+
+func (fixedSource) UpdateDeployment(ctx context.Context, foundry Foundry, deployment Deployment, spec DeploymentUpdateSpec) error {
+	if err := waitForRelease(ctx, "update"); err != nil {
+		return err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "update" {
+		return fmt.Errorf("simulated deployment update failure")
+	}
+	var capacity *float64
+	if spec.Capacity != nil {
+		value := float64(*spec.Capacity)
+		capacity = &value
+	}
+	patched.set(deployment.ID, deploymentPatch{Version: spec.Version, Capacity: capacity, Policy: spec.UpgradePolicy})
 	return ctx.Err()
 }

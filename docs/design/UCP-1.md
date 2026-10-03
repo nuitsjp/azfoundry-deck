@@ -237,11 +237,19 @@ sequenceDiagram
 
 ## 一覧からデプロイモデルを削除する
 
-明細（右側）の下部右端に置く Delete アイコンボタン（デプロイ名と同じ高さの右端には仮の Edit アイコンボタンを配置）は、確認ダイアログで選択中の Foundry 名とデプロイ名を示し、利用者が「Delete」を押したときだけ `frontend/src/features/foundry/delete-deployment.ts` から Go サービスの `DeleteDeployment` を呼ぶ。キャンセルでは何も呼ばない。実行中は `AcquisitionProgressModal` の `mode="delete"`（「Deleting deployment」、「Delete」の1行に削除対象のデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。
+明細（右側）の下部右端に置く Delete アイコンボタンは、確認ダイアログで選択中の Foundry 名とデプロイ名を示し、利用者が「Delete」を押したときだけ `frontend/src/features/foundry/delete-deployment.ts` から Go サービスの `DeleteDeployment` を呼ぶ。キャンセルでは何も呼ばない。実行中は `AcquisitionProgressModal` の `mode="delete"`（「Deleting deployment」、「Delete」の1行に削除対象のデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。デプロイ名と同じ高さの右端の Edit deployment は [設定変更](#一覧からデプロイモデルの設定を変更する) で使う。
 
 Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内でログイン済みの確認、保存済み一覧からの選択中の Foundry と指定デプロイの識別を行い、`DeploymentDeleteSource.DeleteDeployment` で Azure 上の削除を完了させる。成功後は既存の `acquireModels` で選択中の Foundry のモデルを取得し直し、そのモデルファイルと状態ファイルを置き換えて返す。削除が失敗した場合は何も保存せず、`DEPLOYMENT_DELETE_FAILED` を返す。画面は成功後に明細を破棄し、失敗時は一覧を変えずにエラーを表示する。
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource.DeleteDeployment` が削除の固定応答を返し、削除したデプロイの ID をプロセス内に記憶して以降のモデル取得から除く。`AZFOUNDRYDECK_E2E_FAIL=delete` で削除を失敗させ、`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-delete-release` で解放するまで削除を保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_delete.go` の `azureSource.DeleteDeployment` が Azure SDK の `armcognitiveservices.DeploymentsClient.BeginDelete` を呼び、削除完了まで待機する。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
+
+## 一覧からデプロイモデルの設定を変更する
+
+明細見出しの Edit deployment は、`frontend/src/usecases/initial-deployments/EditDeploymentModal.tsx` を開く。モーダルは `frontend/src/features/foundry/deployment-settings.ts` から `Service.GetDeploymentSettings` を呼び、取得中はモーダル内にプログレスを表示する。取得結果は `internal/foundry/update.go` の `DeploymentSettings` で、Deployment name、Model、SKU は変更できない表示とし、Version、Capacity、Upgrade policy に現在値を入れる。Cancel と × は Azure を呼ばず、変更前の一覧と明細を残して閉じる。
+
+Update は確認ダイアログを出さず、`frontend/src/features/foundry/update-deployment.ts` から `Service.UpdateDeployment` へ `DeploymentUpdateSpec` を渡す。実行中は設定モーダルの前面に `AcquisitionProgressModal` の `mode="update"`（「Updating deployment」、「Update」の1行にデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。Go サービスは既存の操作ロック内でログイン済みの確認と、保存済み一覧からの選択中の Foundry・指定デプロイの識別を行い、`DeploymentUpdateSource.UpdateDeployment` の完了後に既存の `acquireModels` で選択中 Foundry のモデルを取得し直して保存する。失敗時は何も保存せず、`DEPLOYMENT_UPDATE_FAILED` を返す。画面は成功後に両方のモーダルを閉じ、同じデプロイを選択したまま `GetDeploymentDetail` で明細を取り直す。失敗時は進捗モーダルだけを閉じ、設定モーダルの入力値を保持して同じエラーをモーダル内に表示する。設定取得の失敗も同じエラーコードで、変更は開始しない。
+
+画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が設定取得と変更の固定応答を返す。変更した Version、Capacity、Upgrade policy をプロセス内に記憶し、以降のモデル取得・明細取得・設定取得へ反映する。`AZFOUNDRYDECK_E2E_FAIL=update-settings` で設定取得を失敗させ、`AZFOUNDRYDECK_E2E_FAIL=update` で変更を失敗させる。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-update-settings-release` と `e2e-foundry-update-release` で解放するまで各呼び出しを保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_update.go` の `azureSource.DeploymentSettings` と `azureSource.UpdateDeployment` が Azure SDK を呼ぶ。設定取得は明細と同じデプロイ取得・モデル定義・共有クォータに、そのモデルのバージョン一覧を加える。一覧に現在のバージョンが無いときも、そのバージョンを選択肢に含める。容量の単位が取れないデプロイは Pay-as-you-go とし、Capacity は返さない。変更は現在のデプロイを取得し、モデル名・形式・SKU 名・RAI ポリシーを保ったまま Version、Capacity、Upgrade policy を変えて `DeploymentsClient.BeginCreateOrUpdate` で完了まで待つ。Capacity は明細に表示した値を、同じレート換算で SKU の capacity 整数へ戻す。呼び出しが失敗した場合は固定応答へ切り替わらない。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
 
 ## エラーの表示
 
