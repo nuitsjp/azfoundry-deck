@@ -112,7 +112,14 @@ export function InitialDeployments() {
           mode="deployments"
         />
       )}
-      <ErrorNotice error={change.error || refresh.error || refreshModels.error} />
+      <ErrorNotice
+        error={change.error || refresh.error || refreshModels.error}
+        onClose={() => {
+          change.reset();
+          refresh.reset();
+          refreshModels.reset();
+        }}
+      />
       <Stack gap={6}>
         <Group gap="xs" align="flex-end" wrap="nowrap">
           <Combobox
