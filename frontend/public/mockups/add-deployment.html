@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en" data-mantine-color-scheme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AzFoundryDeck - Add Deployment Design</title>
+  <style>
+    /* Mantine v8 Dark Scheme Palette */
+    :root {
+      --mantine-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --mantine-color-body: #1a1b1e;
+      --mantine-color-surface: #25262b;
+      --mantine-color-surface-hover: #2c2e33;
+      --mantine-color-border: #373a40;
+      --mantine-color-text: #c1c2c5;
+      --mantine-color-text-white: #ffffff;
+      --mantine-color-dimmed: #909296;
+      --mantine-primary-color: #228be6;
+      --mantine-primary-color-hover: #1c7ed6;
+      --mantine-primary-color-light: rgba(34, 139, 230, 0.18);
+      --mantine-primary-color-light-text: #74c0fc;
+      --mantine-color-red: #fa5252;
+      --mantine-color-green: #40c057;
+      --mantine-color-teal: #20c997;
+      --mantine-color-teal-light: rgba(32, 201, 151, 0.18);
+      --mantine-radius-sm: 4px;
+      --mantine-radius-md: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--mantine-font-family);
+      background-color: var(--mantine-color-body);
+      color: var(--mantine-color-text);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* Simulation Control Banner */
+    .sim-banner {
+      background: #141517;
+      border-bottom: 1px solid var(--mantine-color-border);
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--mantine-color-dimmed);
+    }
+    .sim-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .sim-btn {
+      background: #2c2e33;
+      color: var(--mantine-color-text);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .sim-btn:hover {
+      background: var(--mantine-color-border);
+    }
+
+    /* App Shell */
+    .app-shell {
+      display: grid;
+      grid-template-rows: 52px 1fr;
+      grid-template-columns: 200px 1fr;
+      min-height: calc(100vh - 41px);
+    }
+
+    /* Header */
+    .app-header {
+      grid-column: 1 / -1;
+      height: 52px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: #141517;
+    }
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--mantine-color-text-white);
+    }
+    .header-user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .tenant-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      font-size: 13px;
+      background: var(--mantine-color-surface);
+      color: var(--mantine-color-text);
+    }
+    .user-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #2c2e33;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mantine-color-text);
+    }
+
+    /* Navbar */
+    .app-navbar {
+      border-right: 1px solid var(--mantine-color-border);
+      padding: 12px;
+      background: #141517;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--mantine-radius-sm);
+      color: var(--mantine-primary-color-light-text);
+      background: var(--mantine-primary-color-light);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    /* Main Content */
+    .app-main {
+      padding: 24px;
+      background: var(--mantine-color-body);
+      overflow-y: auto;
+    }
+
+    /* Top Foundry Selector Bar */
+    .foundry-selector-bar {
+      margin-bottom: 24px;
+    }
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      display: block;
+      color: var(--mantine-color-text);
+    }
+    .foundry-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .custom-select {
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      background: var(--mantine-color-surface);
+      font-size: 13px;
+      width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--mantine-color-text);
+    }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      background: var(--mantine-color-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--mantine-color-text);
+      transition: background 0.15s;
+    }
+    .icon-btn:hover {
+      background: var(--mantine-color-surface-hover);
+    }
+    .meta-text {
+      font-size: 12px;
+      color: var(--mantine-color-dimmed);
+    }
+
+    /* Workspace Section */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--mantine-color-text-white);
+    }
+
+    /* Primary Action Button */
+    .btn-primary {
+      background: var(--mantine-primary-color);
+      color: #ffffff;
+      border: 0;
+      border-radius: var(--mantine-radius-sm);
+      padding: 0 14px;
+      height: 34px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover {
+      background: var(--mantine-primary-color-hover);
+    }
+    .btn-default {
+      background: var(--mantine-color-surface);
+      color: var(--mantine-color-text);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      padding: 0 14px;
+      height: 34px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-default:hover {
+      background: var(--mantine-color-surface-hover);
+    }
+
+    /* Split Workspace */
+    .deployment-workspace {
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-md);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 520px;
+    }
+    .deployment-list-pane {
+      border-right: 1px solid var(--mantine-color-border);
+      display: flex;
+      flex-direction: column;
+      background: var(--mantine-color-body);
+    }
+    .deployment-detail-pane {
+      background: #202124;
+      display: flex;
+      flex-direction: column;
+    }
+    .deployment-pane-heading {
+      height: 48px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      display: flex;
+      align-items: center;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--mantine-color-dimmed);
+    }
+    .table-custom {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    .table-custom th {
+      height: 40px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--mantine-color-dimmed);
+      padding: 0 16px;
+      border-bottom: 1px solid var(--mantine-color-border);
+    }
+    .table-custom td {
+      height: 54px;
+      font-size: 13px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      color: var(--mantine-color-text);
+    }
+    .deployment-row:hover {
+      background: var(--mantine-color-surface);
+      cursor: pointer;
+    }
+    .deployment-row.selected {
+      background: var(--mantine-primary-color-light);
+      box-shadow: inset 3px 0 var(--mantine-primary-color);
+    }
+    .deployment-row.selected td:first-child {
+      font-weight: 600;
+      color: var(--mantine-primary-color-light-text);
+    }
+
+    /* Detail Fields */
+    .detail-title {
+      padding: 20px;
+      border-bottom: 1px solid var(--mantine-color-border);
+    }
+    .detail-title h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--mantine-color-text-white);
+    }
+    .detail-fields {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      padding: 16px 20px;
+    }
+    .detail-fields dt, .detail-fields dd {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--mantine-color-border);
+      font-size: 13px;
+    }
+    .detail-fields dt {
+      color: var(--mantine-color-dimmed);
+    }
+    .detail-fields dd {
+      font-weight: 500;
+      color: var(--mantine-color-text);
+    }
+    .detail-actions {
+      margin-top: auto;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: flex-end;
+      border-top: 1px solid var(--mantine-color-border);
+      background: #1e1f23;
+    }
+
+    /* ========================================================
+       MODAL OVERLAY & TWO-PANE DIALOG
+       ======================================================== */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(2px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.hidden {
+      display: none;
+    }
+
+    .modal-card {
+      background: var(--mantine-color-surface);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-md);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      width: 960px;
+      max-width: calc(100vw - 40px);
+      height: 640px;
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.97) translateY(6px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    /* Modal Full-body Loading Mask */
+    .modal-loading-mask {
+      position: absolute;
+      top: 52px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--mantine-color-surface);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      transition: opacity 0.2s;
+    }
+    .modal-loading-mask.hidden {
+      display: none;
+    }
+
+    .modal-header {
+      height: 52px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #202124;
+    }
+    .modal-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--mantine-color-text-white);
+    }
+    .target-badge {
+      font-size: 12px;
+      color: var(--mantine-color-dimmed);
+      background: #141517;
+      padding: 2px 8px;
+      border-radius: var(--mantine-radius-sm);
+      border: 1px solid var(--mantine-color-border);
+    }
+    .modal-close-btn {
+      background: transparent;
+      border: 0;
+      font-size: 20px;
+      line-height: 1;
+      color: var(--mantine-color-dimmed);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: var(--mantine-radius-sm);
+    }
+    .modal-close-btn:hover {
+      background: var(--mantine-color-surface-hover);
+      color: var(--mantine-color-text-white);
+    }
+
+    /* Modal Body (2 Panes) */
+    .modal-body-split {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      overflow: hidden;
+      background: var(--mantine-color-surface);
+    }
+
+    /* Left Pane: Enhanced Search & Filter */
+    .model-picker-pane {
+      border-right: 1px solid var(--mantine-color-border);
+      display: flex;
+      flex-direction: column;
+      background: #1c1d20;
+    }
+
+    /* Search & Filter Header Box */
+    .filter-section {
+      padding: 12px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: #1e1f23;
+    }
+    .search-box-wrap {
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      height: 34px;
+      padding: 0 10px 0 32px;
+      background: var(--mantine-color-surface);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      color: var(--mantine-color-text-white);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus {
+      border-color: var(--mantine-primary-color);
+    }
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--mantine-color-dimmed);
+      pointer-events: none;
+    }
+
+    /* Filter Dropdowns Grid */
+    .filter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .filter-control-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .filter-sublabel {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--mantine-color-dimmed);
+    }
+    .filter-select {
+      height: 30px;
+      padding: 0 8px;
+      background: var(--mantine-color-surface);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      font-size: 12px;
+      color: var(--mantine-color-text);
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* Checkbox Group for Tasks */
+    .checkbox-task-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      padding-top: 2px;
+    }
+    .task-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--mantine-color-text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .task-label input[type="checkbox"] {
+      accent-color: var(--mantine-primary-color);
+      cursor: pointer;
+    }
+
+    /* Model List Container */
+    .model-list-wrap {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+    .model-list {
+      list-style: none;
+    }
+
+    /* Model Loading State in Picker */
+    .picker-loading-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(28, 29, 32, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    .picker-loading-overlay.hidden {
+      display: none;
+    }
+
+    .model-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: background 0.1s;
+    }
+    .model-item:hover {
+      background: var(--mantine-color-surface-hover);
+    }
+    .model-item.active {
+      background: var(--mantine-primary-color-light);
+      border-left: 3px solid var(--mantine-primary-color);
+      padding-left: 11px;
+    }
+    .model-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .model-item-name {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--mantine-color-text-white);
+    }
+    .model-item.active .model-item-name {
+      color: var(--mantine-primary-color-light-text);
+    }
+    .model-badges-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .model-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #2c2e33;
+      color: var(--mantine-color-dimmed);
+    }
+    .model-badge.offer-paygo {
+      background: rgba(250, 176, 5, 0.18);
+      color: #ffd43b;
+    }
+    .model-badge.offer-standard {
+      background: rgba(34, 139, 230, 0.2);
+      color: #74c0fc;
+    }
+    .model-item-meta {
+      font-size: 11px;
+      color: var(--mantine-color-dimmed);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Right Pane: Configuration Form */
+    .config-pane {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      background: var(--mantine-color-surface);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--mantine-color-text-white);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .form-control {
+      height: 38px;
+      padding: 0 12px;
+      background: #1c1d20;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      font-size: 13px;
+      color: var(--mantine-color-text-white);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-control:focus {
+      border-color: var(--mantine-primary-color);
+    }
+    select.form-control {
+      cursor: pointer;
+    }
+
+    /* Capacity Control with Raw Numeric Direct Input & Slider Sync */
+    .capacity-container {
+      background: #1c1d20;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .capacity-input-row {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+    .capacity-number-input {
+      height: 38px;
+      padding: 0 12px;
+      background: var(--mantine-color-surface);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--mantine-color-text-white);
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+    .capacity-number-input:focus {
+      border-color: var(--mantine-primary-color);
+    }
+    .capacity-max-info {
+      font-size: 12px;
+      color: var(--mantine-color-dimmed);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .capacity-max-info strong {
+      color: var(--mantine-color-text-white);
+      font-weight: 600;
+    }
+
+    .slider-range {
+      width: 100%;
+      height: 6px;
+      background: var(--mantine-color-border);
+      border-radius: 3px;
+      outline: none;
+      accent-color: var(--mantine-primary-color);
+      cursor: pointer;
+    }
+    .slider-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--mantine-color-dimmed);
+      margin-top: -4px;
+    }
+
+    /* Pay-as-you-go specific info card */
+    .paygo-info-card {
+      background: #1c1d20;
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-sm);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .paygo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .paygo-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffd43b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .paygo-rates {
+      font-size: 12px;
+      color: var(--mantine-color-text);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: rgba(0,0,0,0.2);
+      padding: 8px 10px;
+      border-radius: var(--mantine-radius-sm);
+    }
+    .paygo-rate-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .paygo-rate-label {
+      font-size: 11px;
+      color: var(--mantine-color-dimmed);
+    }
+    .paygo-rate-value {
+      font-weight: 600;
+      color: var(--mantine-color-text-white);
+    }
+
+    /* Modal Footer */
+    .modal-footer {
+      height: 56px;
+      padding: 0 20px;
+      border-top: 1px solid var(--mantine-color-border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      background: #202124;
+    }
+
+    /* ========================================================
+       DEPLOY PROGRESS MODAL (Matching AcquisitionProgressModal)
+       ======================================================== */
+    .progress-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(2px);
+      z-index: 3000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .progress-overlay.hidden {
+      display: none;
+    }
+    .progress-card {
+      background: var(--mantine-color-surface);
+      border: 1px solid var(--mantine-color-border);
+      border-radius: var(--mantine-radius-md);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+      width: 620px;
+      overflow: hidden;
+      animation: modalIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .progress-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--mantine-color-border);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--mantine-color-text-white);
+    }
+    .progress-body {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-row {
+      display: grid;
+      grid-template-columns: 24px auto minmax(0, 1fr) 74px;
+      align-items: center;
+      column-gap: 14px;
+      min-height: 60px;
+    }
+    .step-row + .step-row {
+      border-top: 1px solid var(--mantine-color-border);
+    }
+    .step-label {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--mantine-color-text-white);
+    }
+    .step-label.waiting {
+      color: var(--mantine-color-dimmed);
+      font-weight: 500;
+    }
+    .step-detail {
+      text-align: right;
+      font-size: 13px;
+      color: var(--mantine-color-text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .step-detail-sub {
+      font-size: 12px;
+      color: var(--mantine-color-dimmed);
+    }
+    .status-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 0;
+      text-align: center;
+      border-radius: var(--mantine-radius-sm);
+    }
+    .status-badge.loading {
+      background: var(--mantine-primary-color-light);
+      color: var(--mantine-primary-color-light-text);
+    }
+    .status-badge.waiting {
+      background: #2c2e33;
+      color: var(--mantine-color-dimmed);
+    }
+    .status-badge.completed {
+      background: var(--mantine-color-teal-light);
+      color: var(--mantine-color-teal);
+    }
+
+    /* CSS Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--mantine-primary-color-light);
+      border-top-color: var(--mantine-primary-color);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Simulation Control Header -->
+  <div class="sim-banner">
+    <div>
+      <span>Interactive Design Preview: <strong>Add deployment (Direct numeric input & Quota max)</strong></span>
+    </div>
+    <div class="sim-actions">
+      <button class="sim-btn" onclick="simulateModelFetch()">Simulate Catalog Fetch</button>
+      <button class="sim-btn" onclick="toggleModal()">Toggle Modal</button>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="app-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="4" rx="1.5" fill="#4dabf7" />
+          <rect x="3" y="10" width="18" height="4" rx="1.5" fill="#339af0" />
+          <rect x="3" y="16" width="18" height="4" rx="1.5" fill="#1c7ed6" />
+        </svg>
+        <span>AzFoundryDeck</span>
+      </div>
+      <div class="header-user">
+        <div class="tenant-badge">
+          <span>Contoso</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="user-avatar">OP</div>
+      </div>
+    </header>
+
+    <!-- Sidebar Navbar -->
+    <nav class="app-navbar">
+      <a href="#" class="nav-item">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Home</span>
+      </a>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Top Foundry Selector Bar -->
+      <div class="foundry-selector-bar">
+        <label class="form-label">Foundry</label>
+        <div class="foundry-row">
+          <div class="custom-select">
+            <span>contoso-foundry-production (Production-Sub - rg-foundry-prod)</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <button class="icon-btn" title="Refresh Foundries">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"/></svg>
+          </button>
+          <span class="meta-text">Last fetched 2026-10-04 04:50</span>
+        </div>
+      </div>
+
+      <!-- Deployed Models Workspace Header -->
+      <div class="section-header">
+        <div class="section-title-group">
+          <span class="section-title">Deployed Models</span>
+          <button class="icon-btn" style="border:0;" title="Refresh models">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"/></svg>
+          </button>
+          <span class="meta-text" id="deployedMetaText">3 · Last fetched 2026-10-04 04:50</span>
+        </div>
+
+        <!-- Add Deployment Action Button -->
+        <div>
+          <button class="btn-primary" id="addDeploymentBtn" onclick="openModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Add deployment</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Split View Workspace -->
+      <div class="deployment-workspace">
+        <!-- Left: Model List -->
+        <div class="deployment-list-pane">
+          <div class="deployment-pane-heading" id="deployedCountHeading">Models (3)</div>
+          <table class="table-custom">
+            <thead>
+              <tr>
+                <th>Deployment name</th>
+                <th>Model</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody id="deployedTableBody">
+              <tr class="deployment-row selected">
+                <td>chat-production</td>
+                <td>gpt-4.1</td>
+                <td>2024-11-20</td>
+              </tr>
+              <tr class="deployment-row">
+                <td>chat-mini</td>
+                <td>gpt-4o-mini</td>
+                <td>2024-07-18</td>
+              </tr>
+              <tr class="deployment-row">
+                <td>embeddings</td>
+                <td>text-embedding-3-small</td>
+                <td>1</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Right: Model Details -->
+        <div class="deployment-detail-pane">
+          <div class="detail-title">
+            <h3 id="detailTitleName">chat-production</h3>
+            <span class="meta-text" id="detailTitleSub">gpt-4.1 (2024-11-20)</span>
+          </div>
+          <dl class="detail-fields" id="detailFields">
+            <dt>Deployment type</dt>
+            <dd id="detailType">GlobalStandard</dd>
+            <dt>Capacity</dt>
+            <dd id="detailCapacity">50,000 / 160,000 TPM</dd>
+            <dt>Upgrade policy</dt>
+            <dd id="detailUpgrade">Upgrade to new default</dd>
+            <dt>Provisioning state</dt>
+            <dd style="color: var(--mantine-color-green); font-weight:600;">Succeeded</dd>
+          </dl>
+          <div class="detail-actions">
+            <button class="btn-default" style="color: var(--mantine-color-red); border-color: var(--mantine-color-red);" title="Delete deployment">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ========================================================
+       MODAL DIALOG: Two-Pane Add Deployment
+       ======================================================== -->
+  <div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
+    <div class="modal-card" id="modalCard">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-title">Add deployment</span>
+          <span class="target-badge">contoso-foundry-production</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal()" title="Close">&times;</button>
+      </div>
+
+      <!-- Loading Mask for Model Catalog Fetch -->
+      <div class="modal-loading-mask hidden" id="modalLoadingMask">
+        <div class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+          <span style="font-weight: 600; color: var(--mantine-color-text-white); font-size: 14px;">Loading model catalog...</span>
+          <span style="font-size: 12px; color: var(--mantine-color-dimmed);">Fetching available models & quota from contoso-foundry-production</span>
+        </div>
+      </div>
+
+      <!-- Modal Body (Two-Pane) -->
+      <div class="modal-body-split">
+        <!-- Left Pane: Enhanced Search & Filter -->
+        <div class="model-picker-pane">
+          <!-- Filter Area -->
+          <div class="filter-section">
+            <!-- 1. Text Search Input -->
+            <div class="search-box-wrap">
+              <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="modelSearchInput" class="search-input" placeholder="Search models..." oninput="applyFilters()" autocomplete="off" />
+            </div>
+
+            <!-- 2. Dropdown Filters (Publisher & Deployment option) -->
+            <div class="filter-grid">
+              <div class="filter-control-wrap">
+                <span class="filter-sublabel">Publisher</span>
+                <select id="filterPublisher" class="filter-select" onchange="applyFilters()">
+                  <option value="all" selected>All publishers</option>
+                  <option value="OpenAI">OpenAI</option>
+                  <option value="Anthropic">Anthropic</option>
+                  <option value="Meta">Meta</option>
+                  <option value="Microsoft">Microsoft</option>
+                  <option value="Mistral AI">Mistral AI</option>
+                </select>
+              </div>
+              <div class="filter-control-wrap">
+                <span class="filter-sublabel">Deployment option</span>
+                <select id="filterOption" class="filter-select" onchange="applyFilters()">
+                  <option value="all" selected>All options</option>
+                  <option value="Standard">Standard (TPM)</option>
+                  <option value="Pay-as-you-go">Pay-as-you-go</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 3. Checkbox Group for Tasks -->
+            <div class="checkbox-task-group">
+              <label class="task-label">
+                <input type="checkbox" id="chkChat" value="Chat" checked onchange="applyFilters()" />
+                <span>Chat</span>
+              </label>
+              <label class="task-label">
+                <input type="checkbox" id="chkReasoning" value="Reasoning" checked onchange="applyFilters()" />
+                <span>Reasoning</span>
+              </label>
+              <label class="task-label">
+                <input type="checkbox" id="chkEmbeddings" value="Embeddings" checked onchange="applyFilters()" />
+                <span>Embeddings</span>
+              </label>
+              <label class="task-label">
+                <input type="checkbox" id="chkMultimodal" value="Multimodal" checked onchange="applyFilters()" />
+                <span>Multimodal</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Model List with Loading State -->
+          <div class="model-list-wrap">
+            <div class="picker-loading-overlay hidden" id="pickerLoading">
+              <div class="spinner"></div>
+              <span style="font-size: 12px; color: var(--mantine-color-dimmed);">Loading model catalog...</span>
+            </div>
+            <ul class="model-list" id="modelList">
+              <!-- Models will be rendered by JS based on modelDatabase -->
+            </ul>
+          </div>
+        </div>
+
+        <!-- Right Pane: Configuration Form -->
+        <div class="config-pane">
+          <!-- 1. Deployment Name (Defaults to selected model name) -->
+          <div class="form-group">
+            <label for="inputDeploymentName">Deployment name</label>
+            <input type="text" id="inputDeploymentName" class="form-control" value="gpt-4o" spellcheck="false" />
+          </div>
+
+          <!-- 2. Model Version -->
+          <div class="form-group">
+            <label for="selectVersion">Model version</label>
+            <select id="selectVersion" class="form-control">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+
+          <!-- 3. Deployment Type / SKU (Only for Standard) -->
+          <div class="form-group" id="grpSku">
+            <label for="selectSku">Deployment type</label>
+            <select id="selectSku" class="form-control">
+              <option value="GlobalStandard" selected>GlobalStandard</option>
+              <option value="Standard">Standard</option>
+              <option value="DataZoneStandard">DataZoneStandard</option>
+            </select>
+          </div>
+
+          <!-- 4A. Capacity (TPM) - Numeric direct input + slider sync, raw numbers without 'K' -->
+          <div class="form-group" id="grpCapacity">
+            <label for="inputCapacityNumber">
+              <span>Capacity (TPM)</span>
+              <span class="capacity-max-info">
+                Quota max: <strong id="capacityMaxText">160,000</strong>
+              </span>
+            </label>
+            <div class="capacity-container">
+              <div class="capacity-input-row">
+                <input
+                  type="number"
+                  id="inputCapacityNumber"
+                  class="capacity-number-input"
+                  value="80000"
+                  min="1000"
+                  max="160000"
+                  step="1000"
+                  oninput="onCapacityNumberInput(this.value)"
+                />
+                <span class="meta-text">Tokens Per Minute</span>
+              </div>
+              <input
+                type="range"
+                id="capacitySlider"
+                class="slider-range"
+                min="1000"
+                max="160000"
+                step="1000"
+                value="80000"
+                oninput="onCapacitySliderChange(this.value)"
+              />
+              <div class="slider-scale">
+                <span>1,000</span>
+                <span id="sliderMaxScale">160,000</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4B. Pay-as-you-go Pricing / Info - For Pay-as-you-go models -->
+          <div class="form-group" id="grpPaygo" style="display: none;">
+            <label>Billing & Consumption</label>
+            <div class="paygo-info-card">
+              <div class="paygo-header">
+                <span class="paygo-title">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  Pay-as-you-go (Serverless API)
+                </span>
+                <span class="meta-text">Billed per token</span>
+              </div>
+              <div class="paygo-rates">
+                <div class="paygo-rate-item">
+                  <span class="paygo-rate-label">Input Tokens</span>
+                  <span class="paygo-rate-value" id="paygoInputRate">$3.00 / 1M</span>
+                </div>
+                <div class="paygo-rate-item">
+                  <span class="paygo-rate-label">Output Tokens</span>
+                  <span class="paygo-rate-value" id="paygoOutputRate">$15.00 / 1M</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Upgrade Policy -->
+          <div class="form-group">
+            <label for="selectUpgrade">Upgrade policy</label>
+            <select id="selectUpgrade" class="form-control">
+              <option value="OnceNewDefaultAvailable" selected>Upgrade to new default</option>
+              <option value="NoAutoUpgrade">No automatic upgrade</option>
+              <option value="OnceCurrentVersionExpired">Upgrade on retirement</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer (No Confirmation Dialog - Direct Deploy) -->
+      <div class="modal-footer">
+        <button type="button" class="btn-default" onclick="closeModal()">Cancel</button>
+        <button type="button" class="btn-primary" onclick="handleDeployDirect()">
+          <span>Deploy</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       DEPLOY PROGRESS MODAL (Matching AcquisitionProgressModal)
+       ======================================================== -->
+  <div class="progress-overlay hidden" id="deployProgressOverlay">
+    <div class="progress-card">
+      <div class="progress-header">Deploying model</div>
+      <div class="progress-body">
+        <!-- Single Step: Deploy (Matching delete pattern) -->
+        <div class="step-row" id="stepDeploy">
+          <div style="display:flex; justify-content:center;">
+            <div class="spinner" id="stepDeploySpinner"></div>
+            <svg id="stepDeployDone" style="display:none;" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="var(--mantine-color-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>
+          </div>
+          <span class="step-label" id="stepDeployLabel">Deploy</span>
+          <div class="step-detail">
+            <span id="stepDeployName">gpt-4o</span>
+            <div class="step-detail-sub" id="stepDeploySub">contoso-foundry-production</div>
+          </div>
+          <div class="status-badge loading" id="stepDeployBadge">Loading</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Rich Model Catalog Database with Full Raw TPM Numbers
+    const modelDatabase = [
+      {
+        name: 'gpt-4o',
+        publisher: 'OpenAI',
+        option: 'Standard',
+        tasks: ['Chat', 'Multimodal'],
+        sub: '128k context · GlobalStandard',
+        maxCapacity: 160000,
+        versions: ['2024-11-20 (Default)', '2024-08-06', '2024-05-13'],
+        inputRate: null, outputRate: null
+      },
+      {
+        name: 'gpt-4o-mini',
+        publisher: 'OpenAI',
+        option: 'Standard',
+        tasks: ['Chat'],
+        sub: '128k context · GlobalStandard',
+        maxCapacity: 250000,
+        versions: ['2024-07-18 (Default)'],
+        inputRate: null, outputRate: null
+      },
+      {
+        name: 'claude-3-5-sonnet',
+        publisher: 'Anthropic',
+        option: 'Pay-as-you-go',
+        tasks: ['Chat', 'Multimodal', 'Reasoning'],
+        sub: '200k context · Serverless API',
+        maxCapacity: null,
+        versions: ['20241022 (Default)', '20240620'],
+        inputRate: '$3.00 / 1M', outputRate: '$15.00 / 1M'
+      },
+      {
+        name: 'claude-3-5-haiku',
+        publisher: 'Anthropic',
+        option: 'Pay-as-you-go',
+        tasks: ['Chat', 'Reasoning'],
+        sub: '200k context · Fast & Intelligent',
+        maxCapacity: null,
+        versions: ['20241022 (Default)'],
+        inputRate: '$0.80 / 1M', outputRate: '$4.00 / 1M'
+      },
+      {
+        name: 'gpt-4.1',
+        publisher: 'OpenAI',
+        option: 'Standard',
+        tasks: ['Reasoning', 'Multimodal'],
+        sub: 'Next-gen reasoning model',
+        maxCapacity: 160000,
+        versions: ['2024-11-20 (Default)'],
+        inputRate: null, outputRate: null
+      },
+      {
+        name: 'llama-3.3-70b-instruct',
+        publisher: 'Meta',
+        option: 'Pay-as-you-go',
+        tasks: ['Chat', 'Reasoning'],
+        sub: '128k context · Open-weight flagship',
+        maxCapacity: null,
+        versions: ['1 (Default)'],
+        inputRate: '$0.70 / 1M', outputRate: '$0.90 / 1M'
+      },
+      {
+        name: 'mistral-large-2411',
+        publisher: 'Mistral AI',
+        option: 'Pay-as-you-go',
+        tasks: ['Chat', 'Reasoning', 'Multimodal'],
+        sub: '128k context · Top-tier reasoning',
+        maxCapacity: null,
+        versions: ['2411 (Default)'],
+        inputRate: '$2.00 / 1M', outputRate: '$6.00 / 1M'
+      },
+      {
+        name: 'phi-4',
+        publisher: 'Microsoft',
+        option: 'Standard',
+        tasks: ['Reasoning'],
+        sub: '14B parameters · SOTA math & code',
+        maxCapacity: 100000,
+        versions: ['1 (Default)'],
+        inputRate: null, outputRate: null
+      },
+      {
+        name: 'text-embedding-3-large',
+        publisher: 'OpenAI',
+        option: 'Standard',
+        tasks: ['Embeddings'],
+        sub: '3,072 dimensions · High accuracy',
+        maxCapacity: 80000,
+        versions: ['1 (Default)'],
+        inputRate: null, outputRate: null
+      },
+      {
+        name: 'text-embedding-3-small',
+        publisher: 'OpenAI',
+        option: 'Standard',
+        tasks: ['Embeddings'],
+        sub: '1,536 dimensions · Efficient embeddings',
+        maxCapacity: 80000,
+        versions: ['1 (Default)'],
+        inputRate: null, outputRate: null
+      }
+    ];
+
+    let currentSelectedModel = 'gpt-4o';
+    let currentMaxCapacity = 160000;
+
+    // Filter Logic
+    function applyFilters() {
+      const q = document.getElementById('modelSearchInput').value.toLowerCase().trim();
+      const pub = document.getElementById('filterPublisher').value;
+      const opt = document.getElementById('filterOption').value;
+
+      // Checkboxes
+      const activeTasks = [];
+      if (document.getElementById('chkChat').checked) activeTasks.push('Chat');
+      if (document.getElementById('chkReasoning').checked) activeTasks.push('Reasoning');
+      if (document.getElementById('chkEmbeddings').checked) activeTasks.push('Embeddings');
+      if (document.getElementById('chkMultimodal').checked) activeTasks.push('Multimodal');
+
+      const filtered = modelDatabase.filter(m => {
+        // Query search
+        if (q && !m.name.toLowerCase().includes(q) && !m.publisher.toLowerCase().includes(q)) {
+          return false;
+        }
+        // Publisher
+        if (pub !== 'all' && m.publisher !== pub) {
+          return false;
+        }
+        // Option
+        if (opt !== 'all' && m.option !== opt) {
+          return false;
+        }
+        // Tasks (any match)
+        if (activeTasks.length > 0) {
+          const hasTask = m.tasks.some(t => activeTasks.includes(t));
+          if (!hasTask) return false;
+        }
+        return true;
+      });
+
+      renderModelList(filtered);
+    }
+
+    function renderModelList(models) {
+      const listEl = document.getElementById('modelList');
+      listEl.innerHTML = '';
+
+      if (models.length === 0) {
+        listEl.innerHTML = `<li style="padding: 24px; text-align: center; color: var(--mantine-color-dimmed); font-size: 13px;">No models match the filter.</li>`;
+        return;
+      }
+
+      models.forEach(m => {
+        const li = document.createElement('li');
+        li.className = `model-item ${m.name === currentSelectedModel ? 'active' : ''}`;
+        li.setAttribute('data-model', m.name);
+        li.onclick = () => selectModelObj(m);
+
+        const badgeClass = m.option === 'Pay-as-you-go' ? 'offer-paygo' : 'offer-standard';
+
+        li.innerHTML = `
+          <div class="model-item-header">
+            <span class="model-item-name">${m.name}</span>
+            <div class="model-badges-row">
+              <span class="model-badge ${badgeClass}">${m.option === 'Pay-as-you-go' ? 'Pay-as-you-go' : 'Standard'}</span>
+              <span class="model-badge">${m.tasks[0]}</span>
+            </div>
+          </div>
+          <div class="model-item-meta">
+            <span>${m.publisher}</span>
+            <span>·</span>
+            <span>${m.sub}</span>
+          </div>
+        `;
+        listEl.appendChild(li);
+      });
+    }
+
+    function selectModelObj(m) {
+      currentSelectedModel = m.name;
+
+      // Update active highlight
+      document.querySelectorAll('.model-item').forEach(item => {
+        if (item.getAttribute('data-model') === m.name) {
+          item.classList.add('active');
+        } else {
+          item.classList.remove('active');
+        }
+      });
+
+      // Default Deployment name to selected model name
+      document.getElementById('inputDeploymentName').value = m.name;
+
+      // Populate Versions
+      const verSelect = document.getElementById('selectVersion');
+      verSelect.innerHTML = '';
+      m.versions.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        verSelect.appendChild(opt);
+      });
+
+      // Handle Pay-as-you-go vs Standard
+      const grpSku = document.getElementById('grpSku');
+      const grpCapacity = document.getElementById('grpCapacity');
+      const grpPaygo = document.getElementById('grpPaygo');
+
+      if (m.option === 'Pay-as-you-go') {
+        grpSku.style.display = 'none';
+        grpCapacity.style.display = 'none';
+        grpPaygo.style.display = 'flex';
+        document.getElementById('paygoInputRate').textContent = m.inputRate;
+        document.getElementById('paygoOutputRate').textContent = m.outputRate;
+      } else {
+        grpSku.style.display = 'flex';
+        grpCapacity.style.display = 'flex';
+        grpPaygo.style.display = 'none';
+
+        currentMaxCapacity = m.maxCapacity;
+        const slider = document.getElementById('capacitySlider');
+        const numInput = document.getElementById('inputCapacityNumber');
+
+        slider.min = 1000;
+        slider.max = m.maxCapacity;
+        slider.step = 1000;
+
+        numInput.min = 1000;
+        numInput.max = m.maxCapacity;
+        numInput.step = 1000;
+
+        // Default: 50% without label
+        const defaultCap = Math.round(m.maxCapacity * 0.5);
+        slider.value = defaultCap;
+        numInput.value = defaultCap;
+
+        document.getElementById('sliderMaxScale').innerText = m.maxCapacity.toLocaleString();
+        document.getElementById('capacityMaxText').innerText = m.maxCapacity.toLocaleString();
+      }
+    }
+
+    // Direct Numeric Input and Slider Synchronization
+    function onCapacitySliderChange(val) {
+      const num = parseInt(val, 10) || 1000;
+      document.getElementById('inputCapacityNumber').value = num;
+    }
+
+    function onCapacityNumberInput(val) {
+      let num = parseInt(val, 10);
+      if (isNaN(num)) return;
+      if (num > currentMaxCapacity) {
+        num = currentMaxCapacity;
+        document.getElementById('inputCapacityNumber').value = num;
+      }
+      document.getElementById('capacitySlider').value = Math.max(1000, num);
+    }
+
+    // Modal Control with Catalog Fetch Simulation
+    function openModal(skipLoading = false) {
+      document.getElementById('modalOverlay').classList.remove('hidden');
+      const mask = document.getElementById('modalLoadingMask');
+
+      if (!skipLoading) {
+        mask.classList.remove('hidden');
+        setTimeout(() => {
+          mask.classList.add('hidden');
+        }, 700);
+      } else {
+        mask.classList.add('hidden');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.add('hidden');
+    }
+
+    function toggleModal() {
+      const el = document.getElementById('modalOverlay');
+      if (el.classList.contains('hidden')) openModal();
+      else closeModal();
+    }
+
+    function handleOverlayClick(event) {
+      if (event.target === document.getElementById('modalOverlay')) {
+        closeModal();
+      }
+    }
+
+    // Progress Simulation: Catalog Fetch
+    function simulateModelFetch() {
+      openModal(false);
+    }
+
+    // Direct Deploy (No confirmation dialog, single progress step matching delete)
+    function handleDeployDirect() {
+      const depName = document.getElementById('inputDeploymentName').value.trim();
+      if (!depName) return;
+
+      closeModal();
+
+      // Show Progress Modal (Single step: Deploy)
+      const progressOverlay = document.getElementById('deployProgressOverlay');
+      progressOverlay.classList.remove('hidden');
+
+      // Reset Step states
+      document.getElementById('stepDeployName').textContent = depName;
+      document.getElementById('stepDeploySpinner').style.display = 'block';
+      document.getElementById('stepDeployDone').style.display = 'none';
+      document.getElementById('stepDeployBadge').className = 'status-badge loading';
+      document.getElementById('stepDeployBadge').textContent = 'Loading';
+
+      // Simulate Deploy execution and completion
+      setTimeout(() => {
+        document.getElementById('stepDeploySpinner').style.display = 'none';
+        document.getElementById('stepDeployDone').style.display = 'block';
+        document.getElementById('stepDeployBadge').className = 'status-badge completed';
+        document.getElementById('stepDeployBadge').textContent = 'Completed';
+
+        // Automatically close progress modal after brief confirmation
+        setTimeout(() => {
+          progressOverlay.classList.add('hidden');
+          addNewDeploymentToTable(depName, currentSelectedModel);
+        }, 600);
+      }, 1000);
+    }
+
+    function addNewDeploymentToTable(name, modelName) {
+      const tbody = document.getElementById('deployedTableBody');
+      const tr = document.createElement('tr');
+      tr.className = 'deployment-row selected';
+
+      // deselect existing
+      document.querySelectorAll('.deployment-row').forEach(r => r.classList.remove('selected'));
+
+      tr.innerHTML = `
+        <td>${name}</td>
+        <td>${modelName}</td>
+        <td>2024-11-20</td>
+      `;
+      tbody.prepend(tr);
+
+      document.getElementById('deployedCountHeading').textContent = `Models (4)`;
+      document.getElementById('deployedMetaText').textContent = `4 · Last fetched just now`;
+      document.getElementById('detailTitleName').textContent = name;
+      document.getElementById('detailTitleSub').textContent = `${modelName} (2024-11-20)`;
+    }
+
+    // Initial setup on load
+    window.addEventListener('DOMContentLoaded', () => {
+      applyFilters();
+      const first = modelDatabase[0];
+      selectModelObj(first);
+    });
+  </script>
+</body>
+</html>

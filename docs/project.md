@@ -8,8 +8,9 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの最新の明細の確認、選択中の Foundry のデプロイモデルの削除。 |
-| 今回の対象外 | サブスクリプション・Foundry の操作、モデルデプロイの作成・変更、および上記以外の参照（別ユースケースとして順次追加する）。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧・選択済み Foundry・選択された Foundry の全デプロイ済みモデルのファイル保存と、保存済みファイルからの復元、Foundry を変更した後の初回閲覧と再閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの最新の明細の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加。 |
+| 今回の対象外 | サブスクリプション・Foundry の操作、モデルデプロイの変更、および上記以外の参照（別ユースケースとして順次追加する）。 |
+
 
 ## 2. 制約・品質要求・受け入れ条件
 
@@ -38,6 +39,7 @@
 | [テナントを変更する](usecases/テナントを変更する/README.md) | Azure にログイン済みの Foundry 運用者 | 認証済みのアカウントを維持したまま、Azure リソース操作の対象テナントを変更する | 7 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルの詳細を確認する](usecases/デプロイモデルの詳細を確認する/README.md) | Azure にログイン済みの Foundry 運用者 | 一覧から選んだデプロイモデルの最新の設定と状態を確認する | 8 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルを削除する](usecases/デプロイモデルを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry のデプロイモデルを Azure 上で削除し、Home画面の一覧を最新にする | 9 | [UCP-1](design/UCP-1.md) | 対象 |
+| [デプロイモデルを追加する](usecases/デプロイモデルを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry に新しいデプロイモデルを作成し、一覧へ反映する | 10 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -80,6 +82,11 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | デプロイモデル削除の失敗確認 | 起動前に `$env:AZFOUNDRYDECK_E2E_FAIL='delete'` を設定し、`mise run server:review:deployment-delete` を起動する。同じ手順で削除する | 一覧は3件のまま、ページ本文の先頭に `DEPLOYMENT_DELETE_FAILED` と理由を赤いバナーで表示し、「×」で閉じられる。「Delete」を再度押せる。終了後に `Remove-Item Env:AZFOUNDRYDECK_E2E_FAIL` で失敗注入を解除する |
 | デプロイモデル削除の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | 通常ビルドは固定応答を含まない。実 Azure への削除は `armcognitiveservices.DeploymentsClient` で実行され、完了後に選択中 Foundry のモデルを Azure から再取得して保存・表示を更新する |
 | 通常構成でのデプロイモデルの削除 | `mise run server` で Home画面を開き、モデル明細の右下にあるゴミ箱アイコンを押して削除する | 実 Azure 上でデプロイを削除し、モデル一覧とモデルファイルを更新する（未検証。段階5で利用者が確認） |
+| デプロイモデル追加の画面確認用起動 | `mise run server:review:deployment-add` | `http://127.0.0.1:34125/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。モデル一覧は `chat-production`・`chat-mini`・`embeddings` の3件。「+ Add deployment」ボタンが表示されている |
+| デプロイモデル追加の確認 | 起動後、「+ Add deployment」ボタンを押し、カタログ取得中を経て「Add deployment」モーダルを開く。左ペインでフィルター（検索・Publisher・Deployment option・Tasks）を試し、モデルを選択して右ペインで Deployment name や Capacity 等を確認・設定して「Deploy」を押す | カタログ取得中のプログレスを経て左右2ペインのモーダルが表示される。左ペインでリアルタイム絞り込みができ、モデル選択時に Deployment name が自動設定される。Standard モデルでは Capacity（生数値）の直接入力とスライダーが連動し、Pay-as-you-go では料金レートが表示される。「Deploy」を押すと単一ステップの進捗モーダル「Deploying model」（Deploy: Loading → Completed）が表示され、完了後に自動で閉じて一覧へ新規デプロイが追加反映される |
+| デプロイモデル追加の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` | 通常ビルドは固定応答を含まない。実 Azure へのデプロイ作成は実 SDK で実行され、完了後に選択中 Foundry のモデルを Azure から再取得して保存・表示を更新する |
+| 通常構成でのデプロイモデルの追加 | `mise run server` で Home画面を開き、「+ Add deployment」ボタンを押して新規デプロイを追加する | 実 Azure 上でモデルをデプロイし、モデル一覧とモデルファイルを更新する（未検証。段階5で利用者が確認） |
+
 | 1件テナントのサインイン画面確認用起動 | `mise run server:review:login` | `http://127.0.0.1:34117/` が未ログインで開く。起動のたびに空の一時フォルダー `AzFoundryDeck-login-review-...` を作り、端末にパスを表示する。「Azureにログイン」を押すと、ブラウザーを開かずに固定応答で認証し、唯一の候補 ID `e2e-azure-tenant`、表示名 `Contoso` が選択される。認証記録のテナント ID `e2e-tenant` は候補 ID と異なる。ヘッダーのプルダウンとユーザーアイコンへのマウスオーバーで選択名・アカウント名 `operator@contoso.onmicrosoft.com` を確認する。実 Azure・資格情報マネージャー・永続キャッシュには触れない。一覧・選択のファイル保存とアカウント・テナント別の閲覧保存先決定は通常と同じ処理を通す。実 Azure と本番の保存先はこの確認用構成の検証対象に含めない。構成は [サインイン設計](design/UCP-1.md#ブラウザーでazureにサインインする) を参照する |
 | サインイン画面確認用構成の終了と実処理への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run server` または `mise run dev` | 確認用の一時データを通常データへ持ち込まず、実 Azure の認証経路に切り替わる。通常構成には実認証・テナント一覧取得と一覧・選択の永続保存を接続している。実 Azure の認証と本番保存先の確認には通常構成を使う |
 | 複数テナントの選択画面確認用起動 | `mise run server:review:login-multiple` | `http://127.0.0.1:34118/` が未ログインで開く。起動のたびに空の一時ディレクトリを作り、端末にパスを表示する。「Azureにログイン」を押すと、ブラウザーを開かずに固定応答で認証し、「テナントを選択」画面を表示する。固定候補は `Contoso`、`Contoso Development`、`Fabrikam`、`Northwind`、`Adventure Works`、`Woodgrove`、`Tailspin` の7件。初期状態の「テナント」は未選択で「テナントを選んでください」を表示し、「確定」は無効。候補を選んで確定すると、Home と選択したテナントのヘッダープルダウン、ユーザーアイコンを表示する。構成は [複数テナントのサインイン設計](design/UCP-1.md#サインイン時に複数テナントが存在する) を参照する。ログイン後のテナント変更は対象外 |
@@ -137,6 +144,8 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 - **Foundry一覧の更新の検証**: `frontend/tests/e2e/usecases/Foundry一覧を更新する/Foundry一覧を更新する.spec.ts` で、保存済みの一覧（固定 Source にない Legacy を含む）から更新ボタンを押し、Foundry 一覧の取得の進捗（モデルの行は待機中のまま）、処理中の旧表示と操作制限、Escape・外側クリックで閉じないこと、更新後の一覧・選択・モデル・最終取得日時の表示と状態ファイルの内容、一覧にない Foundry のモデルファイルの削除、モデルを取得しないこと、再起動後の復元を検証します。選択中の Foundry が消える場合は、`frontend/tests/e2e/usecases/Foundry一覧を更新する/Foundry一覧の更新で選択先が変わる.spec.ts` で、一覧の取得後に最初の Foundry のモデル取得の進捗（モーダルの大きさが変わらないこと）、モデルファイルと状態ファイルの保存、一覧にない Foundry のモデルファイルの削除、両方の最終取得日時の更新と再起動後の復元を検証します。外部取得は `e2e-foundry-<段階>-release` ファイルで段階ごとに解放します。
 - **デプロイモデルの更新の検証**: `frontend/tests/e2e/usecases/デプロイモデルを更新する/デプロイモデルを更新する.spec.ts` で、保存済みのモデルファイルがある状態から更新ボタンを押し、モデル取得の1行だけの進捗、Foundry 一覧の取得を表示しないこと、処理中の旧表示と操作制限、Escape・外側クリックで閉じないこと、取得後のモデル・件数・最終取得日時の表示、状態ファイルと選択中の Foundry のモデルファイルの置き換え、ほかの Foundry のモデルファイルの内容・更新時刻の維持、再起動後と別の Foundry へ変更して戻った後の表示を検証します。外部取得はモデル取得だけを `e2e-foundry-models-release` ファイルで解放します。
 - **デプロイモデルの削除の検証**: `frontend/tests/e2e/usecases/デプロイモデルを削除する/一覧からデプロイモデルを削除する.spec.ts` で、一覧からモデルを選んで明細を表示し、ゴミ箱アイコンから確認ダイアログを開き、キャンセル時の状態維持、削除実行後の進捗と削除完了、一覧からの除外（件数と最終取得日時の更新）、表示中明細の破棄、モデルファイルと状態ファイルの更新、他 Foundry のモデルファイルの不変、再読み込み後の維持を検証します。また `AZFOUNDRYDECK_E2E_FAIL=delete` で削除失敗時にエラーコード `DEPLOYMENT_DELETE_FAILED` を表示し、一覧が維持され再試行可能であることを検証します。
+- **デプロイモデルの追加の検証**: 「+ Add deployment」ボタン押下によるカタログ取得中表示、左右2ペインのモーダル表示、フィルター（検索・Publisher・Deployment option・Tasks）のリアルタイム反映、モデル選択時の Deployment name 自動同期、Capacity（直接入力とスライダー連動）または従量課金料金レートの表示、Deploy 押下時の進捗モーダル「Deploying model」、完了後の一覧への新規デプロイ追加反映（件数・最終取得日時の更新）、状態ファイルとモデルファイルの更新、他 Foundry のモデルファイルの不変を検証します。
+
 - **E2E 用ビルド**: `node scripts/build.mjs server-e2e`（`build:server:e2e` タスク）が `-tags server,production,e2e` でビルドします。`e2e` タグでは、サインインの外部境界が固定の認証記録（アカウント名 `operator@contoso.onmicrosoft.com`、認証テナント ID `e2e-tenant`）を返し、一覧取得の外部境界が唯一の候補（ID `e2e-azure-tenant`、表示名 `Contoso`）を返します。唯一の候補の自動選択と認証記録・一覧・選択の保存は通常と同じサービス処理を通し、資格情報マネージャーの代わりにデータディレクトリの `e2e-authentication-record.json` へ保存します。環境変数 `AZFOUNDRYDECK_E2E_FAIL=signin`、`save`、`restore`、`logout` で失敗を注入します。ログアウトでは記録ファイルと全アカウント・テナントの閲覧保存データを削除します。起動前にデータディレクトリへ `e2e-authentication-record.json` を置くと、起動時の復元がその記録で成功します。サインインが呼ばれるとデータディレクトリに `e2e-signin-called` を作り、`AZFOUNDRYDECK_E2E_HOLD_RESTORE=1` のときは復元が `e2e-restore-release` の作成まで応答を保留します。
 - **画面確認用の起動と実処理への切り替え**: `server:review` は E2E 用ビルド（`bin\azfoundrydeck-server-e2e.exe`）を、一時フォルダーの固定データディレクトリ `AzFoundryDeck-review` に認証記録・テナント一覧・選択を含む `e2e-authentication-record.json` を置いて起動します。認証と Foundry・モデル取得の外部境界は固定応答を返しますが、初期選択・進捗の合成と通知・ファイル保存・保存済みファイルの読み込み・結果表示は本番と同じ処理です。保存済みファイルがあれば外部取得を呼ばずに復元します。固定応答の内容と進捗の接続は [UCP-1](design/UCP-1.md#デプロイモデルの初回閲覧) を参照します。Azure・資格情報マネージャー・永続キャッシュには触れません。終了は起動した端末で `Ctrl+C` です。実 Azure の取得へ切り替える場合は終了後に `mise run server` で通常ビルドを起動します。読み込み・接続・保存に失敗した場合は固定応答に切り替わらず、Home画面にエラーが表示されることを確認します。本番のログアウトで削除する対象は [データ設計](design/data.md#ログアウト時の削除範囲) に従います。閲覧保存データの削除も同じ実処理を通しますが、本番の永続キャッシュと資格情報マネージャーを含む実機動作は未検証です。
 - **本番に含まれないこと**: `internal/azauth/e2e.go`、`record_store_e2e.go`、`internal/foundry/e2e.go`、`foundry_source_e2e.go` は `e2e` タグのときだけコンパイルされ、`server`、`build`、`package`、`dev` のビルドには含まれません。`go list -tags server,production -f '{{.GoFiles}}' ./internal/azauth ./internal/foundry .` にこれらのファイルが現れないことで確認できます。実 Azure へのサインイン・Foundry 一覧とモデルの取得、実ブラウザーでの認証、実資格情報マネージャーへの保存は E2E の対象外です。

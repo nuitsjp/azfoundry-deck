@@ -72,6 +72,7 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 		return nil, err
 	}
 	deployments = slices.DeleteFunc(deployments, func(deployment Deployment) bool { return deleted.has(deployment.ID) })
+	deployments = append(deployments, created.get(foundry.ID)...)
 	report(len(deployments))
 	return deployments, ctx.Err()
 }
@@ -139,4 +140,182 @@ func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deploy
 		CapacityUnit: &capacityUnit, ProvisioningState: &state,
 		VersionUpgradePolicy: &policy,
 	}, ctx.Err()
+}
+
+// created remembers deployments created through the fixed source.
+var created = createdStore{deployments: []Deployment{}}
+
+type createdStore struct {
+	mu          sync.Mutex
+	deployments []Deployment
+}
+
+func (c *createdStore) get(foundryID string) []Deployment {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var res []Deployment
+	prefix := foundryID + "/deployments/"
+	for _, d := range c.deployments {
+		if len(d.ID) > len(prefix) && d.ID[:len(prefix)] == prefix {
+			res = append(res, d)
+		}
+	}
+	return res
+}
+
+func (c *createdStore) add(d Deployment) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deployments = append(c.deployments, d)
+}
+
+func (fixedSource) ListModels(ctx context.Context, foundry Foundry) ([]ModelCatalogItem, error) {
+	if err := waitForRelease(ctx, "catalog"); err != nil {
+		return nil, err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "catalog" {
+		return nil, fmt.Errorf("simulated model catalog retrieval failure")
+	}
+
+	cap160 := int64(160000)
+	cap250 := int64(250000)
+	cap100 := int64(100000)
+	cap80 := int64(80000)
+
+	inSonnet := "$3.00 / 1M"
+	outSonnet := "$15.00 / 1M"
+	inHaiku := "$0.80 / 1M"
+	outHaiku := "$4.00 / 1M"
+	inLlama := "$0.70 / 1M"
+	outLlama := "$0.90 / 1M"
+	inMistral := "$2.00 / 1M"
+	outMistral := "$6.00 / 1M"
+
+	cap66 := int64(66700)
+
+	return []ModelCatalogItem{
+		{
+			Name:        "gpt-4o",
+			Publisher:   "OpenAI",
+			Option:      "Standard",
+			Tasks:       []string{"Chat", "Multimodal"},
+			Sub:         "128k context · GlobalStandard",
+			MaxCapacity: &cap160,
+			SKUs: []ModelSKUItem{
+				{Name: "GlobalStandard", MaxCapacity: &cap160},
+				{Name: "DataZoneStandard", MaxCapacity: &cap66},
+			},
+			Versions: []string{"2024-11-20 (Default)", "2024-08-06", "2024-05-13"},
+		},
+		{
+			Name:        "gpt-4o-mini",
+			Publisher:   "OpenAI",
+			Option:      "Standard",
+			Tasks:       []string{"Chat"},
+			Sub:         "128k context · GlobalStandard",
+			MaxCapacity: &cap250,
+			SKUs: []ModelSKUItem{
+				{Name: "GlobalStandard", MaxCapacity: &cap250},
+			},
+			Versions: []string{"2024-07-18 (Default)"},
+		},
+		{
+			Name:       "claude-3-5-sonnet",
+			Publisher:  "Anthropic",
+			Option:     "Pay-as-you-go",
+			Tasks:      []string{"Chat", "Multimodal", "Reasoning"},
+			Sub:        "200k context · Serverless API",
+			SKUs:       []ModelSKUItem{{Name: "GlobalProvisioned"}},
+			Versions:   []string{"20241022 (Default)", "20240620"},
+			InputRate:  &inSonnet,
+			OutputRate: &outSonnet,
+		},
+		{
+			Name:       "claude-3-5-haiku",
+			Publisher:  "Anthropic",
+			Option:     "Pay-as-you-go",
+			Tasks:      []string{"Chat", "Reasoning"},
+			Sub:        "200k context · Fast & Intelligent",
+			SKUs:       []ModelSKUItem{{Name: "GlobalProvisioned"}},
+			Versions:   []string{"20241022 (Default)"},
+			InputRate:  &inHaiku,
+			OutputRate: &outHaiku,
+		},
+		{
+			Name:        "gpt-4.1",
+			Publisher:   "OpenAI",
+			Option:      "Standard",
+			Tasks:       []string{"Reasoning", "Multimodal"},
+			Sub:         "Next-gen reasoning model",
+			MaxCapacity: &cap160,
+			SKUs: []ModelSKUItem{
+				{Name: "GlobalStandard", MaxCapacity: &cap160},
+				{Name: "DataZoneStandard", MaxCapacity: &cap66},
+			},
+			Versions: []string{"2024-11-20 (Default)"},
+		},
+		{
+			Name:       "llama-3.3-70b-instruct",
+			Publisher:  "Meta",
+			Option:     "Pay-as-you-go",
+			Tasks:      []string{"Chat", "Reasoning"},
+			Sub:        "128k context · Open-weight flagship",
+			Versions:   []string{"1 (Default)"},
+			InputRate:  &inLlama,
+			OutputRate: &outLlama,
+		},
+		{
+			Name:       "mistral-large-2411",
+			Publisher:  "Mistral AI",
+			Option:     "Pay-as-you-go",
+			Tasks:      []string{"Chat", "Reasoning", "Multimodal"},
+			Sub:        "128k context · Top-tier reasoning",
+			Versions:   []string{"2411 (Default)"},
+			InputRate:  &inMistral,
+			OutputRate: &outMistral,
+		},
+		{
+			Name:        "phi-4",
+			Publisher:   "Microsoft",
+			Option:      "Standard",
+			Tasks:       []string{"Reasoning"},
+			Sub:         "14B parameters · SOTA math & code",
+			MaxCapacity: &cap100,
+			Versions:    []string{"1 (Default)"},
+		},
+		{
+			Name:        "text-embedding-3-large",
+			Publisher:   "OpenAI",
+			Option:      "Standard",
+			Tasks:       []string{"Embeddings"},
+			Sub:         "3,072 dimensions · High accuracy",
+			MaxCapacity: &cap80,
+			Versions:    []string{"1 (Default)"},
+		},
+		{
+			Name:        "text-embedding-3-small",
+			Publisher:   "OpenAI",
+			Option:      "Standard",
+			Tasks:       []string{"Embeddings"},
+			Sub:         "1,536 dimensions · Efficient embeddings",
+			MaxCapacity: &cap80,
+			Versions:    []string{"1 (Default)"},
+		},
+	}, ctx.Err()
+}
+
+func (fixedSource) CreateDeployment(ctx context.Context, foundry Foundry, spec DeploymentCreateSpec) error {
+	if err := waitForRelease(ctx, "create"); err != nil {
+		return err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "create" || spec.DeploymentName == "fail-deploy" || spec.DeploymentName == "chat-production" {
+		return fmt.Errorf("The deployment name '%s' already exists in this Foundry.", spec.DeploymentName)
+	}
+	created.add(Deployment{
+		ID:             foundry.ID + "/deployments/" + spec.DeploymentName,
+		DeploymentName: spec.DeploymentName,
+		ModelName:      spec.ModelName,
+		Version:        spec.Version,
+	})
+	return ctx.Err()
 }

@@ -70,6 +70,10 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-deployment-delete
+  server:review:deployment-add:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-deployment-add
   server:review:foundry-revisit:
     cmds:
       - task: build:server:e2e
