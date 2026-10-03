@@ -4,6 +4,7 @@ package foundry
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -70,4 +71,31 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 	}
 	report(len(deployments))
 	return deployments, ctx.Err()
+}
+
+func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deployment Deployment) (DeploymentDetail, error) {
+	if err := waitForRelease(ctx, "detail"); err != nil {
+		return DeploymentDetail{}, err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "detail" {
+		return DeploymentDetail{}, fmt.Errorf("simulated deployment detail retrieval failure")
+	}
+	sku := "GlobalStandard"
+	capacity := int32(50)
+	state := "Succeeded"
+	policy := "OnceNewDefaultVersionAvailable"
+	switch deployment.ModelName {
+	case "gpt-4.1-mini":
+		capacity = 100
+	case "text-embedding-3-large":
+		sku = "Standard"
+		capacity = 20
+		policy = "NoAutoUpgrade"
+	}
+	return DeploymentDetail{
+		ID: deployment.ID, DeploymentName: deployment.DeploymentName,
+		ModelName: deployment.ModelName, Version: deployment.Version,
+		SKUName: &sku, Capacity: &capacity, ProvisioningState: &state,
+		VersionUpgradePolicy: &policy,
+	}, ctx.Err()
 }

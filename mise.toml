@@ -73,6 +73,10 @@ run = "node scripts/run.mjs server:review:foundry-empty"
 description = "画面確認用：保存済みの閲覧結果があるテナントへの変更を固定応答で確認する（本番経路ではない）"
 run = "node scripts/run.mjs server:review:tenant-revisit"
 
+[tasks."server:review:deployment-detail"]
+description = "モデル明細の画面確認用：固定の外部応答で起動する"
+run = "node scripts/run.mjs server:review:deployment-detail"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

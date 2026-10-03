@@ -9,9 +9,9 @@ const colors: Record<AcquisitionPhase, string> = {
 };
 
 const labels: Record<AcquisitionPhase, string> = {
-  waiting: '待機中',
-  running: '取得中',
-  completed: '完了',
+  waiting: 'Waiting',
+  running: 'Loading',
+  completed: 'Completed',
 };
 
 function Mark({ phase }: { phase: AcquisitionPhase }) {
@@ -105,22 +105,22 @@ export function AcquisitionProgressModal({
         <Modal.Header role="presentation">
           <Modal.Title>
             {mode === 'refresh'
-              ? 'Foundry一覧を更新しています'
+              ? 'Refreshing Foundries'
               : mode === 'deployments'
-                ? 'デプロイモデルを更新しています'
-                : 'デプロイモデルを取得しています'}
+                ? 'Refreshing models'
+                : 'Loading deployments'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {!modelsOnly && (
-            <Step label="Foundry一覧の取得" phase={progress.foundryPhase as AcquisitionPhase}>
+            <Step label="Foundries" phase={progress.foundryPhase as AcquisitionPhase}>
               {progress.foundryPhase === 'completed' && (
-                <Text size="sm">Foundry {progress.foundryCount} 件</Text>
+                <Text size="sm">{progress.foundryCount} Foundries</Text>
               )}
             </Step>
           )}
           <Step
-            label="デプロイモデルの取得"
+            label="Deployments"
             phase={progress.modelPhase as AcquisitionPhase}
             bordered={!modelsOnly}
           >
@@ -130,7 +130,7 @@ export function AcquisitionProgressModal({
                   {progress.selectedFoundryName}
                 </Text>
                 <Text size="sm" c="dimmed">
-                  取得したモデル {progress.modelCount} 件
+                  {progress.modelCount} models
                 </Text>
               </>
             )}
