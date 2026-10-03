@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
-// The fixed source finds one subscription without any Foundry; discovery is held until released.
+// The fixed source finds no Foundry; the list is held until released.
 // The first progress event is lost if it is sent before the page's WebSocket is registered, so the
 // startup restore is held until the page has opened it, and discovery then starts after that.
 test.use({
@@ -25,7 +25,8 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
   );
   const savedFile = join(viewDir, 'foundry-state.json');
   const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
+  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const foundry = page.locator('button[aria-label="Foundry"]');
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const updateFoundries = page.getByRole('button', { name: 'Foundry一覧を更新' });
@@ -78,8 +79,8 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
     await socket;
     writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(saveStatus).toContainText('待機中');
+    await expect(foundryStep).toContainText('取得中');
+    await expect(modelStep).toContainText('待機中');
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -89,7 +90,8 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
 
   await test.step('手順2', async () => {
     writeFileSync(join(app.dataDir, 'e2e-foundry-discovery-release'), '');
-    await expect.poll(() => snapshots.some((s) => s.subscriptionSearch === 'completed')).toBe(true);
+    await expect.poll(() => snapshots.some((s) => s.foundryPhase === 'completed')).toBe(true);
+    expect(snapshots.at(-1)).toMatchObject({ foundryCount: 0, modelPhase: 'waiting' });
     // 選択先の Foundry がなく、モデルの取得は行わない。
     expect(snapshots.every((s) => s.selectedFoundryName === '' && s.modelCount === 0)).toBe(true);
     expect(snapshots.some((s) => s.modelPhase === 'running')).toBe(false);
@@ -97,8 +99,6 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
 
   await test.step('手順3', async () => {
     await expect(dialog).toHaveCount(0);
-    expect(snapshots.some((s) => s.savePhase === 'running')).toBe(true);
-    expect(snapshots.some((s) => s.savePhase === 'completed')).toBe(true);
     await assertEmptyHome();
   });
 

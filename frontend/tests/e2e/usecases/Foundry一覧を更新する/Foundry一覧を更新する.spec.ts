@@ -103,10 +103,8 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   const refresh = page.getByRole('button', { name: 'Foundry一覧を更新' });
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const subscriptionRows = dialog.locator(
-    'table[aria-label="サブスクリプションの取得状況"] tbody tr',
-  );
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
+  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
   const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
   const modelsFetched = page.getByText(/件・最終取得 /);
   const assertModels = async (models: string[][]) => {
@@ -147,8 +145,9 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
   await test.step('手順1', async () => {
     await refresh.click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('発見 0 件', { exact: true })).toBeVisible();
+    await expect(foundryStep).toContainText('取得中');
+    await expect(modelStep).toContainText('待機中');
+    await expect(dialog.getByText('ファイルへの保存')).toHaveCount(0);
     await expect(dialog.getByRole('button')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.mouse.click(5, 5);
@@ -162,28 +161,13 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
 
   await test.step('手順2', async () => {
     release('discovery');
-    await expect(subscriptionRows).toHaveCount(3);
-    await expect(subscriptionRows.nth(0)).toContainText(production.subscriptionName);
-    await expect(subscriptionRows.nth(0)).toContainText('待機中');
-    release('start');
-    await expect(dialog.getByText('サブスクリプションの検索完了', { exact: true })).toBeVisible();
-    await expect(subscriptionRows.filter({ hasText: 'Foundry取得中' })).toHaveCount(3);
-    release('second');
-    await expect(subscriptionRows).toHaveCount(2);
-    await expect(subscriptionRows.filter({ hasText: development.subscriptionName })).toHaveCount(0);
-    await expect(dialog.getByText('完了 1 / 発見 3 件', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('デプロイモデルの取得', { exact: true })).toHaveCount(0);
-    await expect(saveStatus).toContainText('待機中');
-    expect(readState()).toEqual(original);
+    // The selected Foundry stays listed, so nothing holds the dialog after the list: it closes at once.
+    await expect.poll(() => snapshots.some((s) => s.foundryPhase === 'completed')).toBe(true);
+    expect(snapshots.at(-1)).toMatchObject({ foundryCount: refreshedFoundries.length });
   });
 
   await test.step('手順3', async () => {
-    release('remaining');
     await expect(dialog).toHaveCount(0);
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
-    expect(saving).toBeGreaterThan(0);
-    expect(saved).toBeGreaterThan(saving);
     const state = readState();
     expect(state).toEqual({
       ...original,
@@ -214,6 +198,13 @@ test('Foundry一覧を更新する', async ({ page, app }) => {
       expect(snapshot.selectedFoundryName).toBe('');
       expect(snapshot.modelPhase).toBe('waiting');
     }
+    expect(snapshots.at(-1)).toEqual({
+      foundryPhase: 'completed',
+      foundryCount: refreshedFoundries.length,
+      selectedFoundryName: '',
+      modelPhase: 'waiting',
+      modelCount: 0,
+    });
     expect(readFileSync(modelFile(production), 'utf8')).toBe(productionText);
     expect(existsSync(modelFile(legacy))).toBe(false);
     const refreshed = readState();

@@ -40,7 +40,7 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
   const tenantButton = header.getByRole('button', { name: 'テナント', exact: true });
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const selectedFoundry = page.locator('button[aria-label="Foundry"]');
-  const snapshots: { savePhase: string }[] = [];
+  const snapshots: { modelPhase: string }[] = [];
   let changeCalls = 0;
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -87,7 +87,7 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
     await expect(tenantButton).toHaveText('Fabrikam');
     await expect(header).not.toContainText('Contoso');
     await expect
-      .poll(() => snapshots.slice(before).some((s) => s.savePhase === 'completed'))
+      .poll(() => snapshots.slice(before).some((s) => s.modelPhase === 'completed'))
       .toBe(true);
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });

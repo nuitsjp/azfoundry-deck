@@ -93,7 +93,6 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
   const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
   const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
   const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
-  const saveStatus = dialog.getByText('ファイルへの保存', { exact: true }).locator('..');
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
@@ -140,10 +139,11 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(foundries[1].name, { exact: true })).toBeVisible();
     await expect(modelStatus).toContainText('取得中');
-    await expect(saveStatus).toContainText('待機中');
     await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
     await expect(dialog.getByRole('table')).toHaveCount(0);
-    await expect(dialog.getByText(/サブスクリプション|Foundry取得中/)).toHaveCount(0);
+    await expect(
+      dialog.getByText(/Foundry一覧の取得|ファイルへの保存|サブスクリプション/),
+    ).toHaveCount(0);
     await expect(selected).toBeDisabled();
     await expect(selected).toHaveText(labels[0]);
     await assertModels(oldModels);
@@ -162,11 +162,7 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     const completedModels = snapshots.findIndex(
       (snapshot) => snapshot.modelPhase === 'completed' && snapshot.modelCount === 3,
     );
-    const saving = snapshots.findIndex((snapshot) => snapshot.savePhase === 'running');
-    const saved = snapshots.findIndex((snapshot) => snapshot.savePhase === 'completed');
     expect(completedModels).toBeGreaterThanOrEqual(0);
-    expect(saving).toBeGreaterThan(completedModels);
-    expect(saved).toBeGreaterThan(saving);
     expect(
       snapshots.some((snapshot) => snapshot.modelPhase === 'running' && snapshot.modelCount === 3),
     ).toBe(true);
@@ -209,14 +205,15 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
 
   await test.step('受け入れ条件', async () => {
     for (const snapshot of snapshots) {
-      expect(snapshot.subscriptionSearch).toBe('completed');
-      expect(snapshot.subscriptions).toEqual([]);
+      expect(snapshot.foundryPhase).toBe('completed');
       expect(snapshot.selectedFoundryName).toBe(foundries[1].name);
     }
-    expect(snapshots.at(-1)).toMatchObject({
+    expect(snapshots.at(-1)).toEqual({
+      foundryPhase: 'completed',
+      foundryCount: original.foundries.length,
+      selectedFoundryName: foundries[1].name,
       modelPhase: 'completed',
       modelCount: 3,
-      savePhase: 'completed',
     });
     const paths = [stateFile, oldFile, targetFile];
     const unchanged = paths.map((path) => ({

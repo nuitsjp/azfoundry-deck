@@ -3,156 +3,99 @@
 package foundry
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
-	"sync"
+	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices/v3"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
-	"golang.org/x/sync/errgroup"
+)
+
+const (
+	graphPath       = "/providers/Microsoft.ResourceGraph/resources?api-version=2022-10-01"
+	graphModuleName = "azfoundrydeck/internal/foundry"
+	// A leftouter join keeps a Foundry whose subscription row is missing, which is then rejected below.
+	foundriesQuery = `resources
+| where type =~ 'microsoft.cognitiveservices/accounts' and kind =~ 'AIServices'
+| join kind=leftouter (resourcecontainers | where type =~ 'microsoft.resources/subscriptions' | project subscriptionId, subscriptionName = name) on subscriptionId
+| project id, name, resourceGroup, subscriptionName`
 )
 
 type azureSource struct {
-	credential    azcore.TokenCredential
-	subscriptions *armsubscriptions.Client
+	credential azcore.TokenCredential
+	graph      *arm.Client
 }
 
 func NewAzure(credential azcore.TokenCredential) (Source, error) {
-	client, err := armsubscriptions.NewClient(credential, nil)
+	graph, err := arm.NewClient(graphModuleName, "v1.0.0", credential, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create subscriptions client: %w", err)
+		return nil, fmt.Errorf("create resource graph client: %w", err)
 	}
-	return &azureSource{credential: credential, subscriptions: client}, nil
+	return &azureSource{credential: credential, graph: graph}, nil
 }
 
-func (s *azureSource) Discover(ctx context.Context, discovered func(Foundry), report func(DiscoveryProgress)) ([]Foundry, error) {
+type graphRequest struct {
+	Query   string       `json:"query"`
+	Options graphOptions `json:"options"`
+}
+
+type graphOptions struct {
+	SkipToken string `json:"$skipToken,omitempty"`
+}
+
+type graphResponse struct {
+	Data []struct {
+		ID               string `json:"id"`
+		Name             string `json:"name"`
+		ResourceGroup    string `json:"resourceGroup"`
+		SubscriptionName string `json:"subscriptionName"`
+	} `json:"data"`
+	SkipToken string `json:"$skipToken"`
+}
+
+// Foundries lists every Foundry the signed-in user can read in one Azure Resource Graph query.
+func (s *azureSource) Foundries(ctx context.Context) ([]Foundry, error) {
 	foundries := make([]Foundry, 0)
-	progress := DiscoveryProgress{SubscriptionSearch: "searching", Subscriptions: make([]SubscriptionProgress, 0)}
-	var mu sync.Mutex
-	next := 0
-	changed := make(chan struct{})
-	publish := func() {
-		snapshot := progress
-		snapshot.Subscriptions = append([]SubscriptionProgress{}, progress.Subscriptions...)
-		report(snapshot)
-	}
-	wake := func() {
-		close(changed)
-		changed = make(chan struct{})
-	}
-	publish()
-	group, fetchCtx := errgroup.WithContext(ctx)
-	group.Go(func() error {
-		pager := s.subscriptions.NewListPager(nil)
-		for pager.More() {
-			page, err := pager.NextPage(fetchCtx)
-			if err != nil {
-				return fmt.Errorf("list subscriptions: %w", err)
-			}
-			rows := make([]SubscriptionProgress, 0, len(page.Value))
-			for _, subscription := range page.Value {
-				if subscription == nil || subscription.SubscriptionID == nil || *subscription.SubscriptionID == "" || subscription.DisplayName == nil || *subscription.DisplayName == "" {
-					return fmt.Errorf("subscription response lacks ID or display name")
-				}
-				rows = append(rows, SubscriptionProgress{ID: *subscription.SubscriptionID, Name: *subscription.DisplayName, Phase: "waiting"})
-			}
-			mu.Lock()
-			progress.Subscriptions = append(progress.Subscriptions, rows...)
-			publish()
-			wake()
-			mu.Unlock()
+	skipToken := ""
+	for {
+		body, err := json.Marshal(graphRequest{Query: foundriesQuery, Options: graphOptions{SkipToken: skipToken}})
+		if err != nil {
+			return nil, fmt.Errorf("encode resource graph request: %w", err)
 		}
-		mu.Lock()
-		progress.SubscriptionSearch = "completed"
-		publish()
-		wake()
-		mu.Unlock()
-		return nil
-	})
-	// Subscription paging continues independently of the eight account workers.
-	for range 8 {
-		group.Go(func() error {
-			for {
-				if err := fetchCtx.Err(); err != nil {
-					return err
-				}
-				mu.Lock()
-				if next == len(progress.Subscriptions) {
-					done := progress.SubscriptionSearch == "completed"
-					ready := changed
-					mu.Unlock()
-					if done {
-						return nil
-					}
-					select {
-					case <-ready:
-						continue
-					case <-fetchCtx.Done():
-						return fetchCtx.Err()
-					}
-				}
-				index := next
-				next++
-				progress.Subscriptions[index].Phase = "running"
-				subscription := progress.Subscriptions[index]
-				publish()
-				mu.Unlock()
-				client, err := armcognitiveservices.NewAccountsClient(subscription.ID, s.credential, nil)
-				if err != nil {
-					return fmt.Errorf("create accounts client: %w", err)
-				}
-				accounts := client.NewListPager(nil)
-				for accounts.More() {
-					page, err := accounts.NextPage(fetchCtx)
-					if err != nil {
-						return fmt.Errorf("list accounts for subscription %s: %w", subscription.ID, err)
-					}
-					for _, account := range page.Value {
-						if account == nil {
-							return fmt.Errorf("accounts response contains a nil account")
-						}
-						if account.Kind == nil {
-							return fmt.Errorf("account response lacks kind")
-						}
-						if !strings.EqualFold(*account.Kind, "AIServices") {
-							continue
-						}
-						if account.ID == nil || account.Name == nil || *account.Name == "" {
-							return fmt.Errorf("Foundry response lacks ID or name")
-						}
-						id, err := arm.ParseResourceID(*account.ID)
-						if err != nil {
-							return fmt.Errorf("parse Foundry resource ID: %w", err)
-						}
-						if id.ResourceGroupName == "" {
-							return fmt.Errorf("Foundry response lacks name or resource group")
-						}
-						foundry := Foundry{ID: *account.ID, Name: *account.Name, SubscriptionName: subscription.Name, ResourceGroupName: id.ResourceGroupName}
-						mu.Lock()
-						foundries = append(foundries, foundry)
-						progress.Subscriptions[index].FoundryCount++
-						publish()
-						discovered(foundry)
-						mu.Unlock()
-					}
-				}
-				mu.Lock()
-				progress.Subscriptions[index].Phase = "completed"
-				publish()
-				mu.Unlock()
+		req, err := runtime.NewRequest(ctx, http.MethodPost, s.graph.Endpoint()+graphPath)
+		if err != nil {
+			return nil, fmt.Errorf("create resource graph request: %w", err)
+		}
+		if err := req.SetBody(streaming.NopCloser(bytes.NewReader(body)), "application/json"); err != nil {
+			return nil, fmt.Errorf("set resource graph request body: %w", err)
+		}
+		resp, err := s.graph.Pipeline().Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("query Foundries: %w", err)
+		}
+		if !runtime.HasStatusCode(resp, http.StatusOK) {
+			return nil, fmt.Errorf("query Foundries: %w", runtime.NewResponseError(resp))
+		}
+		var page graphResponse
+		if err := runtime.UnmarshalAsJSON(resp, &page); err != nil {
+			return nil, fmt.Errorf("decode Foundries: %w", err)
+		}
+		for _, row := range page.Data {
+			if row.ID == "" || row.Name == "" || row.ResourceGroup == "" || row.SubscriptionName == "" {
+				return nil, fmt.Errorf("Foundry response lacks ID, name, resource group, or subscription name")
 			}
-		})
+			foundries = append(foundries, Foundry{ID: row.ID, Name: row.Name, SubscriptionName: row.SubscriptionName, ResourceGroupName: row.ResourceGroup})
+		}
+		if page.SkipToken == "" {
+			return foundries, nil
+		}
+		skipToken = page.SkipToken
 	}
-	if err := group.Wait(); err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return foundries, nil
 }
 
 func (s *azureSource) Deployments(ctx context.Context, foundry Foundry, report func(int)) ([]Deployment, error) {
