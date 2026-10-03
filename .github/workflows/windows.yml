@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ['v*.*.*']
   pull_request:
 permissions:
   contents: read
@@ -20,6 +21,7 @@ jobs:
         id: paths
         env:
           EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -28,7 +30,9 @@ jobs:
           import os
           import subprocess
 
-          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+          if os.environ['EVENT_NAME'] == 'push' and os.environ['REF_TYPE'] == 'tag':
+              directories = ['.']
+          elif os.environ['EVENT_NAME'] == 'workflow_dispatch':
               directories = ['.', 'reference']
           else:
               base = os.environ['BASE_SHA']
@@ -81,6 +85,21 @@ jobs:
       - name: Clean generated files while keeping dependencies
         working-directory: .
         run: git clean -ffdx -e frontend/node_modules/ -e reference/frontend/node_modules/
+      - name: Verify release version
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $version = (Get-Content build/app.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw "Invalid release tag: $env:RELEASE_TAG"
+          }
+          foreach ($part in $env:RELEASE_TAG.Substring(1).Split('.')) {
+            if ([decimal]$part -gt 65535) { throw 'Release version components must be between 0 and 65535' }
+          }
+          if ($env:RELEASE_TAG -cne "v$version") {
+            throw "Release tag $env:RELEASE_TAG does not match build/app.json version $version"
+          }
       - name: Read tool versions
         id: tools
         run: |
@@ -162,3 +181,37 @@ jobs:
             ${{ matrix.directory }}/frontend/test-results/
           if-no-files-found: ignore
           retention-days: 7
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build-project
+          path: bin
+      - name: Publish installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          installer="bin/azfoundrydeck-${RELEASE_TAG#v}-amd64-setup.exe"
+          test -f "$installer"
+          existing_tags=$(gh api "repos/$GH_REPO/releases" --paginate --jq '.[].tag_name')
+          if grep -Fxq "$RELEASE_TAG" <<< "$existing_tags"; then
+            echo "Release $RELEASE_TAG already exists; refusing to overwrite it" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" "$installer" --verify-tag --draft --title "$RELEASE_TAG" --notes "Windows x64 installer for ${RELEASE_TAG#v}."
+          gh release edit "$RELEASE_TAG" --draft=false
+          release_url=$(gh release view "$RELEASE_TAG" --json url --jq '.url')
+          echo "Published release: $release_url"
+          echo "Release: $release_url" >> "$GITHUB_STEP_SUMMARY"

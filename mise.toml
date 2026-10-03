@@ -41,6 +41,10 @@ run = "node scripts/run.mjs build"
 description = "ビルド後、未署名NSISインストーラーをbin/に生成する"
 run = "node scripts/run.mjs package"
 
+[tasks."release:tag"]
+description = "バージョンを更新・コミットしてタグをpushする（未指定時は末尾を1増やす）"
+run = "node scripts/release-tag.mjs"
+
 [tasks.server]
 description = "Go実処理を使うブラウザ確認用サーバーを起動する"
 run = "node scripts/run.mjs server"
