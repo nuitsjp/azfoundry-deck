@@ -80,6 +80,8 @@ export function EditDeploymentModal({
     baseline && upgradePolicies.some((item) => item.value === baseline.upgradePolicy)
       ? upgradePolicies
       : [...upgradePolicies, { value: policy, label: policy }];
+  const sliderValue = Math.min(maximum, Math.max(1000, capacity));
+  const labelGrowsRight = maximum <= 1000 || sliderValue <= 1000 + (maximum - 1000) / 2;
   const overMaximum = standard && maximum > 0 && capacity > maximum;
   const unchanged =
     baseline !== null &&
@@ -112,6 +114,7 @@ export function EditDeploymentModal({
       closeOnEscape={!busy}
       closeOnClickOutside={!busy}
       closeButtonProps={{ disabled: busy }}
+      styles={{ content: { overflowX: 'hidden' } }}
     >
       {settings.isPending ? (
         <Group justify="center" py="xl" role="status">
@@ -181,9 +184,14 @@ export function EditDeploymentModal({
                   min={1000}
                   max={maximum}
                   step={1000}
-                  value={Math.min(maximum, Math.max(1000, capacity))}
+                  value={sliderValue}
                   onChange={changeSlider}
                   label={(value) => value.toLocaleString('en-US')}
+                  styles={{
+                    label: labelGrowsRight
+                      ? { left: 0, right: 'auto' }
+                      : { left: 'auto', right: 0 },
+                  }}
                   disabled={busy}
                 />
               </Box>
