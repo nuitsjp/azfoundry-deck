@@ -14,14 +14,16 @@ import {
   useCombobox,
 } from '@mantine/core';
 import { changeFoundry } from '../../features/foundry/change-view';
+import { createDeployment } from '../../features/foundry/create-deployment';
 import { deleteDeployment } from '../../features/foundry/delete-deployment';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
 import { refreshDeployments } from '../../features/foundry/refresh-deployments';
-import type { Deployment, Foundry } from '../../features/foundry/models';
+import type { Deployment, DeploymentCreateSpec, Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
+import { AddDeploymentModal } from './AddDeploymentModal';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -58,6 +60,10 @@ export function InitialDeployments() {
   const [detailRevision, setDetailRevision] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null);
   const [deleteProgress, setDeleteProgress] = useState<FoundryProgress | null>(null);
+  const [addOpened, setAddOpened] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [deployProgress, setDeployProgress] = useState<FoundryProgress | null>(null);
+  const [deployError, setDeployError] = useState<string | null>(null);
   const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
@@ -92,7 +98,32 @@ export function InitialDeployments() {
     },
     onSettled: () => setDeleteTarget(null),
   });
-  const busy = useIsMutating() > 0;
+  const deploy = useMutation({
+    mutationFn: (spec: DeploymentCreateSpec) => createDeployment(spec),
+    onSuccess: async (view, spec) => {
+      setDeployProgress({
+        foundryPhase: 'completed',
+        foundryCount: view.foundries.length,
+        selectedFoundryName: spec.deploymentName,
+        modelPhase: 'completed',
+        modelCount: 0,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setAddOpened(false);
+      setDeployError(null);
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+    },
+    onError: (err) => {
+      setDeployError(err instanceof Error ? err.message : 'Deployment failed');
+    },
+    onSettled: () => {
+      setDeploying(false);
+      setDeployProgress(null);
+    },
+  });
+  const busy = useIsMutating() > 0 || deploying;
+
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const view = initial.data;
   if (!view)
@@ -136,6 +167,34 @@ export function InitialDeployments() {
           mode="delete"
         />
       )}
+      {deployProgress && (
+        <AcquisitionProgressModal opened={deploying} progress={deployProgress} mode="deploy" />
+      )}
+      <AddDeploymentModal
+        opened={addOpened}
+        onClose={() => {
+          setAddOpened(false);
+          setDeployError(null);
+        }}
+        busy={deploying}
+        error={deployError}
+        onClearError={() => setDeployError(null)}
+        existingDeploymentNames={view.deployments.map((d) => d.deploymentName)}
+        onDeploy={(spec) => {
+          setDeployError(null);
+          setDeploying(true);
+          setDeployProgress({
+            foundryPhase: 'completed',
+            foundryCount: view.foundries.length,
+            selectedFoundryName: spec.deploymentName,
+            modelPhase: 'running',
+            modelCount: 0,
+          });
+          setTimeout(() => {
+            deploy.mutate(spec);
+          }, 700);
+        }}
+      />
       <Modal
         opened={deleteTarget !== null && !remove.isPending}
         onClose={() => setDeleteTarget(null)}
@@ -261,27 +320,33 @@ export function InitialDeployments() {
         </Group>
       </Stack>
       <section aria-label="Deployments and details">
-        <Group className="deployment-workspace-title" justify="flex-start" gap="sm">
-          <Text size="sm" fw={500}>
-            Deployed Models
-          </Text>
-          <Tooltip label="Refresh models">
-            <ActionIcon
-              variant="subtle"
-              aria-label="Refresh models"
-              disabled={busy || !selected}
-              onClick={() => {
-                setModelsProgress(null);
-                refreshModels.mutate();
-              }}
-            >
-              <RefreshIcon />
-            </ActionIcon>
-          </Tooltip>
-          <Text size="xs" c="dimmed">
-            {view.deployments.length}
-            {view.deploymentsFetchedAt && ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
-          </Text>
+        <Group className="deployment-workspace-title" justify="space-between" gap="sm">
+          <Group gap="sm">
+            <Text size="sm" fw={500}>
+              Deployed Models
+            </Text>
+            <Tooltip label="Refresh models">
+              <ActionIcon
+                variant="subtle"
+                aria-label="Refresh models"
+                disabled={busy || !selected}
+                onClick={() => {
+                  setModelsProgress(null);
+                  refreshModels.mutate();
+                }}
+              >
+                <RefreshIcon />
+              </ActionIcon>
+            </Tooltip>
+            <Text size="xs" c="dimmed">
+              {view.deployments.length}
+              {view.deploymentsFetchedAt &&
+                ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
+            </Text>
+          </Group>
+          <Button size="xs" disabled={busy || !selected} onClick={() => setAddOpened(true)}>
+            + Add deployment
+          </Button>
         </Group>
         <div className="deployment-workspace">
           <DeploymentDetails

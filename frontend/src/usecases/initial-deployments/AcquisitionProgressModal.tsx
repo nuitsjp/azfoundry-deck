@@ -54,7 +54,7 @@ function Step({
       display="grid"
       mih={68}
       style={{
-        gridTemplateColumns: '20px auto minmax(0, 1fr) 64px',
+        gridTemplateColumns: '20px auto minmax(0, 1fr) 92px',
         alignItems: 'center',
         columnGap: 12,
         borderTop: bordered ? '1px solid var(--mantine-color-dark-4)' : undefined,
@@ -73,7 +73,7 @@ function Step({
       <Stack gap={0} ta="right" mih="2.9em" justify="center" miw={0}>
         {children}
       </Stack>
-      <Badge color={colors[phase]} variant="light" fullWidth>
+      <Badge color={colors[phase]} variant="light" fullWidth size="sm">
         {labels[phase]}
       </Badge>
     </Box>
@@ -87,7 +87,7 @@ export function AcquisitionProgressModal({
 }: {
   opened: boolean;
   progress: FoundryProgress;
-  mode?: 'initial' | 'change' | 'refresh' | 'deployments' | 'delete';
+  mode?: 'initial' | 'change' | 'refresh' | 'deployments' | 'delete' | 'deploy';
 }) {
   const modelsOnly = mode !== 'initial' && mode !== 'refresh';
 
@@ -97,6 +97,7 @@ export function AcquisitionProgressModal({
       onClose={() => {}}
       size={640}
       centered
+      zIndex={300}
       closeOnEscape={false}
       closeOnClickOutside={false}
     >
@@ -110,7 +111,9 @@ export function AcquisitionProgressModal({
                 ? 'Refreshing models'
                 : mode === 'delete'
                   ? 'Deleting deployment'
-                  : 'Loading deployments'}
+                  : mode === 'deploy'
+                    ? 'Deploying model'
+                    : 'Loading deployments'}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -122,7 +125,7 @@ export function AcquisitionProgressModal({
             </Step>
           )}
           <Step
-            label={mode === 'delete' ? 'Delete' : 'Deployments'}
+            label={mode === 'delete' ? 'Delete' : mode === 'deploy' ? 'Deploy' : 'Deployments'}
             phase={progress.modelPhase as AcquisitionPhase}
             bordered={!modelsOnly}
           >
@@ -131,7 +134,7 @@ export function AcquisitionProgressModal({
                 <Text size="sm" truncate="end" title={progress.selectedFoundryName}>
                   {progress.selectedFoundryName}
                 </Text>
-                {mode !== 'delete' && (
+                {mode !== 'delete' && mode !== 'deploy' && (
                   <Text size="sm" c="dimmed">
                     {progress.modelCount} models
                   </Text>
