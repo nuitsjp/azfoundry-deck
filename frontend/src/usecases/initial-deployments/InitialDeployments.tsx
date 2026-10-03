@@ -8,7 +8,6 @@ import {
   InputBase,
   Stack,
   Text,
-  Title,
   Tooltip,
   useCombobox,
 } from '@mantine/core';
@@ -204,9 +203,11 @@ export function InitialDeployments() {
           Last fetched {fetchedAt(view.foundriesFetchedAt)}
         </Text>
       </Stack>
-      <section className="deployment-workspace" aria-label="Deployments and details">
+      <section aria-label="Deployments and details">
         <Group className="deployment-workspace-title" justify="space-between" gap="sm">
-          <Title order={4}>Deployed Models</Title>
+          <Text size="sm" fw={500}>
+            Deployed Models
+          </Text>
           <Group gap="sm">
             <Text size="xs" c="dimmed">
               {view.deployments.length}
@@ -215,7 +216,7 @@ export function InitialDeployments() {
             </Text>
             <Tooltip label="Refresh models">
               <ActionIcon
-                variant="default"
+                variant="subtle"
                 aria-label="Refresh models"
                 disabled={busy || !selected}
                 onClick={() => {
@@ -228,11 +229,13 @@ export function InitialDeployments() {
             </Tooltip>
           </Group>
         </Group>
-        <DeploymentDetails
-          key={`${view.selectedFoundryId}:${detailRevision}`}
-          deployments={view.deployments}
-          busy={busy}
-        />
+        <div className="deployment-workspace">
+          <DeploymentDetails
+            key={`${view.selectedFoundryId}:${detailRevision}`}
+            deployments={view.deployments}
+            busy={busy}
+          />
+        </div>
       </section>
     </Stack>
   );

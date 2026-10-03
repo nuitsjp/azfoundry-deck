@@ -14,10 +14,8 @@ textarea {
   overflow: hidden;
 }
 .deployment-workspace-title {
-  min-height: 66px;
-  padding: 16px 20px;
-  background: var(--mantine-color-default);
-  border-bottom: 1px solid var(--mantine-color-default-border);
+  min-height: 36px;
+  margin-bottom: 6px;
 }
 .deployment-split {
   display: grid;
@@ -132,7 +130,6 @@ textarea {
   .deployment-detail-fields {
     grid-template-columns: 130px minmax(0, 1fr);
   }
-  .deployment-workspace-title,
   .deployment-pane-heading,
   .deployment-detail-title,
   .deployment-detail-content,
