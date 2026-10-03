@@ -5,6 +5,16 @@ import { getDeploymentDetail } from '../../features/foundry/deployment-detail';
 import type { Deployment, DeploymentDetail } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 
+const upgradePolicyLabels = new Map([
+  ['OnceNewDefaultVersionAvailable', 'Upgrade to new default'],
+  ['OnceCurrentVersionExpired', 'Upgrade on retirement'],
+  ['NoAutoUpgrade', 'No automatic upgrade'],
+]);
+
+function capacityValue(value: number | null | undefined) {
+  return value?.toLocaleString('en-US') ?? 'Not set';
+}
+
 function fetchedAt(value: string) {
   const time = new Date(value);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -45,6 +55,7 @@ export function DeploymentDetails({
   });
 
   function selectDeployment(id: string) {
+    if (busy || fetchDetail.isPending) return;
     setSelectedID(id);
     setDetail(null);
     setError(null);
@@ -70,15 +81,20 @@ export function DeploymentDetails({
               {deployments.map((deployment) => (
                 <Table.Tr
                   key={deployment.id}
-                  className={selectedID === deployment.id ? 'deployment-selected' : undefined}
+                  className={`deployment-row${selectedID === deployment.id ? ' deployment-selected' : ''}`}
+                  aria-disabled={busy || fetchDetail.isPending}
+                  onClick={() => selectDeployment(deployment.id)}
                 >
                   <Table.Td>
                     <button
                       type="button"
                       className="deployment-select"
                       aria-pressed={selectedID === deployment.id}
-                      disabled={busy}
-                      onClick={() => selectDeployment(deployment.id)}
+                      disabled={busy || fetchDetail.isPending}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectDeployment(deployment.id);
+                      }}
                     >
                       {deployment.deploymentName}
                     </button>
@@ -137,11 +153,19 @@ export function DeploymentDetails({
               <dt>SKU</dt>
               <dd>{detail.skuName ?? 'Not set'}</dd>
               <dt>Capacity</dt>
-              <dd>{detail.capacity ?? 'Not set'}</dd>
+              <dd>
+                {capacityValue(detail.capacity)} / {capacityValue(detail.capacityMaximum)}
+                {detail.capacityUnit ? ` ${detail.capacityUnit}` : ''}
+              </dd>
               <dt>Provisioning state</dt>
               <dd>{detail.provisioningState ?? 'Not set'}</dd>
-              <dt>Version upgrade policy</dt>
-              <dd>{detail.versionUpgradePolicy ?? 'Not set'}</dd>
+              <dt>Upgrade policy</dt>
+              <dd>
+                {detail.versionUpgradePolicy == null
+                  ? 'Not set'
+                  : (upgradePolicyLabels.get(detail.versionUpgradePolicy) ??
+                    detail.versionUpgradePolicy)}
+              </dd>
             </dl>
             <footer className="deployment-detail-footer">
               Last fetched {fetchedAt(detail.fetchedAt)}

@@ -58,6 +58,12 @@ textarea {
 .deployment-table-wrap td:first-child {
   width: 41%;
 }
+.deployment-row {
+  cursor: pointer;
+}
+.deployment-row[aria-disabled='true'] {
+  cursor: default;
+}
 .deployment-table-wrap .deployment-selected,
 .deployment-table-wrap .deployment-selected:hover {
   background: var(--mantine-primary-color-light);

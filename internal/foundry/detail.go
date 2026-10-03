@@ -15,6 +15,8 @@ type DeploymentDetail struct {
 	Version              string  `json:"version"`
 	SKUName              *string `json:"skuName"`
 	Capacity             *int32  `json:"capacity"`
+	CapacityMaximum      *int32  `json:"capacityMaximum"`
+	CapacityUnit         *string `json:"capacityUnit"`
 	ProvisioningState    *string `json:"provisioningState"`
 	VersionUpgradePolicy *string `json:"versionUpgradePolicy"`
 	FetchedAt            string  `json:"fetchedAt"`

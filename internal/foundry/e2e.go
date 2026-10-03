@@ -81,21 +81,27 @@ func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deploy
 		return DeploymentDetail{}, fmt.Errorf("simulated deployment detail retrieval failure")
 	}
 	sku := "GlobalStandard"
-	capacity := int32(50)
+	capacity := int32(50000)
+	capacityMaximum := int32(160000)
+	capacityUnit := "TPM"
 	state := "Succeeded"
 	policy := "OnceNewDefaultVersionAvailable"
 	switch deployment.ModelName {
 	case "gpt-4.1-mini":
-		capacity = 100
+		capacity = 100000
+		capacityMaximum = 250000
+		policy = "OnceCurrentVersionExpired"
 	case "text-embedding-3-large":
 		sku = "Standard"
-		capacity = 20
+		capacity = 20000
+		capacityMaximum = 80000
 		policy = "NoAutoUpgrade"
 	}
 	return DeploymentDetail{
 		ID: deployment.ID, DeploymentName: deployment.DeploymentName,
 		ModelName: deployment.ModelName, Version: deployment.Version,
-		SKUName: &sku, Capacity: &capacity, ProvisioningState: &state,
+		SKUName: &sku, Capacity: &capacity, CapacityMaximum: &capacityMaximum,
+		CapacityUnit: &capacityUnit, ProvisioningState: &state,
 		VersionUpgradePolicy: &policy,
 	}, ctx.Err()
 }
