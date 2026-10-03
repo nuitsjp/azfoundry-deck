@@ -38,7 +38,11 @@ const labels = foundries.map(
   (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
 );
 
-test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
+// The first progress event is lost if it is sent before the page's WebSocket is registered, so the
+// startup restore is held until the page has opened it, and discovery then starts after that.
+test.use({
+  serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1', AZFOUNDRYDECK_E2E_HOLD_RESTORE: '1' },
+});
 
 test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
   const release = (stage: string) =>
@@ -82,7 +86,10 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
   });
 
   await test.step('手順1', async () => {
+    const socket = page.waitForEvent('websocket');
     await page.goto(app.url);
+    await socket;
+    writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(dialog).toBeVisible();

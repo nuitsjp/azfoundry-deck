@@ -5,8 +5,14 @@ import { test, expect } from '../../fixtures';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
 // The fixed source finds one subscription without any Foundry; discovery is held until released.
+// The first progress event is lost if it is sent before the page's WebSocket is registered, so the
+// startup restore is held until the page has opened it, and discovery then starts after that.
 test.use({
-  serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' },
+  serverEnv: {
+    AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1',
+    AZFOUNDRYDECK_E2E_HOLD_RESTORE: '1',
+    AZFOUNDRYDECK_E2E_FOUNDRIES: 'none',
+  },
 });
 
 test('Foundryが存在しない状態で初回閲覧する', async ({ page, app }) => {
@@ -67,7 +73,10 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
   });
 
   await test.step('手順1', async () => {
+    const socket = page.waitForEvent('websocket');
     await page.goto(app.url);
+    await socket;
+    writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('サブスクリプションを検索中', { exact: true })).toBeVisible();
     await expect(saveStatus).toContainText('待機中');
