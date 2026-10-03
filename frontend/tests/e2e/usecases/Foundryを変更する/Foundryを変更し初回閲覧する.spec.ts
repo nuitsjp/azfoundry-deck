@@ -56,7 +56,7 @@ const expected: Omit<InitialFoundryView, 'deploymentsFetchedAt'> = {
   foundriesFetchedAt: original.foundriesFetchedAt,
 };
 const labels = foundries.map(
-  (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
+  (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
 
 // Discovery stays unreleased. Only the requested model acquisition can finish.
@@ -90,9 +90,9 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     });
   });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const modelStatus = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
+  const dialog = page.getByRole('dialog', { name: 'Loading deployments' });
+  const modelStatus = dialog.getByText('Deployments', { exact: true }).locator('..');
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
@@ -138,12 +138,10 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await expect(page.getByRole('option')).toHaveCount(0);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(foundries[1].name, { exact: true })).toBeVisible();
-    await expect(modelStatus).toContainText('取得中');
-    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(modelStatus).toContainText('Loading');
+    await expect(dialog.getByText('0 models', { exact: true })).toBeVisible();
     await expect(dialog.getByRole('table')).toHaveCount(0);
-    await expect(
-      dialog.getByText(/Foundry一覧の取得|ファイルへの保存|サブスクリプション/),
-    ).toHaveCount(0);
+    await expect(dialog.getByText(/Foundries|ファイルへの保存|サブスクリプション/)).toHaveCount(0);
     await expect(selected).toBeDisabled();
     await expect(selected).toHaveText(labels[0]);
     await assertModels(oldModels);

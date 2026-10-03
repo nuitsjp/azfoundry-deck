@@ -38,7 +38,7 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
   const fabrikamState = join(viewDirOf(app.dataDir, 'e2e-fabrikam-tenant'), 'foundry-state.json');
   const header = page.getByRole('banner');
   const tenantButton = header.getByRole('button', { name: 'テナント', exact: true });
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
   const selectedFoundry = page.locator('button[aria-label="Foundry"]');
   const snapshots: { modelPhase: string }[] = [];
   let changeCalls = 0;
@@ -125,7 +125,7 @@ test.describe('選択保存の失敗', () => {
     const recordFile = join(app.dataDir, 'e2e-authentication-record.json');
     const header = page.getByRole('banner');
     const tenantButton = header.getByRole('button', { name: 'テナント', exact: true });
-    const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
+    const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
     writeRecord(app.dataDir);
     const recordText = readFileSync(recordFile, 'utf8');
     await app.restart();

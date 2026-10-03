@@ -58,7 +58,7 @@ const original: InitialFoundryView = {
   deploymentsFetchedAt: savedAt,
 };
 const label = (foundry: typeof production) =>
-  `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`;
+  `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`;
 // The browser runs on the same machine, so local time matches.
 const displayed = (value: string) => {
   const time = new Date(value);
@@ -99,15 +99,15 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     });
   });
   const selected = page.locator('button[aria-label="Foundry"]');
-  const refresh = page.getByRole('button', { name: 'Foundry一覧を更新' });
-  const refreshModels = page.getByRole('button', { name: 'モデルを更新' });
-  const modelRows = page.locator('table[aria-label="デプロイ済みモデル"] tbody tr');
-  const dialog = page.getByRole('dialog', { name: 'Foundry一覧を更新しています' });
-  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
-  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  const refresh = page.getByRole('button', { name: 'Refresh Foundries' });
+  const refreshModels = page.getByRole('button', { name: 'Refresh models' });
+  const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
+  const dialog = page.getByRole('dialog', { name: 'Refreshing Foundries' });
+  const foundryStep = dialog.getByText('Foundries', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('Deployments', { exact: true }).locator('..');
   let dialogSize: { width: number; height: number } | null = null;
-  const foundriesFetched = page.getByText(/^Foundry一覧の最終取得 /);
-  const modelsFetched = page.getByText(/件・最終取得 /);
+  const foundriesFetched = page.getByText(/^Last fetched /);
+  const modelsFetched = page.getByText(/ · Last fetched /);
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
@@ -139,18 +139,18 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(selected).toHaveText(label(legacy));
     await assertModels(legacyModels);
-    await expect(foundriesFetched).toHaveText(`Foundry一覧の最終取得 ${displayed(savedAt)}`);
-    await expect(modelsFetched).toHaveText(`1 件・最終取得 ${displayed(savedAt)}`);
+    await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
+    await expect(modelsFetched).toHaveText(`1 · Last fetched ${displayed(savedAt)}`);
     await refresh.hover();
-    await expect(page.getByRole('tooltip')).toHaveText('Foundry一覧を更新');
+    await expect(page.getByRole('tooltip')).toHaveText('Refresh Foundries');
     expect(snapshots).toEqual([]);
   });
 
   await test.step('手順1', async () => {
     await refresh.click();
     await expect(dialog).toBeVisible();
-    await expect(foundryStep).toContainText('取得中');
-    await expect(modelStep).toContainText('待機中');
+    await expect(foundryStep).toContainText('Loading');
+    await expect(modelStep).toContainText('Waiting');
     await expect(dialog.getByText('ファイルへの保存')).toHaveCount(0);
     const box = await dialog.boundingBox();
     dialogSize = box && { width: box.width, height: box.height };
@@ -169,16 +169,16 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
 
   await test.step('手順2', async () => {
     release('discovery');
-    await expect(foundryStep).toContainText('完了');
-    await expect(foundryStep).toContainText('Foundry 3 件');
+    await expect(foundryStep).toContainText('Completed');
+    await expect(foundryStep).toContainText('3 Foundries');
     expect(readState()).toEqual(original);
   });
 
   await test.step('手順3', async () => {
-    await expect(modelStep).toContainText('取得中');
-    await expect(modelStep).not.toContainText('待機中');
+    await expect(modelStep).toContainText('Loading');
+    await expect(modelStep).not.toContainText('Waiting');
     await expect(dialog.getByText(production.name, { exact: true })).toBeVisible();
-    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('0 models', { exact: true })).toBeVisible();
     const box = await dialog.boundingBox();
     expect(box && { width: box.width, height: box.height }).toEqual(dialogSize);
     await expect(selected).toHaveText(label(legacy));
@@ -233,10 +233,10 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
     await expect(foundriesFetched).toHaveText(
-      `Foundry一覧の最終取得 ${displayed(state.foundriesFetchedAt)}`,
+      `Last fetched ${displayed(state.foundriesFetchedAt)}`,
     );
     await expect(modelsFetched).toHaveText(
-      `3 件・最終取得 ${displayed(state.deploymentsFetchedAt)}`,
+      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
     );
   });
 
@@ -266,10 +266,10 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
     await expect(foundriesFetched).toHaveText(
-      `Foundry一覧の最終取得 ${displayed(refreshed.foundriesFetchedAt)}`,
+      `Last fetched ${displayed(refreshed.foundriesFetchedAt)}`,
     );
     await expect(modelsFetched).toHaveText(
-      `3 件・最終取得 ${displayed(refreshed.deploymentsFetchedAt)}`,
+      `3 · Last fetched ${displayed(refreshed.deploymentsFetchedAt)}`,
     );
     expect(readState()).toEqual(refreshed);
     expect(snapshots).toEqual([]);

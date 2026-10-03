@@ -81,8 +81,8 @@ func (fixedSource) DeploymentDetail(ctx context.Context, foundry Foundry, deploy
 		return DeploymentDetail{}, fmt.Errorf("simulated deployment detail retrieval failure")
 	}
 	sku := "GlobalStandard"
-	capacity := int32(50000)
-	capacityMaximum := int32(160000)
+	capacity := float64(50000)
+	capacityMaximum := float64(160000)
 	capacityUnit := "TPM"
 	state := "Succeeded"
 	policy := "OnceNewDefaultVersionAvailable"

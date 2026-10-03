@@ -231,9 +231,9 @@ sequenceDiagram
   U->>U: 右側に明細を表示
 ```
 
-画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が明細取得の固定応答を返す。通常ビルドはこの固定応答を含まず、Azure の明細取得は未接続のため明示的に失敗する。UI・サービス・入出力の型は両構成で共有する。固定の認証・Foundry とモデル一覧を使う専用起動で確認し、明細の識別と表示、取得日時の設定は共通処理を通す。起動と終了は [実行手順](../project.md#commands) に従う。
+画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が明細取得の固定応答を返す。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_detail.go` の `azureSource.DeploymentDetail` が Azure SDK の Deployments Get、Accounts Get/ListModels、Usages List を呼ぶ。モデルの形式・名前・版と SKU 名で定義を選び、その `usageName` をリージョンの共有クォータへ照合する。UI・サービス・入出力の型は両構成で共有する。固定の認証・Foundry とモデル一覧を使う専用起動で確認し、明細の識別と表示、取得日時の設定は共通処理を通す。起動と終了は [実行手順](../project.md#commands) に従う。
 
-明細の容量契約は設定済み容量 `capacity`、割り当て可能上限 `capacityMaximum`、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限する。必要なモデル定義と共有クォータは明細取得ごとに取得し、キャッシュしない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
+明細の容量契約は設定済み容量 `capacity`、割り当て可能上限 `capacityMaximum`、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限し、許可値または設定の刻みに切り下げる。Standard 系の単位はデプロイの token レートなら TPM、request のみなら RPM とし、秒単位のレートを毎分へ変換して設定容量あたりの倍率を求める。Provisioned 系は PTU とする。モデル定義・容量換算・クォータが不明な項目は補完せず、取得できた値だけを返す。必要なモデル定義と共有クォータは明細取得ごとに取得し、キャッシュしない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
 
 ## エラーの表示
 

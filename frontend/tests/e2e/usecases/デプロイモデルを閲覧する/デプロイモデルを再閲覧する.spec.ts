@@ -43,7 +43,7 @@ const view: InitialFoundryView = {
   deploymentsFetchedAt: '2030-05-06T07:08:10+09:00',
 };
 const labels = foundries.map(
-  (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
+  (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
 
 // With no releases, any accidental Azure acquisition cannot return a view.
@@ -76,7 +76,7 @@ test('デプロイモデルを再閲覧する', async ({ page, app }) => {
         ...element.querySelectorAll('[role="dialog"]'),
       ];
       for (const dialog of dialogs) {
-        if (dialog.textContent?.includes('デプロイモデルを取得しています')) {
+        if (dialog.textContent?.includes('Loading deployments')) {
           observations.count++;
         }
       }
@@ -96,14 +96,12 @@ test('デプロイモデルを再閲覧する', async ({ page, app }) => {
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(page.getByRole('button', { name: 'Foundry', exact: true })).toHaveText(labels[1]);
-    const rows = page.getByRole('table', { name: 'デプロイ済みモデル' }).locator('tbody tr');
+    const rows = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
     await expect(rows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
       await expect(rows.nth(index).locator('td')).toHaveText(model);
     }
-    await expect(page.getByRole('dialog', { name: 'デプロイモデルを取得しています' })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole('dialog', { name: 'Loading deployments' })).toHaveCount(0);
     expect(
       await page.evaluate(() => Reflect.get(window, 'acquisitionDialogObservations').count),
     ).toBe(0);

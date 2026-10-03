@@ -9,17 +9,17 @@ import (
 )
 
 type DeploymentDetail struct {
-	ID                   string  `json:"id"`
-	DeploymentName       string  `json:"deploymentName"`
-	ModelName            string  `json:"modelName"`
-	Version              string  `json:"version"`
-	SKUName              *string `json:"skuName"`
-	Capacity             *int32  `json:"capacity"`
-	CapacityMaximum      *int32  `json:"capacityMaximum"`
-	CapacityUnit         *string `json:"capacityUnit"`
-	ProvisioningState    *string `json:"provisioningState"`
-	VersionUpgradePolicy *string `json:"versionUpgradePolicy"`
-	FetchedAt            string  `json:"fetchedAt"`
+	ID                   string   `json:"id"`
+	DeploymentName       string   `json:"deploymentName"`
+	ModelName            string   `json:"modelName"`
+	Version              string   `json:"version"`
+	SKUName              *string  `json:"skuName"`
+	Capacity             *float64 `json:"capacity"`
+	CapacityMaximum      *float64 `json:"capacityMaximum"`
+	CapacityUnit         *string  `json:"capacityUnit"`
+	ProvisioningState    *string  `json:"provisioningState"`
+	VersionUpgradePolicy *string  `json:"versionUpgradePolicy"`
+	FetchedAt            string   `json:"fetchedAt"`
 }
 
 type DeploymentDetailSource interface {

@@ -35,7 +35,7 @@ const models = [
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
 const labels = foundries.map(
-  (foundry) => `${foundry.name}（${foundry.subscriptionName} - ${foundry.resourceGroupName}）`,
+  (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
 
 // The first progress event is lost if it is sent before the page's WebSocket is registered, so the
@@ -55,9 +55,9 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
       .digest('hex'),
   );
   const savedFile = join(viewDir, 'foundry-state.json');
-  const dialog = page.getByRole('dialog', { name: 'デプロイモデルを取得しています' });
-  const foundryStep = dialog.getByText('Foundry一覧の取得', { exact: true }).locator('..');
-  const modelStep = dialog.getByText('デプロイモデルの取得', { exact: true }).locator('..');
+  const dialog = page.getByRole('dialog', { name: 'Loading deployments' });
+  const foundryStep = dialog.getByText('Foundries', { exact: true }).locator('..');
+  const modelStep = dialog.getByText('Deployments', { exact: true }).locator('..');
   const frames: string[] = [];
   let dialogSize: { width: number; height: number } | null = null;
   // Observe the real server event boundary, including save phases that may share a React render.
@@ -91,8 +91,8 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
     await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(dialog).toBeVisible();
-    await expect(foundryStep).toContainText('取得中');
-    await expect(modelStep).toContainText('待機中');
+    await expect(foundryStep).toContainText('Loading');
+    await expect(modelStep).toContainText('Waiting');
     await expect(dialog.getByText('ファイルへの保存')).toHaveCount(0);
     await expect(dialog.getByText('サブスクリプション')).toHaveCount(0);
     const box = await dialog.boundingBox();
@@ -107,11 +107,11 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
 
   await test.step('手順2', async () => {
     release('discovery');
-    await expect(foundryStep).toContainText('完了');
-    await expect(foundryStep).toContainText('Foundry 3 件');
-    await expect(modelStep).toContainText('取得中');
+    await expect(foundryStep).toContainText('Completed');
+    await expect(foundryStep).toContainText('3 Foundries');
+    await expect(modelStep).toContainText('Loading');
     await expect(dialog.getByText(foundries[0].name, { exact: true })).toBeVisible();
-    await expect(dialog.getByText('取得したモデル 0 件', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('0 models', { exact: true })).toBeVisible();
     const box = await dialog.boundingBox();
     expect(box && { width: box.width, height: box.height }).toEqual(dialogSize);
     expect(existsSync(savedFile)).toBe(false);
@@ -133,7 +133,7 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
       foundriesFetchedAt: expect.any(String),
       deploymentsFetchedAt: expect.any(String),
     });
-    const modelRows = page.getByRole('table', { name: 'デプロイ済みモデル' }).locator('tbody tr');
+    const modelRows = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
     await expect(modelRows).toHaveCount(3);
     for (const [index, model] of models.entries()) {
       await expect(modelRows.nth(index).locator('td')).toHaveText(model);
