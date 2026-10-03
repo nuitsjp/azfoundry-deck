@@ -237,7 +237,7 @@ sequenceDiagram
 
 ## 一覧からデプロイモデルを削除する
 
-明細（右側）の下部に、仮の「Edit」ボタンと並べて置く「Delete」ボタンは、確認ダイアログで選択中の Foundry 名とデプロイ名を示し、利用者が「Delete」を押したときだけ `frontend/src/features/foundry/delete-deployment.ts` から Go サービスの `DeleteDeployment` を呼ぶ。キャンセルでは何も呼ばない。実行中は `AcquisitionProgressModal` の `mode="delete"`（「Deleting deployment」、「Delete」の1行に削除対象のデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。
+明細（右側）の下部に、左端の仮の Edit アイコンボタンと離して右端に置く Delete アイコンボタンは、確認ダイアログで選択中の Foundry 名とデプロイ名を示し、利用者が「Delete」を押したときだけ `frontend/src/features/foundry/delete-deployment.ts` から Go サービスの `DeleteDeployment` を呼ぶ。キャンセルでは何も呼ばない。実行中は `AcquisitionProgressModal` の `mode="delete"`（「Deleting deployment」、「Delete」の1行に削除対象のデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。
 
 Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内でログイン済みの確認、保存済み一覧からの選択中の Foundry と指定デプロイの識別を行い、`DeploymentDeleteSource.DeleteDeployment` で Azure 上の削除を完了させる。成功後は既存の `acquireModels` で選択中の Foundry のモデルを取得し直し、そのモデルファイルと状態ファイルを置き換えて返す。削除が失敗した場合は何も保存せず、`DEPLOYMENT_DELETE_FAILED` を返す。画面は成功後に明細を破棄し、失敗時は一覧を変えずにエラーを表示する。
 
