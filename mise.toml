@@ -77,6 +77,10 @@ run = "node scripts/run.mjs server:review:tenant-revisit"
 description = "モデル明細の画面確認用：固定の外部応答で起動する"
 run = "node scripts/run.mjs server:review:deployment-detail"
 
+[tasks."server:review:deployment-delete"]
+description = "デプロイモデル削除の画面確認用：固定の外部応答で起動する"
+run = "node scripts/run.mjs server:review:deployment-delete"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

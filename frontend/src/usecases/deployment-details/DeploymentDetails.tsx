@@ -24,9 +24,11 @@ function fetchedAt(value: string) {
 export function DeploymentDetails({
   deployments,
   busy,
+  onDelete,
 }: {
   deployments: Deployment[];
   busy: boolean;
+  onDelete: (deployment: Deployment) => void;
 }) {
   const [selectedID, setSelectedID] = useState<string | null>(null);
   const [detail, setDetail] = useState<DeploymentDetail | null>(null);
@@ -75,6 +77,7 @@ export function DeploymentDetails({
                 <Table.Th>Deployment</Table.Th>
                 <Table.Th>Model</Table.Th>
                 <Table.Th>Version</Table.Th>
+                <Table.Th aria-label="Actions" />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -101,6 +104,21 @@ export function DeploymentDetails({
                   </Table.Td>
                   <Table.Td>{deployment.modelName}</Table.Td>
                   <Table.Td>{deployment.version}</Table.Td>
+                  <Table.Td>
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="compact-xs"
+                      aria-label={`Delete ${deployment.deploymentName}`}
+                      disabled={busy || fetchDetail.isPending}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(deployment);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

@@ -2,20 +2,23 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/
 import { useState } from 'react';
 import {
   ActionIcon,
+  Button,
   Combobox,
   Group,
   Input,
   InputBase,
+  Modal,
   Stack,
   Text,
   Tooltip,
   useCombobox,
 } from '@mantine/core';
 import { changeFoundry } from '../../features/foundry/change-view';
+import { deleteDeployment } from '../../features/foundry/delete-deployment';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
 import { refreshDeployments } from '../../features/foundry/refresh-deployments';
-import type { Foundry } from '../../features/foundry/models';
+import type { Deployment, Foundry } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
@@ -53,6 +56,8 @@ export function InitialDeployments() {
   const [refreshProgress, setRefreshProgress] = useState<FoundryProgress | null>(null);
   const [modelsProgress, setModelsProgress] = useState<FoundryProgress | null>(null);
   const [detailRevision, setDetailRevision] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null);
+  const [deleteProgress, setDeleteProgress] = useState<FoundryProgress | null>(null);
   const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
@@ -78,6 +83,14 @@ export function InitialDeployments() {
       client.setQueryData(['foundry', 'initial-view'], view);
       setDetailRevision((revision) => revision + 1);
     },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteDeployment(id),
+    onSuccess: (view) => {
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+    },
+    onSettled: () => setDeleteTarget(null),
   });
   const busy = useIsMutating() > 0;
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
@@ -116,12 +129,54 @@ export function InitialDeployments() {
           mode="deployments"
         />
       )}
+      {deleteProgress && (
+        <AcquisitionProgressModal
+          opened={remove.isPending}
+          progress={deleteProgress}
+          mode="delete"
+        />
+      )}
+      <Modal
+        opened={deleteTarget !== null && !remove.isPending}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete deployment"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+            Delete deployment “{deleteTarget?.deploymentName}” from Foundry “{selected?.name}”? This
+            cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (!deleteTarget) return;
+                setDeleteProgress({
+                  foundryPhase: 'completed',
+                  foundryCount: view.foundries.length,
+                  selectedFoundryName: deleteTarget.deploymentName,
+                  modelPhase: 'running',
+                  modelCount: 0,
+                });
+                remove.mutate(deleteTarget.id);
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <ErrorNotice
-        error={change.error || refresh.error || refreshModels.error}
+        error={change.error || refresh.error || refreshModels.error || remove.error}
         onClose={() => {
           change.reset();
           refresh.reset();
           refreshModels.reset();
+          remove.reset();
         }}
       />
       <Stack gap={6}>
@@ -233,6 +288,7 @@ export function InitialDeployments() {
             key={`${view.selectedFoundryId}:${detailRevision}`}
             deployments={view.deployments}
             busy={busy}
+            onDelete={setDeleteTarget}
           />
         </div>
       </section>
