@@ -41,6 +41,7 @@
 | [デプロイモデルを削除する](usecases/デプロイモデルを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry のデプロイモデルを Azure 上で削除し、Home画面の一覧を最新にする | 9 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルを追加する](usecases/デプロイモデルを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry に新しいデプロイモデルを作成し、一覧へ反映する | 10 | [UCP-1](design/UCP-1.md) | 対象 |
 | [デプロイモデルの設定を変更する](usecases/デプロイモデルの設定を変更する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry にある既存のデプロイモデルの設定を Azure 上で変更し、一覧と明細を最新にする | 11 | [UCP-1](design/UCP-1.md) | 対象 |
+| [インストーラーをReleasesへ発行する](usecases/インストーラーをReleasesへ発行する/README.md) | リリース担当者 | 指定したバージョンのWindows用インストーラーを公開する | 12 | [UCP-2](design/UCP-2.md) | UI確認不要 |
 
 <a id="design"></a>
 ## 4. 確認した事実

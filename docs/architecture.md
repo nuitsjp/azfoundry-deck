@@ -32,6 +32,7 @@ Home画面の取得進捗モーダルは、Go サービスが通知する Wails 
 | 実現パターンの設計 | 適用条件・関与コンテナ |
 | --- | --- |
 | [UCP-1](design/UCP-1.md) | 画面操作から Go サービスが Azure SDK を呼ぶ全ユースケース（デスクトップアプリ単一コンテナ） |
+| [UCP-2](design/UCP-2.md) | インストーラーをReleasesへ発行する。Git・Windows CI・GitHub Releasesを使用するビルドと配布処理 |
 
 ## 4. 設計上の制約
 
