@@ -38,6 +38,7 @@ type appConfig struct {
 
 func init() {
 	application.RegisterEvent[foundry.Progress](foundry.ProgressEvent)
+	application.RegisterEvent[foundry.FoundryCreateProgress](foundry.FoundryCreateProgressEvent)
 }
 
 func main() {

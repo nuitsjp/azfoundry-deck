@@ -15,6 +15,11 @@ import {
 } from '@mantine/core';
 import { changeFoundry } from '../../features/foundry/change-view';
 import { createDeployment } from '../../features/foundry/create-deployment';
+import {
+  createFoundry,
+  type FoundryCreateProgress,
+  type FoundryCreateSpec,
+} from '../../features/foundry/create-foundry';
 import { deleteDeployment } from '../../features/foundry/delete-deployment';
 import { updateDeployment } from '../../features/foundry/update-deployment';
 import { loadInitialView } from '../../features/foundry/initial-view';
@@ -30,6 +35,8 @@ import { ErrorNotice } from '../../shared/ErrorNotice';
 import type { FoundryProgress } from '../../features/foundry/progress';
 import { AcquisitionProgressModal } from './AcquisitionProgressModal';
 import { AddDeploymentModal } from './AddDeploymentModal';
+import { AddFoundryModal } from './AddFoundryModal';
+import { CreateFoundryProgressModal } from './CreateFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
@@ -75,6 +82,10 @@ export function InitialDeployments() {
   const [deploying, setDeploying] = useState(false);
   const [deployProgress, setDeployProgress] = useState<FoundryProgress | null>(null);
   const [deployError, setDeployError] = useState<string | null>(null);
+  const [addFoundryOpened, setAddFoundryOpened] = useState(false);
+  const [createFoundryProgress, setCreateFoundryProgress] = useState<FoundryCreateProgress | null>(
+    null,
+  );
   const client = useQueryClient();
   const initial = useQuery({
     queryKey: ['foundry', 'initial-view'],
@@ -154,6 +165,15 @@ export function InitialDeployments() {
       setDeployProgress(null);
     },
   });
+  const create = useMutation({
+    mutationFn: (spec: FoundryCreateSpec) => createFoundry(spec, setCreateFoundryProgress),
+    onSuccess: (view) => {
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+      setAddFoundryOpened(false);
+    },
+    onSettled: () => setCreateFoundryProgress(null),
+  });
   const busy = useIsMutating() > 0 || deploying || updating;
 
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
@@ -171,6 +191,30 @@ export function InitialDeployments() {
 
   return (
     <Stack gap="lg">
+      {addFoundryOpened && (
+        <AddFoundryModal
+          busy={create.isPending}
+          error={create.error}
+          onClose={() => {
+            if (create.isPending) return;
+            setAddFoundryOpened(false);
+            create.reset();
+          }}
+          onCreate={(spec) => {
+            setCreateFoundryProgress({
+              resourceGroupName: spec.resourceGroupName,
+              foundryName: spec.foundryName,
+              resourceGroupPhase: 'waiting',
+              foundryPhase: 'waiting',
+              viewPhase: 'waiting',
+            } as FoundryCreateProgress);
+            create.mutate(spec);
+          }}
+        />
+      )}
+      {create.isPending && createFoundryProgress && (
+        <CreateFoundryProgressModal progress={createFoundryProgress} />
+      )}
       {changeProgress && (
         <AcquisitionProgressModal
           opened={change.isPending}
@@ -356,6 +400,15 @@ export function InitialDeployments() {
             </Combobox.Dropdown>
           </Combobox>
           <Group gap="sm" wrap="nowrap" h={36}>
+            <Button
+              disabled={busy}
+              onClick={() => {
+                create.reset();
+                setAddFoundryOpened(true);
+              }}
+            >
+              + Add Foundry
+            </Button>
             <Tooltip label="Refresh Foundries">
               <ActionIcon
                 variant="default"

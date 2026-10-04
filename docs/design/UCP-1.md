@@ -236,6 +236,39 @@ Update は確認ダイアログを出さず、`frontend/src/features/foundry/upd
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が設定取得と変更の固定応答を返す。変更した Version、Capacity、Upgrade policy をプロセス内に記憶し、以降のデプロイ取得・設定取得へ反映する。ゲート `update-settings` は編集モーダルの共有クォータの取り直しを保留する。`AZFOUNDRYDECK_E2E_FAIL=update-settings` でその取り直しを失敗させ、`AZFOUNDRYDECK_E2E_FAIL=update` で変更を失敗させる。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-update-settings-release` と `e2e-foundry-update-release` で解放するまで各呼び出しを保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_update.go` の `azureSource.DeploymentSettings` と `azureSource.UpdateDeployment` が Azure SDK を呼ぶ。設定取得は一覧のデプロイと保持したモデル定義・共有クォータに、そのモデルのバージョン一覧（モデル定義から得る）を加える。一覧に現在のバージョンが無いときも、そのバージョンを選択肢に含める。容量の単位が取れないデプロイは Pay-as-you-go とし、Capacity は返さない。変更は現在のデプロイを取得し、モデル名・形式・SKU 名・RAI ポリシーを保ったまま Version、Capacity、Upgrade policy を変えて `DeploymentsClient.BeginCreateOrUpdate` で完了まで待つ。Capacity は明細に表示した値を、同じレート換算で SKU の capacity 整数へ戻す。呼び出しが失敗した場合は固定応答へ切り替わらない。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
 
+## 新規リソースグループとFoundryを作成する
+
+画面は `frontend/src/usecases/initial-deployments/AddFoundryModal.tsx` でサブスクリプション・リージョン候補と命名・直接編集を扱い、`frontend/src/features/foundry/create-foundry.ts` からサービスを呼ぶ。進捗は `CreateFoundryProgressModal.tsx` が `foundry:create-progress` の生成された `FoundryCreateProgress` 型を受け取って表示する。画面側に固定タイムラインを置かない。
+
+`internal/foundry/create_foundry.go` のサービスは既存の操作ロックとログイン確認を使い、`FoundryCreateSource` へ候補取得と2リソースの作成を依頼する。`FoundryCreateSpec` はサブスクリプションID、リソースグループ名、Foundry名、正式なリージョン識別名を保持する。候補取得は `FoundrySubscription` と `FoundryRegion` を返す。
+
+```mermaid
+sequenceDiagram
+  participant U as 作成画面
+  participant S as Foundryサービス
+  participant A as ARM境界
+  participant F as 状態ファイル
+  U->>S: サブスクリプションとリージョン候補を要求
+  S->>A: 候補取得
+  A-->>U: 表示名と識別名
+  U->>S: CreateFoundry(spec)
+  S-->>U: リソースグループ作成中
+  S->>A: CreateResourceGroup(spec)
+  S-->>U: リソースグループ完了・Foundry作成中
+  S->>A: CreateFoundry(spec)
+  A-->>S: 作成したFoundry
+  S-->>U: Foundry完了・Home更新中
+  S->>A: 作成したFoundryのデプロイ取得
+  S->>F: 作成結果を含む一覧と新しい選択を保存
+  S-->>U: Home更新完了・InitialFoundryView
+```
+
+一覧への反映は ARM の作成結果を使い、Resource Graph の反映を待たない。一覧は既存の順序に整列し、新しい Foundry のデプロイ取得と選択保存が成功した時点で閲覧結果を確定する。一覧取得を行っていないため `foundriesFetchedAt` は変更しない。保存形式は変更せず、デプロイと容量上限の扱いも既存の保存設計に従う。
+
+合成点は既存の `Source` 選択であり、`e2e` ビルドの `fixedSource` が同じ `FoundryCreateSource` 契約を実装する。`internal/foundry/e2e_create_foundry.go` に候補の固定表と作成応答を置き、確認用起動時だけ ARM 境界の固定応答に待機を入れる。作成済みの固定 Foundry は後続の一覧取得にも含め、デプロイ0件を返す。通常構成の Azure 接続は未実装であり、候補取得・作成要求はエラーで停止する。
+
+失敗時は作成済みのリソースを自動削除せず、画面にエラーコードと理由を返す。サービスは失敗を成功として返さない。候補の実取得ではサブスクリプションの List Locations と AIServices／S0 の Resource Skus を照合する。
+
 ## エラーの表示
 
 Go サービスが返す失敗は、`fault` の公開形式（エラーコードと理由）で画面に渡り、画面は `shared/errors.ts` の `publicError` で `code` と `message` を取り出す。画面は、コードと理由の両方を必ず表示し、内部の原因（`cause`）は表示しない。原因は診断ログにだけ記録する。失敗した操作は、変更前の状態と表示を維持する。

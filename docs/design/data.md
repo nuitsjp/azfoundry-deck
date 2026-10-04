@@ -35,7 +35,7 @@ Foundry 一覧と選択の保存先は、アカウントと選択テナントの
 
 | 項目 | 型 | 内容 |
 | --- | --- | --- |
-| `foundries` | 配列 | 取得したすべての Foundry |
+| `foundries` | 配列 | 一覧取得および新規作成結果から反映した Foundry |
 | `foundries[].id` | 文字列 | Foundry の Azure リソース ID |
 | `foundries[].name` | 文字列 | Foundry の名称 |
 | `foundries[].subscriptionName` | 文字列 | 所属サブスクリプション名 |

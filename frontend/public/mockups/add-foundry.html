@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AzFoundryDeck · Add Foundry</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, "Segoe UI", sans-serif; color: #c1c2c5; background: #1a1b1e; font-size: 14px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .preview { padding: 10px 24px; background: #141517; border-bottom: 1px solid #373a40; font-size: 12px; color: #909296; }
+    header { height: 58px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #373a40; }
+    header strong { color: #fff; font-size: 17px; }
+    .tenant { padding: 6px 12px; border: 1px solid #373a40; border-radius: 4px; }
+    main { padding: 28px; max-width: 1100px; margin: auto; }
+    h1 { color: #fff; font-size: 22px; margin: 0 0 24px; }
+    .toolbar { display: flex; gap: 12px; align-items: end; }
+    .toolbar label { flex: 1; }
+    label { display: block; font-weight: 500; }
+    input, select { display: block; width: 100%; margin-top: 7px; height: 38px; border: 1px solid #42454d; border-radius: 4px; padding: 0 12px; background: #25262b; color: #f1f3f5; }
+    input:focus, select:focus { outline: 2px solid #228be6; outline-offset: 1px; }
+    button:focus-visible { outline: 2px solid #74c0fc; outline-offset: 3px; }
+    .button { border-radius: 4px; padding: 9px 18px; border: 1px solid #42454d; background: transparent; color: #c1c2c5; font-weight: 600; }
+    .primary { background: #228be6; border-color: #228be6; color: white; }
+    .primary:hover { background: #1c7ed6; }
+    .primary:disabled { background: #373a40; border-color: #373a40; color: #909296; cursor: default; }
+    .empty { margin-top: 24px; padding: 64px 20px; text-align: center; border: 1px solid #373a40; border-radius: 8px; color: #909296; }
+    dialog { width: min(580px, calc(100% - 32px)); padding: 0; border: 1px solid #373a40; border-radius: 8px; background: #25262b; color: #c1c2c5; box-shadow: 0 24px 80px #0008; }
+    dialog::backdrop { background: #0009; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 0; }
+    h2 { color: #fff; font-size: 20px; font-weight: 600; margin: 0; }
+    .close { border: 0; background: transparent; color: #909296; font-size: 25px; line-height: 1; padding: 4px; }
+    .content { padding: 8px 24px 24px; }
+    .intro { color: #909296; margin: 4px 0 24px; line-height: 1.7; }
+    .field { margin-bottom: 20px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .help { display: block; font-size: 12px; color: #909296; font-weight: 400; margin-top: 7px; line-height: 1.6; }
+    .names { margin-top: 4px; padding-top: 20px; border-top: 1px solid #373a40; }
+    .names .field:last-child { margin-bottom: 0; }
+    .badge { float: right; color: #74c0fc; font-weight: 400; font-size: 11px; background: #228be61a; padding: 2px 7px; border-radius: 4px; }
+    .footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid #373a40; }
+    #feedback { margin: 20px 0 0; color: #74c0fc; line-height: 1.7; }
+    #progress { width: min(620px, calc(100% - 32px)); }
+    .progress-context { color: #909296; font-size: 12px; margin: 8px 0 24px; }
+    .steps { list-style: none; padding: 0; margin: 0; }
+    .step { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 16px 0; border-top: 1px solid #373a40; }
+    .step-title { color: #f1f3f5; font-weight: 500; }
+    .step-name { margin-top: 4px; color: #909296; font-size: 12px; overflow-wrap: anywhere; }
+    .step-icon { height: 18px; width: 18px; border: 2px solid #495057; border-radius: 50%; display: grid; place-items: center; font-size: 12px; }
+    .step[data-state="active"] .step-icon { border-color: #228be6; border-right-color: transparent; animation: spin .8s linear infinite; }
+    .step[data-state="complete"] .step-icon { border: 0; color: #20c997; background: #20c9971a; }
+    .step-status { font-size: 11px; color: #909296; background: #373a40; border-radius: 4px; padding: 4px 8px; }
+    .step[data-state="active"] .step-status { color: #74c0fc; background: #228be61a; }
+    .step[data-state="complete"] .step-status { color: #20c997; background: #20c9971a; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .step[data-state="active"] .step-icon { animation: none; } }
+    [hidden] { display: none !important; }
+    @media (max-width: 480px) { .row { grid-template-columns: 1fr; gap: 0; } header { padding: 0 16px; } main { padding: 20px 16px; } .tenant { font-size: 12px; } }
+  </style>
+</head>
+<body>
+  <div class="preview">UI検討用 · 命名: rg / foundry − キーワード − 正式なリージョン識別名 · リージョン候補と進捗は固定のサンプルです。Azureへの作成は行いません。</div>
+  <header><strong>AzFoundryDeck</strong><span class="tenant">Example tenant</span></header>
+  <main>
+    <h1>Home</h1>
+    <div class="toolbar">
+      <label>Foundry<select id="home-foundry" disabled><option>Foundry is not selected</option></select></label>
+      <button class="button primary" id="open" type="button">＋ Add Foundry</button>
+    </div>
+    <div class="empty">No deployments to display</div>
+    <p id="feedback" role="status" hidden></p>
+  </main>
+  <dialog id="modal" aria-labelledby="title" aria-describedby="intro">
+    <form id="form">
+      <div class="modal-header"><h2 id="title">Add Foundry</h2><button class="close" id="close" type="button" aria-label="閉じる">×</button></div>
+      <div class="content">
+        <p class="intro" id="intro">新しいリソースグループとFoundryを作成します。</p>
+        <div class="field"><label for="subscription">Subscription</label><select id="subscription"><option>Development subscription</option><option>Production subscription</option></select></div>
+        <div class="row">
+          <div class="field"><label for="region">Region</label><select id="region"><option value="japaneast">Japan East</option><option value="japanwest">Japan West</option><option value="eastus2" selected>East US 2</option><option value="swedencentral">Sweden Central</option></select><span class="help">リソースグループとFoundryに共通で適用します。</span></div>
+          <div class="field"><label for="keyword">Keyword</label><input id="keyword" value="sample" autocomplete="off" spellcheck="false" aria-describedby="keyword-help"><span class="help" id="keyword-help">サービス名や用途を英数字・ハイフンで指定します。</span></div>
+        </div>
+        <div class="names">
+          <div class="field"><label for="resource-group">Resource group name<span class="badge" id="rg-mode">自動生成</span></label><input id="resource-group" value="rg-sample-eastus2" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="foundry">Foundry name<span class="badge" id="foundry-mode">自動生成</span></label><input id="foundry" value="foundry-sample-eastus2" autocomplete="off" spellcheck="false"></div>
+          <p class="help">名前は直接編集できます。キーワードまたはリージョンを変更すると、両方の名前を再生成します。</p>
+        </div>
+      </div>
+      <div class="footer"><button class="button" id="cancel" type="button">Cancel</button><button class="button primary" id="create" type="submit">Create</button></div>
+    </form>
+  </dialog>
+  <dialog id="progress" aria-labelledby="progress-title" aria-describedby="progress-description" aria-busy="false">
+    <div class="modal-header"><h2 id="progress-title">Creating Foundry</h2></div>
+    <div class="content">
+      <p class="intro" id="progress-description">リソースグループとFoundryを作成しています。</p>
+      <p class="progress-context" id="progress-context"></p>
+      <ol class="steps" aria-live="polite" aria-atomic="true">
+        <li class="step" id="step-rg" data-state="waiting"><span class="step-icon" aria-hidden="true"></span><div><div class="step-title">Create resource group</div><div class="step-name" id="progress-rg-name"></div></div><span class="step-status">Waiting</span></li>
+        <li class="step" id="step-foundry" data-state="waiting"><span class="step-icon" aria-hidden="true"></span><div><div class="step-title">Create Foundry</div><div class="step-name" id="progress-foundry-name"></div></div><span class="step-status">Waiting</span></li>
+        <li class="step" id="step-view" data-state="waiting"><span class="step-icon" aria-hidden="true"></span><div><div class="step-title">Update Home</div><div class="step-name">一覧への反映と新しいFoundryの選択</div></div><span class="step-status">Waiting</span></li>
+      </ol>
+      <p class="help">完了するまで、この画面を閉じずにお待ちください。</p>
+    </div>
+  </dialog>
+  <script>
+    const modal = document.getElementById('modal');
+    const keyword = document.getElementById('keyword');
+    const region = document.getElementById('region');
+    const resourceGroup = document.getElementById('resource-group');
+    const foundry = document.getElementById('foundry');
+    const create = document.getElementById('create');
+    const progress = document.getElementById('progress');
+    progress.addEventListener('cancel', event => event.preventDefault());
+    function setStep(id, state) {
+      const step = document.getElementById(id);
+      step.dataset.state = state;
+      step.querySelector('.step-icon').textContent = state === 'complete' ? '✓' : '';
+      step.querySelector('.step-status').textContent = { waiting: 'Waiting', active: 'In progress', complete: 'Completed' }[state];
+    }
+    function updateCreate() {
+      create.disabled = !keyword.value.trim() || !resourceGroup.value.trim() || !foundry.value.trim();
+    }
+    function generateNames() {
+      const key = keyword.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      resourceGroup.value = key ? `rg-${key}-${region.value}` : '';
+      foundry.value = key ? `foundry-${key}-${region.value}` : '';
+      document.getElementById('rg-mode').textContent = '自動生成';
+      document.getElementById('foundry-mode').textContent = '自動生成';
+      updateCreate();
+    }
+    keyword.addEventListener('input', generateNames);
+    region.addEventListener('change', generateNames);
+    for (const [input, badge] of [[resourceGroup, 'rg-mode'], [foundry, 'foundry-mode']]) {
+      input.addEventListener('input', () => {
+        document.getElementById(badge).textContent = '直接編集';
+        updateCreate();
+      });
+    }
+    document.getElementById('open').addEventListener('click', () => modal.showModal());
+    for (const id of ['close', 'cancel']) document.getElementById(id).addEventListener('click', () => modal.close());
+    document.getElementById('form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (create.disabled) return;
+      const spec = {
+        resourceGroup: resourceGroup.value,
+        foundry: foundry.value,
+        subscription: document.getElementById('subscription').selectedOptions[0].textContent,
+        region: region.selectedOptions[0].textContent,
+      };
+      create.disabled = true;
+      const feedback = document.getElementById('feedback');
+      feedback.hidden = true;
+      document.getElementById('progress-rg-name').textContent = spec.resourceGroup;
+      document.getElementById('progress-foundry-name').textContent = spec.foundry;
+      document.getElementById('progress-context').textContent = `${spec.subscription} · ${spec.region}`;
+      document.getElementById('progress-description').textContent = 'リソースグループとFoundryを作成しています。';
+      for (const id of ['step-rg', 'step-foundry', 'step-view']) setStep(id, 'waiting');
+      progress.setAttribute('aria-busy', 'true');
+      progress.showModal();
+      // UI検討用の固定タイムライン。Azure操作は行わない。
+      for (const [id, duration] of [['step-rg', 2000], ['step-foundry', 4000], ['step-view', 1000]]) {
+        setStep(id, 'active');
+        await new Promise(resolve => setTimeout(resolve, duration));
+        if (id === 'step-view') {
+          const homeFoundry = document.getElementById('home-foundry');
+          homeFoundry.replaceChildren(new Option(`${spec.foundry} (${spec.subscription} - ${spec.resourceGroup})`, spec.foundry));
+          homeFoundry.disabled = false;
+        }
+        setStep(id, 'complete');
+      }
+      progress.setAttribute('aria-busy', 'false');
+      document.getElementById('progress-description').textContent = '作成が完了しました。Home画面に戻ります。';
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      feedback.textContent = `UIプレビュー完了：${spec.resourceGroup} / ${spec.foundry} (${spec.region})。Azureへの作成は行っていません。`;
+      feedback.hidden = false;
+      progress.close();
+      modal.close();
+      updateCreate();
+    });
+    modal.showModal();
+  </script>
+</body>
+</html>
