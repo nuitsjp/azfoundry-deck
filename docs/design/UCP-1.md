@@ -194,7 +194,7 @@ Foundry 一覧の更新で、Foundry 一覧の取得が成功し、参照可能�
 
 ## 一覧からデプロイモデルの明細を表示する
 
-Home画面のモデル領域は、[明細シナリオ](../usecases/デプロイモデルの詳細を確認する/scenarios/一覧からデプロイモデルの明細を表示する.md) の共通外枠と左右同幅の一覧・明細を `frontend/src/usecases/deployment-details/DeploymentDetails.tsx` で表示する。
+Home画面のモデル領域は、[明細シナリオ](../usecases/デプロイモデルの詳細を確認する/scenarios/一覧からデプロイモデルの明細を表示する.md) の共通外枠内に一覧・明細を `frontend/src/usecases/deployment-details/DeploymentDetails.tsx` で表示する。一覧の列・容量表示・幅は [閲覧シナリオ](../usecases/デプロイモデルを閲覧する/scenarios/デプロイモデルを閲覧する.md) に従う。一覧の `Capacity` と明細は同じ容量上限の保持状態を参照し、完了通知で全行と選択中の明細を更新する。画面の数値・単位・取得状態の表示処理を共有し、一覧の分子・分母・単位は一つのセル内で一行に表示する。
 
 明細の項目（`Model`、`Version`、`SKU`、`Capacity` の現在値と単位、`Provisioning state`、`Upgrade policy`）は、選択した行の `Deployment`（一覧の取得結果）から即時表示する。明細に取得日時は表示しない。画面は `Service.GetCapacityState(ctx, retry)` で選択中 Foundry の容量上限の取得状態と各デプロイの上限を、取得完了を待たずに参照する。サービスは現在のアカウント・テナントの閲覧保存先と保持中の閲覧保存先が一致する場合だけ状態を返し、不一致なら保持状態を破棄して空の状態を返す。通常は `retry=false` とし、`retry=true` は失敗済みの取得だけを再開始する。取得済みなら選択時に上限も即時表示し、取得中なら分母だけを `Loading...` にする。
 

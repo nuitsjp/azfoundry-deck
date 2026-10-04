@@ -56,6 +56,31 @@ function capacityValue(value: number | null | undefined) {
   return value?.toLocaleString('en-US') ?? 'Not set';
 }
 
+function CapacityDisplay({
+  deployment,
+  maximum,
+  loading,
+}: {
+  deployment: Deployment;
+  maximum: number | null | undefined;
+  loading: boolean;
+}) {
+  return (
+    <Group component="span" className="deployment-capacity" gap={4} align="center" wrap="nowrap">
+      <span>{capacityValue(deployment.capacity)} /</span>{' '}
+      {loading ? (
+        <Group component="span" gap={6} role="status" align="center" wrap="nowrap">
+          <Loader size="xs" />
+          <span>Loading...</span>
+        </Group>
+      ) : (
+        <span>{capacityValue(maximum)}</span>
+      )}{' '}
+      {deployment.capacityUnit ? <span>{deployment.capacityUnit}</span> : null}
+    </Group>
+  );
+}
+
 export function DeploymentDetails({
   foundryID,
   deployments,
@@ -115,6 +140,7 @@ export function DeploymentDetails({
                 <Table.Th>Deployment</Table.Th>
                 <Table.Th>Model</Table.Th>
                 <Table.Th>Version</Table.Th>
+                <Table.Th>Capacity</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -141,6 +167,13 @@ export function DeploymentDetails({
                   </Table.Td>
                   <Table.Td>{deployment.modelName}</Table.Td>
                   <Table.Td>{deployment.version}</Table.Td>
+                  <Table.Td>
+                    <CapacityDisplay
+                      deployment={deployment}
+                      maximum={capacity.data?.maximums?.[deployment.id]}
+                      loading={loading}
+                    />
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -190,25 +223,9 @@ export function DeploymentDetails({
               <dt>SKU</dt>
               <dd>{detail.skuName ?? 'Not set'}</dd>
               <dt>Capacity</dt>
-              <Group component="dd" gap={4} align="center" wrap="nowrap">
-                <span>{capacityValue(detail.capacity)} /</span>{' '}
-                {loading ? (
-                  <Group
-                    component="span"
-                    gap={6}
-                    role="status"
-                    display="inline-flex"
-                    align="center"
-                    wrap="nowrap"
-                  >
-                    <Loader size="xs" />
-                    <span>Loading...</span>
-                  </Group>
-                ) : (
-                  <span>{capacityValue(maximum)}</span>
-                )}{' '}
-                {detail.capacityUnit ? <span>{detail.capacityUnit}</span> : null}
-              </Group>
+              <dd>
+                <CapacityDisplay deployment={detail} maximum={maximum} loading={loading} />
+              </dd>
               {error ? (
                 <>
                   <dt aria-hidden="true" />

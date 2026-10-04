@@ -35,7 +35,7 @@ body {
 }
 .deployment-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   min-height: 540px;
 }
 .deployment-list-pane,
@@ -70,7 +70,15 @@ body {
   overflow-wrap: anywhere;
 }
 .deployment-table-wrap td:first-child {
-  width: 41%;
+  width: 30%;
+}
+.deployment-table-wrap td:last-child {
+  width: 1%;
+}
+.deployment-capacity {
+  display: inline-flex;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 .deployment-row {
   cursor: pointer;
