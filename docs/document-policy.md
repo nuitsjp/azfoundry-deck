@@ -13,7 +13,7 @@
 | 設計・文書標準 | [project-template-design-and-documentation](standards/design-and-documentation.md) |
 | モック標準 | [project-template-mock-driven-development](standards/mock-driven-development.md) |
 | 採用元固定コミット | c4a6f4df348d746dfe8f5f554439f45a8f9a8807 |
-| プロジェクト固有の適用範囲と差分 | なし |
+| プロジェクト固有の適用範囲と差分 | 段階5（完成系監査）はモック・レビュー構成ではなく、必ず実環境・本番データ（通常構成）でアプリケーションを起動し、実際に操作・動作（作成・削除・更新等）を実施して利用者に監査を依頼する |
 
 採用後、設計・文書標準はすべての変更に適用し、モック標準の適用範囲は第2節で定めます。配布元管理の AGENTS・標準2件・`scripts/doc_check.py`・`.agents/skills/usecase-docs/` のスキルと雛形2件は同じ固定コミットから7ファイル一組で更新し、採用元固定コミット欄には実際に採用した40桁SHAを記載します。作成済みのプロジェクト文書は採用先で管理し、雛形全文は同期しません。現在有効な固有差分のみを上表に記載します（例: `scripts/doc_check.py` を実行できない環境、Playwright CLI が使えない対象の代替確認手段と適用範囲。差分がなければ「なし」）。確認手段を替えても利用者の承認は省略しません。配布元の更新は自動適用しません。
 
