@@ -306,7 +306,7 @@ sequenceDiagram
 
 合成点は既存の `Source` 選択であり、`e2e` ビルドの `fixedSource` が同じ `FoundryDeleteSource` 契約を実装する。`internal/foundry/e2e_delete_foundry.go` に固定応答と画面確認用の待機を置き、削除済み ID をメモリに保持して以降の一覧取得から除外する。通常構成は `azureSource` に接続し、固定応答を含まない。
 
-通常構成の `internal/foundry/azure_delete.go` は、ARM リソース一覧取得でリソースグループ内のリソース種別を検査し、AccountsClient で Foundry アカウントを削除（PollUntilDone）、DeletedAccountsClient で削除済みアカウントを検索して完全消去（BeginPurge・PollUntilDone）、ARM パイプライン経由でリソースグループの DELETE を発行して HEAD で 404 になるまで待機する。
+通常構成の `internal/foundry/azure_delete.go` は、ARM リソース一覧取得でリソースグループ内のリソースを検査し、削除対象以外の Foundry アカウントや他種別のリソースが存在する場合はリソースグループ削除を抑止する。Foundry 削除時は、親アカウント削除前に配下の子リソース（`ProjectsClient` によるプロジェクト、`DeploymentsClient` によるデプロイ）を列挙して削除した上で、AccountsClient で Foundry アカウントを削除（PollUntilDone）、DeletedAccountsClient で削除済みアカウントを検索して完全消去（BeginPurge・PollUntilDone）、リソースグループ削除対象の場合は ARM パイプライン経由でリソースグループの DELETE を発行して HEAD で 404 になるまで待機する。
 
 失敗時は変更前の状態・一覧を維持し、画面本文に `FOUNDRY_DELETE_FAILED` エラーコードと理由を表示する。
 

@@ -56,6 +56,7 @@ func (s *azureSource) ResourceGroupHoldsOnlyFoundry(ctx context.Context, foundry
 		}
 		var page struct {
 			Value []struct {
+				Name string `json:"name"`
 				Type string `json:"type"`
 			} `json:"value"`
 			NextLink string `json:"nextLink"`
@@ -66,6 +67,9 @@ func (s *azureSource) ResourceGroupHoldsOnlyFoundry(ctx context.Context, foundry
 		for _, r := range page.Value {
 			t := strings.ToLower(r.Type)
 			if t != "microsoft.cognitiveservices/accounts" && !strings.HasPrefix(t, "microsoft.cognitiveservices/accounts/") {
+				return false, nil
+			}
+			if !strings.EqualFold(r.Name, foundry.Name) && !strings.HasPrefix(strings.ToLower(r.Name), strings.ToLower(foundry.Name)+"/") {
 				return false, nil
 			}
 		}
@@ -79,6 +83,56 @@ func (s *azureSource) DeleteFoundry(ctx context.Context, foundry Foundry) error 
 	if err != nil {
 		return fmt.Errorf("parse Foundry resource ID: %w", err)
 	}
+
+	// 1. Delete nested projects first to prevent 409 Conflict (CannotDeleteResource).
+	projectsClient, err := armcognitiveservices.NewProjectsClient(id.SubscriptionID, s.credential, nil)
+	if err == nil {
+		pager := projectsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				break
+			}
+			for _, project := range page.Value {
+				if project.Name != nil {
+					projectName := *project.Name
+					if idx := strings.LastIndex(projectName, "/"); idx != -1 {
+						projectName = projectName[idx+1:]
+					}
+					poller, err := projectsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, projectName, nil)
+					if err == nil {
+						_, _ = poller.PollUntilDone(ctx, nil)
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Delete nested deployments if any exist directly under the account.
+	deploymentsClient, err := armcognitiveservices.NewDeploymentsClient(id.SubscriptionID, s.credential, nil)
+	if err == nil {
+		pager := deploymentsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				break
+			}
+			for _, d := range page.Value {
+				if d.Name != nil {
+					deploymentName := *d.Name
+					if idx := strings.LastIndex(deploymentName, "/"); idx != -1 {
+						deploymentName = deploymentName[idx+1:]
+					}
+					poller, err := deploymentsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, deploymentName, nil)
+					if err == nil {
+						_, _ = poller.PollUntilDone(ctx, nil)
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Delete the parent Foundry account.
 	client, err := armcognitiveservices.NewAccountsClient(id.SubscriptionID, s.credential, nil)
 	if err != nil {
 		return fmt.Errorf("create accounts client: %w", err)
