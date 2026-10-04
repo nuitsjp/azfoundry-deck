@@ -190,24 +190,25 @@ export function DeploymentDetails({
               <dt>SKU</dt>
               <dd>{detail.skuName ?? 'Not set'}</dd>
               <dt>Capacity</dt>
-              <dd>
-                {capacityValue(detail.capacity)} /{' '}
+              <Group component="dd" gap={4} align="center" wrap="nowrap">
+                <span>{capacityValue(detail.capacity)} /</span>{' '}
                 {loading ? (
                   <Group
                     component="span"
                     gap={6}
                     role="status"
                     display="inline-flex"
-                    style={{ verticalAlign: 'middle' }}
+                    align="center"
+                    wrap="nowrap"
                   >
                     <Loader size="xs" />
                     <span>Loading...</span>
                   </Group>
                 ) : (
-                  capacityValue(maximum)
-                )}
-                {detail.capacityUnit ? ` ${detail.capacityUnit}` : ''}
-              </dd>
+                  <span>{capacityValue(maximum)}</span>
+                )}{' '}
+                {detail.capacityUnit ? <span>{detail.capacityUnit}</span> : null}
+              </Group>
               {error ? (
                 <>
                   <dt aria-hidden="true" />
