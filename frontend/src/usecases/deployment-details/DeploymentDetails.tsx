@@ -193,7 +193,13 @@ export function DeploymentDetails({
               <dd>
                 {capacityValue(detail.capacity)} /{' '}
                 {loading ? (
-                  <Group component="span" gap={6} role="status" display="inline-flex">
+                  <Group
+                    component="span"
+                    gap={6}
+                    role="status"
+                    display="inline-flex"
+                    style={{ verticalAlign: 'middle' }}
+                  >
                     <Loader size="xs" />
                     <span>Loading...</span>
                   </Group>
