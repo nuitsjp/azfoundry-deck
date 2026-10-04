@@ -341,6 +341,21 @@ export function InitialDeployments() {
         }}
       />
       <Stack gap={6}>
+        <Group justify="space-between" gap="sm">
+          <Text size="sm" fw={500}>
+            Foundry
+          </Text>
+          <Button
+            size="xs"
+            disabled={busy}
+            onClick={() => {
+              create.reset();
+              setAddFoundryOpened(true);
+            }}
+          >
+            + Add Foundry
+          </Button>
+        </Group>
         <Group gap="xs" align="flex-end" wrap="nowrap">
           <Combobox
             store={combobox}
@@ -358,7 +373,6 @@ export function InitialDeployments() {
                 component="button"
                 type="button"
                 disabled={busy}
-                label="Foundry"
                 aria-label="Foundry"
                 rightSection={<Combobox.Chevron />}
                 rightSectionPointerEvents="none"
@@ -400,15 +414,6 @@ export function InitialDeployments() {
             </Combobox.Dropdown>
           </Combobox>
           <Group gap="sm" wrap="nowrap" h={36}>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                create.reset();
-                setAddFoundryOpened(true);
-              }}
-            >
-              + Add Foundry
-            </Button>
             <Tooltip label="Refresh Foundries">
               <ActionIcon
                 variant="default"
