@@ -21,6 +21,13 @@ VIAddVersionKey "LegalCopyright" "MIT"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_TEXT "アプリを起動する"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchApplication
+!define MUI_FINISHPAGE_SHOWREADME
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "デスクトップにショートカットを作成する"
+!define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
+!define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
 !insertmacro MUI_PAGE_FINISH
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
@@ -131,6 +138,14 @@ failed:
 done:
 SectionEnd
 
+Function LaunchApplication
+  Exec '"$INSTDIR\${APP_EXE}"'
+FunctionEnd
+
+Function CreateDesktopShortcut
+  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
+FunctionEnd
+
 Function .onInstSuccess
   ${If} $Restart == "1"
     Exec '"$INSTDIR\${APP_EXE}"'
@@ -152,6 +167,7 @@ Section "Uninstall"
     MessageBox MB_ICONSTOP "アプリを終了してからアンインストールしてください。"
     Abort
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
+  Delete "$DESKTOP\${APP_NAME}.lnk"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   DeleteRegKey HKCU "Software\${APP_ID}"
