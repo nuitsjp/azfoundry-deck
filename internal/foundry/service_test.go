@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func (s controlledSource) Deployments(ctx context.Context, foundry Foundry, prog
 	return s.deployments(ctx, foundry, progress)
 }
 
-func TestInitialViewSelectsFirstSortedFoundryAfterListAndSavesAllResults(t *testing.T) {
+func TestInitialViewSelectsFirstSortedFoundryAfterListAndSavesOnlyTheFoundryList(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	// The source returns them out of order; the service orders by subscription name, then Foundry name.
@@ -73,12 +74,15 @@ func TestInitialViewSelectsFirstSortedFoundryAfterListAndSavesAllResults(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	var saved InitialFoundryView
+	var saved savedState
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(saved, want) {
-		t.Fatalf("saved = %#v, want %#v", saved, want)
+	if wantSaved := (savedState{Foundries: want.Foundries, SelectedFoundryID: first.ID, FoundriesFetchedAt: want.FoundriesFetchedAt}); !reflect.DeepEqual(saved, wantSaved) {
+		t.Fatalf("saved = %#v, want %#v", saved, wantSaved)
+	}
+	if strings.Contains(string(data), "deployments") {
+		t.Fatalf("deployments were saved: %s", data)
 	}
 	if events[0] != (Progress{FoundryPhase: "running", ModelPhase: "waiting"}) {
 		t.Fatalf("unexpected initial progress: %#v", events[0])
@@ -127,14 +131,13 @@ func TestFoundryListFailureSkipsModelsAndKeepsSavedState(t *testing.T) {
 	}
 }
 
-func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing.T) {
+func TestChangeFoundryAcquiresOnlySelectedModelsAndSavesOnlyTheSelection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	oldFoundry := Foundry{ID: "old", Name: "old-foundry"}
 	target := Foundry{ID: "target", Name: "target-foundry"}
-	oldModels := []Deployment{{ID: "old-model", DeploymentName: "old-chat"}}
 	models := []Deployment{{ID: "target-model", DeploymentName: "target-chat"}}
-	previous := InitialFoundryView{Foundries: []Foundry{oldFoundry, target}, SelectedFoundryID: oldFoundry.ID, Deployments: oldModels}
+	previous := savedState{Foundries: []Foundry{oldFoundry, target}, SelectedFoundryID: oldFoundry.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	previousData, err := json.Marshal(previous)
 	if err != nil {
@@ -208,25 +211,15 @@ func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	var saved InitialFoundryView
+	var saved savedState
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(saved, got.view) {
-		t.Fatalf("saved state = %#v, returned %#v", saved, got.view)
+	if wantSaved := (savedState{Foundries: previous.Foundries, SelectedFoundryID: target.ID}); !reflect.DeepEqual(saved, wantSaved) {
+		t.Fatalf("saved state = %#v, want %#v", saved, wantSaved)
 	}
-	for id, wantModels := range map[string][]Deployment{oldFoundry.ID: oldModels, target.ID: models} {
-		data, err := os.ReadFile(modelsPath(path, id))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var saved savedModels
-		if err := json.Unmarshal(data, &saved); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(saved.Deployments, wantModels) {
-			t.Fatalf("archived %s models = %#v, want %#v", id, saved.Deployments, wantModels)
-		}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "foundry-models")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("model files were saved: %v", err)
 	}
 	first, last := events[0], events[len(events)-1]
 	if first.FoundryPhase != "completed" || first.ModelPhase != "running" || first.ModelCount != 0 || first.SelectedFoundryName != target.Name {
@@ -237,153 +230,107 @@ func TestChangeFoundryAcquiresOnlySelectedModelsAndCommitsAfterSaving(t *testing
 	}
 }
 
-func TestChangeFoundryReusesSavedModelsAndDoesNotSaveSameSelection(t *testing.T) {
-	for _, sameSelection := range []bool{false, true} {
-		name := "saved-target"
-		if sameSelection {
-			name = "same-selection"
-		}
-		t.Run(name, func(t *testing.T) {
-			old := Foundry{ID: "old"}
-			target := Foundry{ID: "target"}
-			previous := InitialFoundryView{Foundries: []Foundry{old, target}, SelectedFoundryID: old.ID, Deployments: []Deployment{{ID: "old-model"}}}
-			models := []Deployment{{ID: "saved-target-model", Version: "saved-version"}}
-			path := filepath.Join(t.TempDir(), "foundry-state.json")
-			previousData, err := json.Marshal(previous)
-			if err != nil {
-				t.Fatal(err)
+func newFoundryService(path string, source Source, emit func(string, any)) *Service {
+	return New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
+		slog.New(slog.NewTextHandler(io.Discard, nil)), emit)
+}
+
+func TestInitialViewWithSavedStateFetchesDeploymentsAndKeepsSelection(t *testing.T) {
+	old := Foundry{ID: "old"}
+	target := Foundry{ID: "target"}
+	saved := savedState{Foundries: []Foundry{old, target}, SelectedFoundryID: target.ID, FoundriesFetchedAt: "2024-01-01T09:00:00+09:00"}
+	path := filepath.Join(t.TempDir(), "foundry-state.json")
+	data, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	models := []Deployment{{ID: "target-model"}}
+	source := controlledSource{
+		foundries: func(context.Context) ([]Foundry, error) {
+			t.Error("saved Foundries were fetched again")
+			return nil, errors.New("unexpected Foundry list")
+		},
+		deployments: func(_ context.Context, selected Foundry, report func(int)) ([]Deployment, error) {
+			if selected != target {
+				t.Errorf("fetched %v, want the saved selection %v", selected, target)
 			}
-			if err := os.WriteFile(path, previousData, 0600); err != nil {
-				t.Fatal(err)
-			}
-			selectedID := target.ID
-			cachePath := modelsPath(path, target.ID)
-			cacheData, err := json.Marshal(savedModels{FetchedAt: "2024-01-01T09:00:00+09:00", Deployments: models})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.MkdirAll(filepath.Dir(cachePath), 0700); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(cachePath, cacheData, 0600); err != nil {
-				t.Fatal(err)
-			}
-			if sameSelection {
-				selectedID, cachePath, cacheData = old.ID, path, previousData
-			}
-			stamp := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-			if err := os.Chtimes(cachePath, stamp, stamp); err != nil {
-				t.Fatal(err)
-			}
-			before, err := os.Stat(cachePath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			service := New(new(sync.Mutex), func() (Source, error) {
-				t.Error("saved models called source factory")
-				return nil, errors.New("unexpected source call")
-			}, func(context.Context) error { return nil }, func() (string, error) { return path, nil }, slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {
-				t.Error("saved models emitted acquisition progress")
-			})
-			view, err := service.ChangeFoundry(t.Context(), selectedID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			want := previous
-			if !sameSelection {
-				want.SelectedFoundryID, want.Deployments, want.DeploymentsFetchedAt = target.ID, models, "2024-01-01T09:00:00+09:00"
-			}
-			if !reflect.DeepEqual(view, want) {
-				t.Fatalf("view = %#v, want %#v", view, want)
-			}
-			data, err := os.ReadFile(cachePath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			after, err := os.Stat(cachePath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(data, cacheData) || !after.ModTime().Equal(before.ModTime()) {
-				t.Fatal("existing cache or same selected state was rewritten")
-			}
-			if sameSelection {
-				if _, err := os.Stat(modelsPath(path, old.ID)); !errors.Is(err, os.ErrNotExist) {
-					t.Fatalf("same selection saved a model archive: %v", err)
-				}
-			}
-			stateData, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var saved InitialFoundryView
-			if err := json.Unmarshal(stateData, &saved); err != nil {
-				t.Fatal(err)
-			}
-			if !reflect.DeepEqual(saved, view) {
-				t.Fatalf("saved selection = %#v, returned %#v", saved, view)
-			}
-		})
+			report(len(models))
+			return models, nil
+		},
+	}
+	service := newFoundryService(path, source, func(string, any) {})
+	view, err := service.GetInitialView(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := InitialFoundryView{Foundries: saved.Foundries, SelectedFoundryID: target.ID, Deployments: models, FoundriesFetchedAt: saved.FoundriesFetchedAt, DeploymentsFetchedAt: view.DeploymentsFetchedAt}
+	if !reflect.DeepEqual(view, want) || view.DeploymentsFetchedAt == "" {
+		t.Fatalf("view = %#v, want %#v", view, want)
 	}
 }
 
-func TestChangeFoundryArchiveSaveFailureKeepsPreviousSelectionAndModels(t *testing.T) {
+func TestChangeToTheSameFoundryKeepsDeploymentsWithoutFetching(t *testing.T) {
+	old := Foundry{ID: "old"}
+	path := filepath.Join(t.TempDir(), "foundry-state.json")
+	data, err := json.Marshal(savedState{Foundries: []Foundry{old}, SelectedFoundryID: old.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	fetches := 0
+	source := controlledSource{
+		foundries: func(context.Context) ([]Foundry, error) { return nil, errors.New("unexpected Foundry list") },
+		deployments: func(context.Context, Foundry, func(int)) ([]Deployment, error) {
+			fetches++
+			return []Deployment{{ID: "model"}}, nil
+		},
+	}
+	service := newFoundryService(path, source, func(string, any) {})
+	loaded, err := service.GetInitialView(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := service.ChangeFoundry(t.Context(), old.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fetches != 1 || !reflect.DeepEqual(same, loaded) {
+		t.Fatalf("fetches = %d, view = %#v, want the loaded view %#v", fetches, same, loaded)
+	}
+}
+
+func TestChangeFoundryFetchFailureKeepsSavedSelection(t *testing.T) {
 	old := Foundry{ID: "old"}
 	target := Foundry{ID: "target"}
-	previous := InitialFoundryView{Foundries: []Foundry{old, target}, SelectedFoundryID: old.ID, Deployments: []Deployment{{ID: "old-model"}}}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
-	previousData, err := json.Marshal(previous)
+	previousData, err := json.Marshal(savedState{Foundries: []Foundry{old, target}, SelectedFoundryID: old.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, previousData, 0600); err != nil {
 		t.Fatal(err)
 	}
-	acquired := false
 	source := controlledSource{
-		foundries: func(context.Context) ([]Foundry, error) {
-			t.Error("switching listed Foundries")
-			return nil, errors.New("unexpected Foundry list")
-		},
-		deployments: func(_ context.Context, selected Foundry, report func(int)) ([]Deployment, error) {
-			if selected.ID != target.ID {
-				t.Errorf("selected %s, want %s", selected.ID, target.ID)
-			}
-			acquired = true
-			// The target was absent when read; this collision forces the final rename to fail.
-			if err := os.Mkdir(modelsPath(path, target.ID), 0700); err != nil {
-				return nil, err
-			}
-			report(1)
-			return []Deployment{{ID: "new-model"}}, nil
+		foundries: func(context.Context) ([]Foundry, error) { return nil, errors.New("unexpected Foundry list") },
+		deployments: func(context.Context, Foundry, func(int)) ([]Deployment, error) {
+			return nil, errors.New("deployments failed")
 		},
 	}
-	var events []Progress
-	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
-		slog.New(slog.NewTextHandler(io.Discard, nil)), func(_ string, data any) { events = append(events, data.(Progress)) })
+	service := newFoundryService(path, source, func(string, any) {})
 	view, err := service.ChangeFoundry(t.Context(), target.ID)
 	if err == nil || !reflect.DeepEqual(view, InitialFoundryView{}) {
-		t.Fatalf("returned success after archive failure: %#v, %v", view, err)
-	}
-	if !acquired || events[len(events)-1].ModelPhase != "completed" {
-		t.Fatal("did not reach the archive save boundary")
+		t.Fatalf("returned success after fetch failure: %#v, %v", view, err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(data, previousData) {
-		t.Fatalf("previous state overwritten: %s", data)
-	}
-	archive, err := os.ReadFile(modelsPath(path, old.ID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var oldModels savedModels
-	if err := json.Unmarshal(archive, &oldModels); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(oldModels.Deployments, previous.Deployments) {
-		t.Fatalf("old model archive = %#v, want %#v", oldModels.Deployments, previous.Deployments)
+		t.Fatalf("saved state changed: %s", data)
 	}
 }

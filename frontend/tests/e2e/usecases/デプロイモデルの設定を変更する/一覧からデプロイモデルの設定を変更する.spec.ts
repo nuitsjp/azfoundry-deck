@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import { test, expect, type IsolatedApp } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 
 const foundries = [
   {
@@ -19,9 +18,8 @@ const foundries = [
     resourceGroupName: 'rg-ai-development',
   },
 ];
-// 2099-01-01 is absent from the fixed catalog, so the version list must prepend it.
 const models = [
-  ['chat-production', 'gpt-4.1', '2099-01-01'],
+  ['chat-production', 'gpt-4.1', '2025-04-14'],
   ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
@@ -31,7 +29,9 @@ const updatedModels = [
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
 const developmentModels = [
-  ['saved-development-chat', 'saved-development-model', 'saved-version-3'],
+  ['development-chat', 'gpt-4.1', '2025-04-14'],
+  ['development-mini', 'gpt-4.1-mini', '2025-04-14'],
+  ['development-embedding', 'text-embedding-3-large', '1'],
 ];
 const savedAt = '2001-02-03T13:05:06+09:00';
 const foundryLabel = (index: number) => {
@@ -72,48 +72,19 @@ function seed(app: IsolatedApp) {
       .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
       .digest('hex'),
   );
-  mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-  const deployments = (foundry: (typeof foundries)[number], modelList: string[][]) =>
-    modelList.map(([deploymentName, modelName, version]) => ({
-      id: `${foundry.id}/deployments/${deploymentName}`,
-      deploymentName,
-      modelName,
-      version,
-    }));
-  const productionDeployments = deployments(foundries[0], models);
-  const original: InitialFoundryView = {
-    foundries,
-    selectedFoundryId: foundries[0].id,
-    deployments: productionDeployments,
-    foundriesFetchedAt: savedAt,
-    deploymentsFetchedAt: savedAt,
-  };
+  mkdirSync(viewDir, { recursive: true });
   const stateFile = join(viewDir, 'foundry-state.json');
-  const productionModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`,
-  );
-  const developmentModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[1].id).digest('hex')}.json`,
-  );
-  writeFileSync(stateFile, JSON.stringify(original));
   writeFileSync(
-    productionModelFile,
-    JSON.stringify({ fetchedAt: savedAt, deployments: productionDeployments }),
-  );
-  writeFileSync(
-    developmentModelFile,
+    stateFile,
     JSON.stringify({
-      fetchedAt: savedAt,
-      deployments: deployments(foundries[1], developmentModels),
+      foundries,
+      selectedFoundryId: foundries[0].id,
+      foundriesFetchedAt: savedAt,
     }),
   );
-  const oldTime = new Date('2001-02-03T04:05:06Z');
-  utimesSync(developmentModelFile, oldTime, oldTime);
-  return { stateFile, productionModelFile, developmentModelFile };
+  // The deployments are fetched from Azure on startup, so the models gate is released up front.
+  writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+  return { viewDir, stateFile };
 }
 
 function countCalls(page: Page, methodName: string) {
@@ -183,6 +154,18 @@ async function assertCapacityLabelStaysInside(page: Page, dialog: Locator) {
   expect(metrics.inside).toBe(true);
 }
 
+const stateKeys = ['foundries', 'foundriesFetchedAt', 'selectedFoundryId'];
+
+// The saved file keeps only the Foundry list and the selection; deployments are never saved.
+function assertNothingSavedBesidesFoundries(files: ReturnType<typeof seed>) {
+  const state = JSON.parse(readFileSync(files.stateFile, 'utf8')) as Record<string, unknown>;
+  expect(Object.keys(state).sort()).toEqual(stateKeys);
+  expect(state.foundries).toEqual(foundries);
+  expect(state.selectedFoundryId).toBe(foundries[0].id);
+  expect(state.foundriesFetchedAt).toBe(savedAt);
+  expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
+}
+
 test.describe('変更成功', () => {
   test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
@@ -198,31 +181,33 @@ test.describe('変更成功', () => {
     const editDialog = () => page.getByRole('dialog', { name: 'Edit deployment' });
     const progressDialog = () => page.getByRole('dialog', { name: 'Updating deployment' });
     const updates = countCalls(page, 'azfoundrydeck/internal/foundry.Service.UpdateDeployment');
+    const maximums = countCalls(page, 'azfoundrydeck/internal/foundry.Service.GetCapacityMaximum');
+    const settings = countCalls(
+      page,
+      'azfoundrydeck/internal/foundry.Service.GetDeploymentSettings',
+    );
+    const fetchedPattern = /^3 · Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
     let files: ReturnType<typeof seed>;
-    let developmentFile: ReturnType<typeof identity>;
-    let productionFile: ReturnType<typeof identity>;
     let stateFile: ReturnType<typeof identity>;
 
     await test.step('開始条件', async () => {
       files = seed(app);
-      developmentFile = identity(files.developmentModelFile);
-      productionFile = identity(files.productionModelFile);
-      stateFile = identity(files.stateFile);
       await app.restart();
       await page.goto(app.url);
       await expect(page.getByRole('banner')).toContainText('Contoso');
       await expect(selected).toHaveText(foundryLabel(0));
       await assertRows(rows, models);
-      await expect(modelsFetched).toHaveText(`3 · Last fetched ${displayed(savedAt)}`);
+      await expect(modelsFetched).toHaveText(fetchedPattern);
       await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
       await expect(details).toHaveText('Details');
+      stateFile = identity(files.stateFile);
     });
 
     await test.step('手順1', async () => {
       await rows.nth(0).getByRole('button', { name: 'chat-production' }).click();
       await expect(details.getByRole('status')).toHaveText('Loading...');
       writeFileSync(join(app.dataDir, 'e2e-foundry-detail-release'), '');
-      await assertDetail(details, '2099-01-01', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
 
       await details.getByRole('button', { name: 'Edit deployment' }).click();
       const dialog = editDialog();
@@ -235,7 +220,7 @@ test.describe('変更成功', () => {
       await expect(dialog.getByLabel('Model')).toHaveJSProperty('readOnly', true);
       await expect(dialog.getByLabel('SKU')).toHaveValue('GlobalStandard');
       await expect(dialog.getByLabel('SKU')).toHaveJSProperty('readOnly', true);
-      await expect(dialog.getByLabel('Version')).toHaveValue('2099-01-01');
+      await expect(dialog.getByLabel('Version')).toHaveValue('2025-04-14');
       await expect(dialog.getByLabel('Upgrade policy')).toHaveValue('Upgrade to new default');
       await expect(dialog.getByText('50,000 / 160,000 TPM')).toBeVisible();
       await expect(dialog.getByRole('textbox', { name: 'Capacity' })).toHaveValue('50000');
@@ -243,8 +228,8 @@ test.describe('変更成功', () => {
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeDisabled();
 
       await dialog.getByLabel('Version').click();
-      await expect(page.getByRole('option')).toHaveText(['2099-01-01', '2025-04-14', '2024-11-20']);
-      await page.getByRole('option', { name: '2099-01-01', exact: true }).click();
+      await expect(page.getByRole('option')).toHaveText(['2025-04-14', '2024-11-20']);
+      await page.getByRole('option', { name: '2025-04-14', exact: true }).click();
       await expect(page.getByRole('option')).toHaveCount(0);
       await dialog.getByLabel('Upgrade policy').click();
       await expect(page.getByRole('option')).toHaveText([
@@ -256,8 +241,9 @@ test.describe('変更成功', () => {
       await expect(page.getByRole('option')).toHaveCount(0);
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeDisabled();
       expect(updates()).toBe(0);
+      expect(settings()).toBe(1);
+      expect(maximums()).toBe(1);
       expect(identity(files.stateFile)).toEqual(stateFile);
-      expect(identity(files.productionModelFile)).toEqual(productionFile);
     });
 
     await test.step('手順2', async () => {
@@ -280,6 +266,8 @@ test.describe('変更成功', () => {
       await expect(page.getByRole('dialog', { name: 'Edit deployment' })).toBeVisible();
       await expect(page.locator('[role="dialog"]')).toHaveCount(1);
 
+      // The capacity maximum must not be fetched again after the change, so hold it from here on.
+      unlinkSync(join(app.dataDir, 'e2e-foundry-detail-release'));
       await dialog.getByRole('button', { name: 'Update', exact: true }).click();
       const progress = progressDialog();
       await expect(progress).toBeVisible();
@@ -292,15 +280,8 @@ test.describe('変更成功', () => {
       await expect(page.locator('[role="dialog"]')).toHaveCount(2);
       await assertRows(rows, models);
       expect(identity(files.stateFile)).toEqual(stateFile);
-      expect(identity(files.productionModelFile)).toEqual(productionFile);
-      expect(identity(files.developmentModelFile)).toEqual(developmentFile);
 
       writeFileSync(join(app.dataDir, 'e2e-foundry-update-release'), '');
-      await expect(progress).toBeVisible();
-      expect(identity(files.stateFile)).toEqual(stateFile);
-      expect(identity(files.productionModelFile)).toEqual(productionFile);
-
-      writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
     });
 
     await test.step('手順3', async () => {
@@ -308,48 +289,25 @@ test.describe('変更成功', () => {
       await assertRows(rows, updatedModels);
       await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
       await assertDetail(details, '2024-11-20', '80,000 / 160,000 TPM', 'Upgrade on retirement');
-      const state = JSON.parse(readFileSync(files.stateFile, 'utf8')) as InitialFoundryView;
-      await expect(modelsFetched).toHaveText(
-        `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-      );
+      await expect(details.getByRole('status')).toHaveCount(0);
+      await expect(modelsFetched).toHaveText(fetchedPattern);
       await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
       expect(updates()).toBe(1);
+      expect(maximums()).toBe(1);
     });
 
     await test.step('受け入れ条件', async () => {
-      const state = JSON.parse(readFileSync(files.stateFile, 'utf8')) as InitialFoundryView;
-      expect(state.foundries).toEqual(foundries);
-      expect(state.selectedFoundryId).toBe(foundries[0].id);
-      expect(state.foundriesFetchedAt).toBe(savedAt);
-      expect(state.deploymentsFetchedAt).not.toBe(savedAt);
-      expect(state.deployments.map((deployment) => deployment.version)).toEqual(
-        updatedModels.map((model) => model[2]),
-      );
-      const production = JSON.parse(readFileSync(files.productionModelFile, 'utf8')) as {
-        fetchedAt: string;
-        deployments: { deploymentName: string; version: string }[];
-      };
-      expect(production.fetchedAt).toBe(state.deploymentsFetchedAt);
-      expect(production.deployments.map((deployment) => deployment.deploymentName)).toEqual(
-        updatedModels.map((model) => model[0]),
-      );
-      expect(production.deployments.map((deployment) => deployment.version)).toEqual(
-        updatedModels.map((model) => model[2]),
-      );
-      expect(identity(files.developmentModelFile)).toEqual(developmentFile);
+      assertNothingSavedBesidesFoundries(files);
 
-      await page.reload();
-      await assertRows(rows, updatedModels);
-      await expect(modelsFetched).toHaveText(
-        `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-      );
-
-      await rows.nth(0).getByRole('button', { name: 'chat-production' }).click();
-      await assertDetail(details, '2024-11-20', '80,000 / 160,000 TPM', 'Upgrade on retirement');
+      // Each time the dialog opens, the shared quota is fetched again.
+      unlinkSync(join(app.dataDir, 'e2e-foundry-update-settings-release'));
       await details.getByRole('button', { name: 'Edit deployment' }).click();
       const dialog = editDialog();
+      await expect(dialog.getByRole('status')).toHaveText('Loading deployment settings...');
+      writeFileSync(join(app.dataDir, 'e2e-foundry-update-settings-release'), '');
       await expect(dialog.getByLabel('Version')).toHaveValue('2024-11-20');
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeDisabled();
+      expect(settings()).toBe(2);
       await assertCapacityLabelStaysInside(page, dialog);
       await dialog.getByRole('button', { name: 'Cancel' }).click();
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
@@ -362,15 +320,9 @@ test.describe('変更成功', () => {
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
       await assertRows(rows, updatedModels);
       expect(updates()).toBe(1);
+      expect(maximums()).toBe(1);
 
-      await app.restart();
-      await page.goto(app.url);
-      await expect(selected).toHaveText(foundryLabel(0));
-      await assertRows(rows, updatedModels);
-      await expect(modelsFetched).toHaveText(
-        `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-      );
-
+      // The list is fetched from Azure each time, so coming back shows the changed deployment.
       await selected.click();
       await page.getByRole('option', { name: foundryLabel(1), exact: true }).click();
       await expect(selected).toHaveText(foundryLabel(1));
@@ -379,10 +331,7 @@ test.describe('変更成功', () => {
       await page.getByRole('option', { name: foundryLabel(0), exact: true }).click();
       await expect(selected).toHaveText(foundryLabel(0));
       await assertRows(rows, updatedModels);
-      await expect(modelsFetched).toHaveText(
-        `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-      );
-      expect(identity(files.developmentModelFile)).toEqual(developmentFile);
+      assertNothingSavedBesidesFoundries({ ...files });
     });
   });
 });
@@ -395,21 +344,19 @@ test.describe('設定の取得に失敗する', () => {
     const details = page.getByRole('region', { name: 'Details', exact: true });
     const updates = countCalls(page, 'azfoundrydeck/internal/foundry.Service.UpdateDeployment');
     let files: ReturnType<typeof seed>;
-    let originals: ReturnType<typeof identity>[];
+    let original: ReturnType<typeof identity>;
 
     await test.step('開始条件', async () => {
       files = seed(app);
-      originals = [files.stateFile, files.productionModelFile, files.developmentModelFile].map(
-        identity,
-      );
       await app.restart();
       await page.goto(app.url);
       await assertRows(rows, models);
+      original = identity(files.stateFile);
     });
 
     await test.step('手順1', async () => {
       await rows.nth(0).getByRole('button', { name: 'chat-production' }).click();
-      await assertDetail(details, '2099-01-01', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
       await details.getByRole('button', { name: 'Edit deployment' }).click();
       const dialog = page.getByRole('dialog', { name: 'Edit deployment' });
       await expect(dialog.getByRole('alert')).toContainText('DEPLOYMENT_UPDATE_FAILED');
@@ -436,14 +383,12 @@ test.describe('設定の取得に失敗する', () => {
       await expect(dialog.getByRole('alert')).toContainText('DEPLOYMENT_UPDATE_FAILED');
       await expect(dialog.getByRole('button', { name: 'Retry' })).toBeEnabled();
       await assertRows(rows, models);
-      await assertDetail(details, '2099-01-01', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
     });
 
     await test.step('受け入れ条件', async () => {
       expect(updates()).toBe(0);
-      expect(
-        [files.stateFile, files.productionModelFile, files.developmentModelFile].map(identity),
-      ).toEqual(originals);
+      expect(identity(files.stateFile)).toEqual(original);
       await page
         .getByRole('dialog', { name: 'Edit deployment' })
         .getByRole('button', { name: 'Cancel' })
@@ -462,24 +407,22 @@ test.describe('変更の実行に失敗する', () => {
     const details = page.getByRole('region', { name: 'Details', exact: true });
     const updates = countCalls(page, 'azfoundrydeck/internal/foundry.Service.UpdateDeployment');
     let files: ReturnType<typeof seed>;
-    let originals: ReturnType<typeof identity>[];
+    let original: ReturnType<typeof identity>;
 
     await test.step('開始条件', async () => {
       files = seed(app);
-      originals = [files.stateFile, files.productionModelFile, files.developmentModelFile].map(
-        identity,
-      );
       await app.restart();
       await page.goto(app.url);
       await assertRows(rows, models);
+      original = identity(files.stateFile);
       await rows.nth(0).getByRole('button', { name: 'chat-production' }).click();
-      await assertDetail(details, '2099-01-01', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
     });
 
     await test.step('手順1', async () => {
       await details.getByRole('button', { name: 'Edit deployment' }).click();
       const dialog = page.getByRole('dialog', { name: 'Edit deployment' });
-      await expect(dialog.getByLabel('Version')).toHaveValue('2099-01-01');
+      await expect(dialog.getByLabel('Version')).toHaveValue('2025-04-14');
       await expect(dialog.getByRole('textbox', { name: 'Capacity' })).toHaveValue('50000');
       await expect(dialog.getByLabel('Upgrade policy')).toHaveValue('Upgrade to new default');
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeDisabled();
@@ -516,10 +459,8 @@ test.describe('変更の実行に失敗する', () => {
     await test.step('受け入れ条件', async () => {
       const dialog = page.getByRole('dialog', { name: 'Edit deployment' });
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeEnabled();
-      expect(
-        [files.stateFile, files.productionModelFile, files.developmentModelFile].map(identity),
-      ).toEqual(originals);
-      await assertDetail(details, '2099-01-01', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      expect(identity(files.stateFile)).toEqual(original);
+      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
       await dialog.getByRole('button', { name: 'Update', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Updating deployment' })).toBeVisible();
       await expect(page.getByRole('dialog', { name: 'Updating deployment' })).toHaveCount(0);
@@ -527,9 +468,7 @@ test.describe('変更の実行に失敗する', () => {
       await expect(dialog.getByLabel('Version')).toHaveValue('2024-11-20');
       await assertRows(rows, models);
       expect(updates()).toBe(2);
-      expect(
-        [files.stateFile, files.productionModelFile, files.developmentModelFile].map(identity),
-      ).toEqual(originals);
+      expect(identity(files.stateFile)).toEqual(original);
     });
   });
 });

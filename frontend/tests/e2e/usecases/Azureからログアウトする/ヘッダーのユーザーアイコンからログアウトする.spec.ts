@@ -38,7 +38,7 @@ function parts(page: Page) {
     logout: menu.getByRole('menuitem', { name: 'ログアウト' }),
     dialog: page
       .getByRole('dialog')
-      .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) }),
+      .filter({ has: page.getByRole('heading', { name: 'Azure Foundry Deck' }) }),
   };
 }
 
@@ -49,7 +49,7 @@ test('ユーザーアイコンのメニューからログアウトし、ログ�
   const { header, menu, icon, logout, dialog } = parts(page);
   await test.step('開始条件', async () => {
     await startSignedIn(page, app);
-    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
     await expect(icon).toBeVisible();
     await expect(dialog).toHaveCount(0);
   });
@@ -64,7 +64,7 @@ test('ユーザーアイコンのメニューからログアウトし、ログ�
     await expect.poll(() => existsSync(recordFile(app))).toBe(false);
   });
   await test.step('手順3', async () => {
-    await expect(header).toHaveText('AzFoundryDeck');
+    await expect(header).toHaveText('Azure Foundry Deck');
     await expect(icon).toHaveCount(0);
     await expect(menu).toHaveCount(0);
     await expect(dialog).toBeVisible();
@@ -83,7 +83,7 @@ test('ユーザーアイコンのメニューからログアウトし、ログ�
     await page.goto(app.url);
     await expect(dialog.getByRole('button', { name: 'Azureにログイン' })).toBeVisible();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
-    await expect(header).toHaveText('AzFoundryDeck');
+    await expect(header).toHaveText('Azure Foundry Deck');
   });
 });
 

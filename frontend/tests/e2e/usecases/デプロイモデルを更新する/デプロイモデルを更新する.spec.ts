@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
 const production = {
@@ -18,33 +17,23 @@ const development = {
   resourceGroupName: 'rg-ai-development',
 };
 const foundries = [production, development];
-const savedModels = [
-  ['saved-production-chat', 'saved-production-model', 'saved-version-1'],
-  ['saved-production-embedding', 'saved-embedding-model', 'saved-version-2'],
-];
-const developmentModels = [
-  ['saved-development-chat', 'saved-development-model', 'saved-version-3'],
-];
-// The e2e fixed source returns these for Production.
+// The e2e fixed source returns these for Production and Development.
 const fetchedModels = [
   ['chat-production', 'gpt-4.1', '2025-04-14'],
   ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
-const deployments = (foundry: { id: string }, models: string[][]) =>
-  models.map(([deploymentName, modelName, version]) => ({
-    id: `${foundry.id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
+const developmentModels = [
+  ['development-chat', 'gpt-4.1', '2025-04-14'],
+  ['development-mini', 'gpt-4.1-mini', '2025-04-14'],
+  ['development-embedding', 'text-embedding-3-large', '1'],
+];
 const savedAt = '2001-02-03T13:05:06+09:00';
-const original: InitialFoundryView = {
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
   foundries,
   selectedFoundryId: production.id,
-  deployments: deployments(production, savedModels),
   foundriesFetchedAt: savedAt,
-  deploymentsFetchedAt: savedAt,
 };
 const label = (foundry: typeof production) =>
   `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`;
@@ -55,7 +44,7 @@ const displayed = (value: string) => {
   return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
 };
 
-// Model acquisition waits for its release file; discovery is never released.
+// Model acquisition waits for its release file, including the one at startup; discovery is never released.
 test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
 test('デプロイモデルを更新する', async ({ page, app }) => {
@@ -67,20 +56,9 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
       .digest('hex'),
   );
   const stateFile = join(viewDir, 'foundry-state.json');
-  const modelFile = (foundry: { id: string }) =>
-    join(
-      viewDir,
-      'foundry-models',
-      `${createHash('sha256').update(foundry.id).digest('hex')}.json`,
-    );
-  const savedModelFile = (foundry: { id: string }, models: string[][]) =>
-    JSON.stringify({ fetchedAt: savedAt, deployments: deployments(foundry, models) }, null, 2) +
-    '\n';
-  const fileIdentity = (path: string) => ({
-    text: readFileSync(path, 'utf8'),
-    mtimeMs: statSync(path).mtimeMs,
-  });
-  let developmentFile: ReturnType<typeof fileIdentity>;
+  const release = (stage: string) =>
+    writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
+  const hold = (stage: string) => rmSync(join(app.dataDir, `e2e-foundry-${stage}-release`));
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -103,7 +81,7 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
       await expect(modelRows.nth(index).locator('td')).toHaveText(model);
     }
   };
-  const readState = () => JSON.parse(readFileSync(stateFile, 'utf8')) as InitialFoundryView;
+  const readState = () => JSON.parse(readFileSync(stateFile, 'utf8'));
 
   await test.step('開始条件', async () => {
     writeFileSync(
@@ -119,22 +97,21 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
+    mkdirSync(viewDir, { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    writeFileSync(modelFile(production), savedModelFile(production, savedModels));
-    writeFileSync(modelFile(development), savedModelFile(development, developmentModels));
-    const oldTime = new Date('2001-02-03T04:05:06Z');
-    utimesSync(modelFile(development), oldTime, oldTime);
-    developmentFile = fileIdentity(modelFile(development));
     await app.restart();
     await page.goto(app.url);
     await expect(page.getByRole('banner')).toContainText('Contoso');
+    // Startup fetches the selected Foundry's deployments from Azure; release that held stage,
+    // then hold it again so the refresh is observable.
+    release('models');
     await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
-    await expect(modelsFetched).toHaveText(`2 · Last fetched ${displayed(savedAt)}`);
+    await assertModels(fetchedModels);
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched /);
+    hold('models');
     await refresh.hover();
     await expect(page.getByRole('tooltip')).toHaveText('Refresh models');
-    expect(snapshots).toEqual([]);
+    snapshots.length = 0;
   });
 
   await test.step('手順1', async () => {
@@ -153,12 +130,12 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await expect(refreshFoundries).toBeDisabled();
     await expect(refresh).toBeDisabled();
     await expect(selected).toHaveText(label(production));
-    await assertModels(savedModels);
+    await assertModels(fetchedModels);
     expect(readState()).toEqual(original);
   });
 
   await test.step('手順2', async () => {
-    writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+    release('models');
     await expect(dialog).toHaveCount(0);
     const counted = snapshots.findIndex(
       (snapshot) => snapshot.modelPhase === 'running' && snapshot.modelCount === 3,
@@ -171,13 +148,10 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
   });
 
   await test.step('手順3', async () => {
-    const state = readState();
     await expect(selected).toBeEnabled();
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
-    await expect(modelsFetched).toHaveText(
-      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-    );
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
     await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
   });
 
@@ -186,28 +160,19 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
       expect(snapshot.foundryPhase).toBe('completed');
       expect(snapshot.selectedFoundryName).toBe(production.name);
     }
-    const state = readState();
-    expect(state).toEqual({
-      ...original,
-      deployments: deployments(production, fetchedModels),
-      deploymentsFetchedAt: expect.any(String),
-    });
-    expect(state.deploymentsFetchedAt).not.toBe(savedAt);
-    expect(JSON.parse(readFileSync(modelFile(production), 'utf8'))).toEqual({
-      fetchedAt: state.deploymentsFetchedAt,
-      deployments: state.deployments,
-    });
-    expect(fileIdentity(modelFile(development))).toEqual(developmentFile);
+    // Nothing but the Foundry list, the selection and the list's fetch time is saved.
+    expect(readState()).toEqual(original);
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
 
+    // A restart does not keep the refreshed list: it is fetched from Azure again.
+    release('models');
     await app.restart();
     await page.goto(app.url);
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
-    await expect(modelsFetched).toHaveText(
-      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-    );
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched /);
 
-    // Switching away and back restores the refreshed models from their file.
+    // Switching away and back fetches each Foundry's deployments from Azure again.
     await selected.click();
     await page.getByRole('option', { name: label(development), exact: true }).click();
     await expect(selected).toHaveText(label(development));
@@ -216,8 +181,6 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     await page.getByRole('option', { name: label(production), exact: true }).click();
     await expect(selected).toHaveText(label(production));
     await assertModels(fetchedModels);
-    await expect(modelsFetched).toHaveText(
-      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-    );
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
   });
 });

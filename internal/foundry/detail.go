@@ -3,75 +3,76 @@ package foundry
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"azfoundrydeck/internal/fault"
 )
 
-type DeploymentDetail struct {
-	ID                   string   `json:"id"`
-	DeploymentName       string   `json:"deploymentName"`
-	ModelName            string   `json:"modelName"`
-	Version              string   `json:"version"`
-	SKUName              *string  `json:"skuName"`
-	Capacity             *float64 `json:"capacity"`
-	CapacityMaximum      *float64 `json:"capacityMaximum"`
-	CapacityUnit         *string  `json:"capacityUnit"`
-	ProvisioningState    *string  `json:"provisioningState"`
-	VersionUpgradePolicy *string  `json:"versionUpgradePolicy"`
-	FetchedAt            string   `json:"fetchedAt"`
+// CapacityLimits holds one Foundry's model definitions and its regional shared
+// quota, from which the allocatable maximum of each deployment is derived.
+type CapacityLimits interface {
+	// Maximum is nil when the model definition or the quota cannot give a value.
+	Maximum(Deployment) *float64
+	// Versions lists the model versions offered for the deployment, including its current one.
+	Versions(Deployment) []string
+	// RefreshQuota returns the same definitions with the shared quota fetched again.
+	RefreshQuota(context.Context) (CapacityLimits, error)
 }
 
-type DeploymentDetailSource interface {
-	DeploymentDetail(context.Context, Foundry, Deployment) (DeploymentDetail, error)
+// CapacitySource fetches the capacity limits of one Foundry at the external boundary.
+type CapacitySource interface {
+	CapacityLimits(context.Context, Foundry) (CapacityLimits, error)
 }
 
-func (s *Service) GetDeploymentDetail(ctx context.Context, deploymentID string) (DeploymentDetail, error) {
+// GetCapacityMaximum returns the allocatable capacity maximum of one deployment of
+// the selected Foundry. The limits are fetched the first time and then kept in
+// memory until the view is loaded again or the Foundry changes.
+func (s *Service) GetCapacityMaximum(ctx context.Context, deploymentID string) (*float64, error) {
 	s.operations.Lock()
 	defer s.operations.Unlock()
 	if err := s.signedIn(ctx); err != nil {
-		return DeploymentDetail{}, err
+		return nil, err
 	}
 	file, err := s.file()
-	var detail DeploymentDetail
+	var maximum *float64
 	if err == nil {
-		detail, err = s.deploymentDetail(ctx, file, deploymentID)
+		maximum, err = s.capacityMaximum(ctx, file, deploymentID)
 	}
 	if err != nil {
-		s.logger.Error("operation_failed", "operation", "foundry.GetDeploymentDetail", "cause", err)
+		s.logger.Error("operation_failed", "operation", "foundry.GetCapacityMaximum", "cause", err)
 		if ctx.Err() != nil {
-			return DeploymentDetail{}, fault.Public(ctx.Err())
+			return nil, fault.Public(ctx.Err())
 		}
-		return DeploymentDetail{}, fault.New("DEPLOYMENT_DETAIL_FAILED", "Could not retrieve deployment details from the source or read the current Foundry selection.")
+		return nil, fault.New("DEPLOYMENT_DETAIL_FAILED", "Could not retrieve the capacity maximum from the source or read the current Foundry selection.")
 	}
-	detail.FetchedAt = fetchedNow()
-	return detail, nil
+	return maximum, nil
 }
 
-func (s *Service) deploymentDetail(ctx context.Context, file, deploymentID string) (DeploymentDetail, error) {
-	view, err := read(file)
+func (s *Service) capacityMaximum(ctx context.Context, file, deploymentID string) (*float64, error) {
+	foundry, deployment, source, err := s.selectedDeployment(file, deploymentID)
 	if err != nil {
-		return DeploymentDetail{}, err
+		return nil, err
 	}
-	foundryIndex := slices.IndexFunc(view.Foundries, func(foundry Foundry) bool {
-		return foundry.ID == view.SelectedFoundryID
-	})
-	if foundryIndex < 0 {
-		return DeploymentDetail{}, fmt.Errorf("selected Foundry is not in the saved list")
-	}
-	deploymentIndex := slices.IndexFunc(view.Deployments, func(deployment Deployment) bool {
-		return deployment.ID == deploymentID
-	})
-	if deploymentIndex < 0 {
-		return DeploymentDetail{}, fmt.Errorf("selected deployment is not in the selected Foundry's saved list")
-	}
-	source, err := s.source()
+	limits, _, err := s.capacityLimits(ctx, file, foundry, source)
 	if err != nil {
-		return DeploymentDetail{}, err
+		return nil, err
 	}
-	detailSource, ok := source.(DeploymentDetailSource)
+	return limits.Maximum(deployment), nil
+}
+
+// capacityLimits returns the kept limits of the Foundry, fetching them when absent.
+// fetched reports whether this call fetched them.
+func (s *Service) capacityLimits(ctx context.Context, file string, foundry Foundry, source Source) (CapacityLimits, bool, error) {
+	if s.limits.value != nil && s.limits.file == file && s.limits.foundryID == foundry.ID {
+		return s.limits.value, false, nil
+	}
+	capacitySource, ok := source.(CapacitySource)
 	if !ok {
-		return DeploymentDetail{}, fmt.Errorf("deployment detail retrieval is not connected to Azure yet")
+		return nil, false, fmt.Errorf("capacity limits are not connected to Azure yet")
 	}
-	return detailSource.DeploymentDetail(ctx, view.Foundries[foundryIndex], view.Deployments[deploymentIndex])
+	limits, err := capacitySource.CapacityLimits(ctx, foundry)
+	if err != nil {
+		return nil, false, err
+	}
+	s.limits = limitsCache{file: file, foundryID: foundry.ID, value: limits}
+	return limits, true, nil
 }

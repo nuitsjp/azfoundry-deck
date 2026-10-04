@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
 const foundries = [
@@ -26,43 +25,31 @@ const foundries = [
   },
 ];
 const oldModels = [
-  ['saved-production-chat', 'saved-production-model', 'saved-version-1'],
-  ['saved-production-mini', 'saved-mini-model', 'saved-version-2'],
-  ['saved-production-embedding', 'saved-embedding-model', 'saved-version-3'],
+  ['chat-production', 'gpt-4.1', '2025-04-14'],
+  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
+  ['embeddings', 'text-embedding-3-large', '1'],
 ];
 const newModels = [
   ['development-chat', 'gpt-4.1', '2025-04-14'],
   ['development-mini', 'gpt-4.1-mini', '2025-04-14'],
   ['development-embedding', 'text-embedding-3-large', '1'],
 ];
-const deployments = (index: number, models: string[][]) =>
-  models.map(([deploymentName, modelName, version]) => ({
-    id: `${foundries[index].id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
-const original: InitialFoundryView = {
+const original = {
   foundries,
   selectedFoundryId: foundries[0].id,
-  deployments: deployments(0, oldModels),
   foundriesFetchedAt: '2001-02-03T13:05:06+09:00',
-  deploymentsFetchedAt: '2001-02-03T13:05:07+09:00',
 };
-const expected: Omit<InitialFoundryView, 'deploymentsFetchedAt'> = {
-  foundries,
-  selectedFoundryId: foundries[1].id,
-  deployments: deployments(1, newModels),
-  foundriesFetchedAt: original.foundriesFetchedAt,
-};
+const expected = { ...original, selectedFoundryId: foundries[1].id };
 const labels = foundries.map(
   (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
 
-// Discovery stays unreleased. Only the requested model acquisition can finish.
-test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
+// Discovery stays unreleased. The model acquisition finishes only while its release file exists.
+test.use({
+  serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1', AZFOUNDRYDECK_E2E_HOLD_RESTORE: '1' },
+});
 
-test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
+test('Foundryを変更し閲覧する', async ({ page, app }) => {
   const viewDir = join(
     app.dataDir,
     'azure-views',
@@ -71,16 +58,8 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
       .digest('hex'),
   );
   const stateFile = join(viewDir, 'foundry-state.json');
-  const cacheFile = (id: string) =>
-    join(viewDir, 'foundry-models', `${createHash('sha256').update(id).digest('hex')}.json`);
-  const oldFile = cacheFile(foundries[0].id);
-  const targetFile = cacheFile(foundries[1].id);
-  const oldText =
-    JSON.stringify(
-      { fetchedAt: original.deploymentsFetchedAt, deployments: original.deployments },
-      null,
-      2,
-    ) + '\n';
+  const modelsRelease = join(app.dataDir, 'e2e-foundry-models-release');
+  const restoreRelease = join(app.dataDir, 'e2e-restore-release');
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -114,16 +93,18 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
+    mkdirSync(viewDir, { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    writeFileSync(oldFile, oldText);
-    expect(existsSync(targetFile)).toBe(false);
+    // The start fetches the saved selection's deployments from Azure; hold them again afterwards.
+    writeFileSync(modelsRelease, '');
+    writeFileSync(restoreRelease, '');
     await app.restart();
     await page.goto(app.url);
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(selected).toHaveText(labels[0]);
     await assertModels(oldModels);
-    expect(snapshots).toEqual([]);
+    rmSync(modelsRelease);
+    snapshots.length = 0;
   });
 
   await test.step('手順1', async () => {
@@ -150,12 +131,10 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await page.mouse.click(5, 5);
     await expect(dialog).toBeVisible();
     expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual(original);
-    expect(existsSync(targetFile)).toBe(false);
-    expect(readFileSync(oldFile, 'utf8')).toBe(oldText);
   });
 
   await test.step('手順3', async () => {
-    writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+    writeFileSync(modelsRelease, '');
     await expect(dialog).toHaveCount(0);
     const completedModels = snapshots.findIndex(
       (snapshot) => snapshot.modelPhase === 'completed' && snapshot.modelCount === 3,
@@ -170,19 +149,13 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await expect(selected).toBeEnabled();
     await expect(selected).toHaveText(labels[1]);
     await assertModels(newModels);
-    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual({
-      ...expected,
-      deploymentsFetchedAt: expect.any(String),
-    });
-    expect(JSON.parse(readFileSync(targetFile, 'utf8'))).toEqual({
-      fetchedAt: expect.any(String),
-      deployments: expected.deployments,
-    });
-    expect(readFileSync(oldFile, 'utf8')).toBe(oldText);
+    // Only the selection changes; the Foundry list and its fetch time stay as saved.
+    expect(JSON.parse(readFileSync(stateFile, 'utf8'))).toEqual(expected);
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
   });
 
   await test.step('手順5', async () => {
-    await page.setViewportSize({ width: 640, height: 720 });
+    await page.setViewportSize({ width: 480, height: 720 });
     const label = selected.locator('.mantine-InputPlaceholder-placeholder');
     expect(
       await label.evaluate((element) => ({
@@ -213,15 +186,27 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
       modelPhase: 'completed',
       modelCount: 3,
     });
-    const paths = [stateFile, oldFile, targetFile];
-    const unchanged = paths.map((path) => ({
-      text: readFileSync(path, 'utf8'),
-      mtimeMs: statSync(path).mtimeMs,
-    }));
+    // The next start keeps the changed selection and fetches its deployments from Azure again.
+    // The startup restore is held until the page has opened its WebSocket, so no event is lost.
+    rmSync(modelsRelease);
+    rmSync(restoreRelease);
     await app.restart();
+    const socket = page.waitForEvent('websocket');
     await page.goto(app.url);
+    await socket;
+    writeFileSync(restoreRelease, '');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(foundries[1].name, { exact: true })).toBeVisible();
+    await expect(modelStatus).toContainText('Loading');
+    writeFileSync(modelsRelease, '');
+    await expect(dialog).toHaveCount(0);
     await expect(selected).toHaveText(labels[1]);
     await assertModels(newModels);
+    // Selecting the current Foundry only closes the dropdown: no fetch, no progress, no save.
+    const unchanged = {
+      text: readFileSync(stateFile, 'utf8'),
+      mtimeMs: statSync(stateFile).mtimeMs,
+    };
     const eventCount = snapshots.length;
     await selected.click();
     await page.getByRole('option', { name: labels[1], exact: true }).click();
@@ -230,12 +215,9 @@ test('Foundryを変更し初回閲覧する', async ({ page, app }) => {
     await expect(selected).toHaveText(labels[1]);
     await assertModels(newModels);
     expect(snapshots).toHaveLength(eventCount);
-    expect(
-      paths.map((path) => ({ text: readFileSync(path, 'utf8'), mtimeMs: statSync(path).mtimeMs })),
-    ).toEqual(unchanged);
-    expect(JSON.parse(readFileSync(oldFile, 'utf8'))).toEqual({
-      fetchedAt: original.deploymentsFetchedAt,
-      deployments: original.deployments,
-    });
+    expect({
+      text: readFileSync(stateFile, 'utf8'),
+      mtimeMs: statSync(stateFile).mtimeMs,
+    }).toEqual(unchanged);
   });
 });

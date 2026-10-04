@@ -19,8 +19,7 @@ Azure にログイン済みで、Home画面に Foundry 一覧と選択済み Fou
 
 ## シナリオ
 
-- [Foundryを変更し初回閲覧する](scenarios/Foundryを変更し初回閲覧する.md)
-- [Foundryを変更し再閲覧する](scenarios/Foundryを変更し再閲覧する.md)
+- [Foundryを変更し閲覧する](scenarios/Foundryを変更し閲覧する.md)
 
 ## 実現パターン
 

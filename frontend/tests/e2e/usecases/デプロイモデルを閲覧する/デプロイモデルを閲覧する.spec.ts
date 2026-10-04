@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
@@ -44,7 +44,7 @@ test.use({
   serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1', AZFOUNDRYDECK_E2E_HOLD_RESTORE: '1' },
 });
 
-test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
+test('デプロイモデルを閲覧する', async ({ page, app }) => {
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
   const viewDir = join(
@@ -88,7 +88,7 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
     await page.goto(app.url);
     await socket;
     writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
-    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
     await expect(page.getByRole('banner')).toContainText('Contoso');
     await expect(dialog).toBeVisible();
     await expect(foundryStep).toContainText('Loading');
@@ -121,18 +121,13 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
     release('models');
     await expect(dialog).toHaveCount(0);
     const savedView = JSON.parse(readFileSync(savedFile, 'utf8'));
+    // The state file holds the Foundry list and selection only; deployments are never saved.
     expect(savedView).toEqual({
       foundries,
       selectedFoundryId: foundries[0].id,
-      deployments: models.map(([deploymentName, modelName, version]) => ({
-        id: `${foundries[0].id}/deployments/${deploymentName}`,
-        deploymentName,
-        modelName,
-        version,
-      })),
       foundriesFetchedAt: expect.any(String),
-      deploymentsFetchedAt: expect.any(String),
     });
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
     const modelRows = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
     await expect(modelRows).toHaveCount(3);
     for (const [index, model] of models.entries()) {
@@ -186,5 +181,68 @@ test('デプロイモデルを初回閲覧する', async ({ page, app }) => {
       modelPhase: 'completed',
       modelCount: models.length,
     });
+
+    // With a saved Foundry list and a selection other than the first, the next start keeps that
+    // selection, does not fetch the Foundry list, and fetches only the deployments from Azure.
+    const savedFoundries = [
+      {
+        id: '/subscriptions/saved-a/resourceGroups/rg-saved-a/providers/Microsoft.CognitiveServices/accounts/saved-foundry-a',
+        name: 'saved-foundry-a',
+        subscriptionName: 'Saved A Subscription',
+        resourceGroupName: 'rg-saved-a',
+      },
+      {
+        id: '/subscriptions/saved-b/resourceGroups/rg-saved-b/providers/Microsoft.CognitiveServices/accounts/saved-foundry-b',
+        name: 'saved-foundry-b',
+        subscriptionName: 'Saved B Subscription',
+        resourceGroupName: 'rg-saved-b',
+      },
+    ];
+    const savedState = {
+      foundries: savedFoundries,
+      selectedFoundryId: savedFoundries[1].id,
+      foundriesFetchedAt: '2001-02-03T13:05:06+09:00',
+    };
+    const savedText = JSON.stringify(savedState, null, 2) + '\n';
+    writeFileSync(savedFile, savedText);
+    for (const stage of ['restore', 'foundry-models']) {
+      rmSync(join(app.dataDir, `e2e-${stage}-release`));
+    }
+    const before = frames.length;
+    await app.restart();
+    const socket = page.waitForEvent('websocket');
+    await page.goto(app.url);
+    await socket;
+    writeFileSync(join(app.dataDir, 'e2e-restore-release'), '');
+    await expect(dialog).toBeVisible();
+    await expect(modelStep).toContainText('Loading');
+    await expect(dialog.getByText(savedFoundries[1].name, { exact: true })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Deployments' })).toHaveCount(0);
+    release('models');
+    await expect(dialog).toHaveCount(0);
+    const restored = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
+    await expect(restored).toHaveCount(models.length);
+    await expect(page.getByRole('button', { name: 'Foundry', exact: true })).toHaveText(
+      `${savedFoundries[1].name} (${savedFoundries[1].subscriptionName} - ${savedFoundries[1].resourceGroupName})`,
+    );
+    const restartSnapshots = frames
+      .slice(before)
+      .filter((frame) => frame.includes('foundry:progress'))
+      .map((frame) => JSON.parse(frame).data as FoundryProgress);
+    expect(restartSnapshots.length).toBeGreaterThan(0);
+    expect(restartSnapshots.every((snapshot) => snapshot.foundryPhase === 'completed')).toBe(true);
+    expect(restartSnapshots.at(-1)).toEqual({
+      foundryPhase: 'completed',
+      foundryCount: savedFoundries.length,
+      selectedFoundryName: savedFoundries[1].name,
+      modelPhase: 'completed',
+      modelCount: models.length,
+    });
+    expect(JSON.parse(readFileSync(savedFile, 'utf8'))).toEqual(savedState);
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
+    await expect(
+      page.getByText(/^3 · Last fetched (?!2001)\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+    ).toBeVisible();
+    await expect(page.getByText(/^Last fetched 2001-02-0\d \d{2}:\d{2}$/)).toBeVisible();
   });
 });

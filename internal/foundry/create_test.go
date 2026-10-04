@@ -42,7 +42,7 @@ func TestGetModelCatalogSuccess(t *testing.T) {
 	defer cancel()
 
 	f := Foundry{ID: "f1", Name: "foundry-1"}
-	initial := InitialFoundryView{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
+	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	data, _ := json.Marshal(initial)
 	_ = os.WriteFile(path, data, 0600)
@@ -77,7 +77,7 @@ func TestGetModelCatalogFailure(t *testing.T) {
 	defer cancel()
 
 	f := Foundry{ID: "f1", Name: "foundry-1"}
-	initial := InitialFoundryView{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
+	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	data, _ := json.Marshal(initial)
 	_ = os.WriteFile(path, data, 0600)
@@ -106,11 +106,7 @@ func TestCreateDeploymentSuccess(t *testing.T) {
 	defer cancel()
 
 	f := Foundry{ID: "f1", Name: "foundry-1"}
-	initial := InitialFoundryView{
-		Foundries:         []Foundry{f},
-		SelectedFoundryID: f.ID,
-		Deployments:       []Deployment{{ID: "old-deploy", DeploymentName: "old"}},
-	}
+	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	data, _ := json.Marshal(initial)
 	_ = os.WriteFile(path, data, 0600)
@@ -152,6 +148,7 @@ func TestCreateDeploymentSuccess(t *testing.T) {
 	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {})
 
+	service.setDeployments(path, f.ID, []Deployment{{ID: "old-deploy", DeploymentName: "old"}}, "")
 	view, err := service.CreateDeployment(ctx, deployedSpec)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -161,17 +158,16 @@ func TestCreateDeploymentSuccess(t *testing.T) {
 		t.Fatalf("unexpected returned deployments: %#v", view.Deployments)
 	}
 
-	// Verify state file was updated
+	// The new list is kept in memory, not in the state file.
+	if len(service.current.deployments) != 2 {
+		t.Fatalf("kept deployments length = %d, want 2", len(service.current.deployments))
+	}
 	savedData, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var savedView InitialFoundryView
-	if err := json.Unmarshal(savedData, &savedView); err != nil {
-		t.Fatal(err)
-	}
-	if len(savedView.Deployments) != 2 {
-		t.Fatalf("saved deployments length = %d, want 2", len(savedView.Deployments))
+	if strings.Contains(string(savedData), "deployments") {
+		t.Fatalf("deployments were saved: %s", savedData)
 	}
 }
 
@@ -180,7 +176,7 @@ func TestCreateDeploymentValidationAndFailure(t *testing.T) {
 	defer cancel()
 
 	f := Foundry{ID: "f1", Name: "foundry-1"}
-	initial := InitialFoundryView{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
+	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
 	data, _ := json.Marshal(initial)
 	_ = os.WriteFile(path, data, 0600)
@@ -217,13 +213,7 @@ func TestCreateDeploymentValidationAndFailure(t *testing.T) {
 	}
 
 	// Duplicate deployment name
-	initialWithDeploy := InitialFoundryView{
-		Foundries:         []Foundry{f},
-		SelectedFoundryID: f.ID,
-		Deployments:       []Deployment{{ID: "d1", DeploymentName: "existing-chat"}},
-	}
-	data2, _ := json.Marshal(initialWithDeploy)
-	_ = os.WriteFile(path, data2, 0600)
+	service.setDeployments(path, f.ID, []Deployment{{ID: "d1", DeploymentName: "existing-chat"}}, "")
 
 	_, err = service.CreateDeployment(ctx, DeploymentCreateSpec{DeploymentName: "existing-chat", ModelName: "gpt-4o"})
 	if err == nil {

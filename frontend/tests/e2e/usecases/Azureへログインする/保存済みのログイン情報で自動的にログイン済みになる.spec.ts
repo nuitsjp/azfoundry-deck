@@ -35,7 +35,7 @@ function parts(page: Page) {
     header,
     dialog: page
       .getByRole('dialog')
-      .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) }),
+      .filter({ has: page.getByRole('heading', { name: 'Azure Foundry Deck' }) }),
     avatar: header.locator('.mantine-Avatar-root'),
     loaders: page.locator('.mantine-Loader-root'),
   };
@@ -51,12 +51,12 @@ test.describe('復元に成功する', () => {
     });
     await test.step('手順1', async () => {
       await page.goto(app.url);
-      await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+      await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
       // The restore is held here, so this is the screen while it is in progress.
       await page.waitForTimeout(1000);
       await expect(dialog).toHaveCount(0);
       await expect(loaders).toHaveCount(0);
-      await expect(header).toHaveText('AzFoundryDeck');
+      await expect(header).toHaveText('Azure Foundry Deck');
       expect(signInCalled(app)).toBe(false);
       writeFileSync(file(app, 'e2e-restore-release'), '');
     });
@@ -66,8 +66,8 @@ test.describe('復元に成功する', () => {
       await expect(page.getByRole('tooltip')).toHaveText(username);
     });
     await test.step('受け入れ条件', async () => {
-      // Same screen as after a browser sign-in: Home, tenant name and account icon, no modal.
-      await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+      // Same screen as after a browser sign-in: tenant name and account icon, no modal.
+      await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
       await expect(dialog).toHaveCount(0);
       await expect(loaders).toHaveCount(0);
       expect(signInCalled(app)).toBe(false);

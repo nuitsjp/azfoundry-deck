@@ -1,84 +1,37 @@
 package foundry
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 )
 
+// savedState is the file: the Foundry list and the selection. Deployments are
+// always fetched from Azure and never saved.
+type savedState struct {
+	Foundries          []Foundry `json:"foundries"`
+	SelectedFoundryID  string    `json:"selectedFoundryId"`
+	FoundriesFetchedAt string    `json:"foundriesFetchedAt"`
+}
+
+// read returns the saved Foundry list and selection with empty deployments.
 func read(path string) (InitialFoundryView, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
-	var view InitialFoundryView
-	err = json.Unmarshal(data, &view)
-	return view, err
+	var state savedState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return InitialFoundryView{}, err
+	}
+	return InitialFoundryView{
+		Foundries: state.Foundries, SelectedFoundryID: state.SelectedFoundryID,
+		FoundriesFetchedAt: state.FoundriesFetchedAt, Deployments: []Deployment{},
+	}, nil
 }
 
 func save(path string, view InitialFoundryView) error {
-	return saveJSON(path, view)
-}
-
-func modelsPath(statePath, foundryID string) string {
-	id := sha256.Sum256([]byte(foundryID))
-	return filepath.Join(filepath.Dir(statePath), "foundry-models", fmt.Sprintf("%x.json", id))
-}
-
-// savedModels is one Foundry's model file.
-type savedModels struct {
-	FetchedAt   string       `json:"fetchedAt"`
-	Deployments []Deployment `json:"deployments"`
-}
-
-func readModels(path string) (savedModels, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return savedModels{}, err
-	}
-	var models savedModels
-	if err := json.Unmarshal(data, &models); err != nil {
-		return savedModels{}, err
-	}
-	if models.Deployments == nil {
-		return savedModels{}, fmt.Errorf("saved deployments must be an array")
-	}
-	return models, nil
-}
-
-func saveModels(path string, models savedModels) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	return saveJSON(path, models)
-}
-
-// removeModelsExcept deletes the model files of Foundries outside the list.
-func removeModelsExcept(statePath string, foundries []Foundry) error {
-	keep := map[string]bool{}
-	for _, foundry := range foundries {
-		keep[modelsPath(statePath, foundry.ID)] = true
-	}
-	dir := filepath.Join(filepath.Dir(statePath), "foundry-models")
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		path := filepath.Join(dir, entry.Name())
-		if !keep[path] {
-			if err := os.Remove(path); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return saveJSON(path, savedState{Foundries: view.Foundries, SelectedFoundryID: view.SelectedFoundryID, FoundriesFetchedAt: view.FoundriesFetchedAt})
 }
 
 func saveJSON(path string, value any) error {

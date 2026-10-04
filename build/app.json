@@ -1,6 +1,6 @@
 {
   "id": "AzFoundryDeck",
-  "name": "AzFoundryDeck",
+  "name": "Azure Foundry Deck",
   "executable": "azfoundrydeck.exe",
   "version": "0.1.1"
 }

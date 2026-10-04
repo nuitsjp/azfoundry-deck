@@ -13,7 +13,7 @@ type DeploymentDeleteSource interface {
 }
 
 // DeleteDeployment deletes one deployment of the selected Foundry in Azure, then
-// re-fetches that Foundry's models and replaces the saved files and the view.
+// re-fetches that Foundry's models and replaces the in-memory deployments and the view.
 func (s *Service) DeleteDeployment(ctx context.Context, deploymentID string) (InitialFoundryView, error) {
 	s.operations.Lock()
 	defer s.operations.Unlock()
@@ -36,7 +36,7 @@ func (s *Service) DeleteDeployment(ctx context.Context, deploymentID string) (In
 }
 
 func (s *Service) deleteDeployment(ctx context.Context, file, deploymentID string) (InitialFoundryView, error) {
-	view, err := read(file)
+	view, err := s.readView(file)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}

@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type IsolatedApp } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 
 const foundries = [
   {
@@ -13,20 +12,13 @@ const foundries = [
   },
 ];
 
-const models = [
-  ['chat-production', 'gpt-4.1', '2025-04-14'],
-  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
-  ['embeddings', 'text-embedding-3-large', '1'],
-];
-
 const savedAt = '2001-02-03T13:05:06+09:00';
-const deployments = (foundry: { id: string }, modelList: string[][]) =>
-  modelList.map(([deploymentName, modelName, version]) => ({
-    id: `${foundry.id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
+  foundries,
+  selectedFoundryId: foundries[0].id,
+  foundriesFetchedAt: savedAt,
+};
 
 function seed(app: IsolatedApp) {
   writeFileSync(
@@ -49,28 +41,10 @@ function seed(app: IsolatedApp) {
       .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
       .digest('hex'),
   );
-  mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-  const productionDeployments = deployments(foundries[0], models);
-
-  const original: InitialFoundryView = {
-    foundries,
-    selectedFoundryId: foundries[0].id,
-    deployments: productionDeployments,
-    foundriesFetchedAt: savedAt,
-    deploymentsFetchedAt: savedAt,
-  };
+  mkdirSync(viewDir, { recursive: true });
   const stateFile = join(viewDir, 'foundry-state.json');
-  const productionModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`,
-  );
   writeFileSync(stateFile, JSON.stringify(original));
-  writeFileSync(
-    productionModelFile,
-    JSON.stringify({ fetchedAt: savedAt, deployments: productionDeployments }),
-  );
-  return { viewDir, stateFile, productionModelFile };
+  return { viewDir, stateFile };
 }
 
 test.describe('デプロイモデルを追加する', () => {

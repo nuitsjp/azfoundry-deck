@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Title } from '@mantine/core';
 import { useState } from 'react';
 import { useMutationState, useQuery } from '@tanstack/react-query';
 import { Phase } from '@bindings/azfoundrydeck/internal/azauth/models';
@@ -18,9 +17,6 @@ function Home() {
   const failure = latest?.status === 'error' && latest.submittedAt !== closed;
   return (
     <>
-      <Title order={2} mb="lg">
-        Home
-      </Title>
       {failure && (
         <ErrorNotice error={latest.error} onClose={() => setClosed(latest.submittedAt)} />
       )}
