@@ -41,13 +41,13 @@ func (fixedSource) Foundries(ctx context.Context) ([]Foundry, error) {
 	}
 	// AZFOUNDRYDECK_E2E_FOUNDRIES=none: no Foundry is readable.
 	if os.Getenv("AZFOUNDRYDECK_E2E_FOUNDRIES") == "none" {
-		return fixedCreatedFoundries(), ctx.Err()
+		return withoutDeletedFoundries(fixedCreatedFoundries()), ctx.Err()
 	}
-	return append([]Foundry{
+	return withoutDeletedFoundries(append([]Foundry{
 		{ID: "/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast", Name: "contoso-foundry-production-japaneast", SubscriptionName: "Contoso AI Production Subscription", ResourceGroupName: "rg-ai-production-japaneast"},
 		{ID: "/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development", Name: "contoso-foundry-development", SubscriptionName: "Contoso Development", ResourceGroupName: "rg-ai-development"},
 		{ID: "/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research", Name: "contoso-foundry-research", SubscriptionName: "Contoso Research", ResourceGroupName: "rg-ai-research"},
-	}, fixedCreatedFoundries()...), ctx.Err()
+	}, fixedCreatedFoundries()...)), ctx.Err()
 }
 
 func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func(int)) ([]Deployment, error) {

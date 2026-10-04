@@ -59,7 +59,7 @@ test.describe('デプロイモデルを追加する', () => {
 
     await test.step('分岐条件', async () => {
       // 1. Add deployment モーダルを開く
-      await page.getByRole('button', { name: '+ Add deployment' }).click();
+      await page.getByRole('button', { name: 'Add deployment' }).click();
       await expect(modal).toBeVisible();
 
       // 2. fail-deploy という名称でデプロイを実行（E2Eでエラーを発生させる合成点）
@@ -108,7 +108,7 @@ test.describe('デプロイモデルを追加する', () => {
 
     await test.step('受け入れ条件', async () => {
       // キャンセル時の確認: 再度モーダルを開いて Cancel を押したときに一覧が維持されること
-      await page.getByRole('button', { name: '+ Add deployment' }).click();
+      await page.getByRole('button', { name: 'Add deployment' }).click();
       await expect(modal).toBeVisible();
       await modal.getByRole('button', { name: 'Cancel' }).click();
       await expect(modal).not.toBeVisible();

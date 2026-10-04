@@ -11,7 +11,9 @@
 /frontend/coverage/
 *.syso
 *.log
+*.err
 /build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 /.test-data/
+/.playwright-cli/
 
 build/windows/nsis/app.nsh

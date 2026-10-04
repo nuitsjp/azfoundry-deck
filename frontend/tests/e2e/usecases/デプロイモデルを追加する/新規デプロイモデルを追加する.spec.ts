@@ -69,8 +69,8 @@ test.describe('デプロイモデルを追加する', () => {
     });
 
     await test.step('手順1', async () => {
-      // 1. 「+ Add deployment」ボタンを押す
-      const addBtn = page.getByRole('button', { name: '+ Add deployment' });
+      // 1. 「Add deployment」ボタンを押す
+      const addBtn = page.getByRole('button', { name: 'Add deployment' });
       await expect(addBtn).toBeVisible();
       await addBtn.click();
 
@@ -129,7 +129,7 @@ test.describe('デプロイモデルを追加する', () => {
 
     await test.step('受け入れ条件', async () => {
       // 1. Cancel / × を押した場合は Azure 操作も画面変更も行わない
-      const addBtn = page.getByRole('button', { name: '+ Add deployment' });
+      const addBtn = page.getByRole('button', { name: 'Add deployment' });
       await addBtn.click();
       const modal = page.getByRole('dialog', { name: 'Add deployment' });
       await expect(modal).toBeVisible();

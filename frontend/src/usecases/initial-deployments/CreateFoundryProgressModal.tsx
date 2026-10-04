@@ -1,7 +1,7 @@
 import { Badge, Box, Group, Loader, Modal, Stack, Text } from '@mantine/core';
 import type { FoundryCreateProgress } from '../../features/foundry/create-foundry';
 
-function Step({ label, name, phase }: { label: string; name: string; phase: string }) {
+export function Step({ label, name, phase }: { label: string; name: string; phase: string }) {
   return (
     <Group wrap="nowrap" py="md" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
       <Box w={22} ta="center">

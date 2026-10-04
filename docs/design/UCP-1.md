@@ -273,7 +273,42 @@ sequenceDiagram
 
 サーバーモードの `main.go` は `Server.WriteTimeout=-1` とし、ARM の作成完了を待つ要求の成功応答が時間切れになることを防ぐ。
 
-失敗時は作成済みのリソースを自動削除せず、画面にエラーコードと理由を返す。サービスは失敗を成功として返さない。候補の実取得ではサブスクリプションの List Locations と AIServices／S0 の Resource Skus を照合する。
+## Foundryを削除する
+
+画面は `frontend/src/usecases/initial-deployments/InitialDeployments.tsx` の Foundry 見出し行にある削除アイコンボタン（`Delete Foundry`）を押して `frontend/src/features/foundry/delete-foundry.ts` から削除可否の確認（`InspectFoundryDeletion`）を要求する。リソースグループに Foundry 関連リソースのみが含まれる場合、確認ダイアログ（Modal）を表示する。利用者が「Delete」を確定すると、`deleteFoundry` を呼び出して削除を実行する。進捗は `DeleteFoundryProgressModal.tsx` が `foundry:delete-progress` の生成された `FoundryDeleteProgress` 型を受け取って表示する。
+
+`internal/foundry/delete_foundry.go` のサービスは既存の操作ロックとログイン確認を使い、`FoundryDeleteSource` へリソースグループの分類、Foundry 削除、完全消去（purge）、リソースグループ削除を依頼する。
+
+```mermaid
+sequenceDiagram
+  participant U as Home画面
+  participant S as Foundryサービス
+  participant A as ARM境界
+  participant F as 状態ファイル
+  U->>S: InspectFoundryDeletion()
+  S->>A: ResourceGroupHoldsOnlyFoundry(selected)
+  A-->>S: 分類結果（true または false）
+  S-->>U: FoundryDeletionPlan（確認ダイアログ表示）
+  U->>S: DeleteFoundry()
+  S-->>U: Foundry削除中（FoundryPhase: running）
+  S->>A: DeleteFoundry(selected)
+  S->>A: PurgeFoundry(selected)
+  alt リソースグループごと削除する場合
+    S-->>U: リソースグループ削除中（ResourceGroupPhase: running）
+    S->>A: DeleteResourceGroup(selected)
+  end
+  S->>F: 削除したFoundryを除いた一覧と次の選択を保存
+  S->>A: 次のFoundryのデプロイ取得
+  S-->>U: Home更新完了・InitialFoundryView
+```
+
+一覧への反映は、削除された Foundry（リソースグループごと削除の場合は同一リソースグループの全 Foundry、リソースグループを保持する場合は削除対象の Foundry のみ）を一覧から除外する。進捗モーダルは Delete Foundry（完全消去を含む）と Delete resource group の最大2段階（リソースグループ保持時は Delete Foundry の1段階）を表示し、完了後に閉じて Home 画面を更新する。次の Foundry（先頭）を選択してデプロイ一覧を取得し、状態ファイルを更新する。最後の1件を削除した場合は選択なし・デプロイ0件として保存する。一覧取得は行わないため `foundriesFetchedAt` は維持する。
+
+合成点は既存の `Source` 選択であり、`e2e` ビルドの `fixedSource` が同じ `FoundryDeleteSource` 契約を実装する。`internal/foundry/e2e_delete_foundry.go` に固定応答と画面確認用の待機を置き、削除済み ID をメモリに保持して以降の一覧取得から除外する。通常構成は `azureSource` に接続し、固定応答を含まない。
+
+通常構成の `internal/foundry/azure_delete.go` は、ARM リソース一覧取得でリソースグループ内のリソースを検査し、削除対象以外の Foundry アカウントや他種別のリソースが存在する場合はリソースグループ削除を抑止する。Foundry 削除時は、親アカウント削除前に配下の子リソース（`ProjectsClient` によるプロジェクト、`DeploymentsClient` によるデプロイ）を列挙して削除した上で、AccountsClient で Foundry アカウントを削除（PollUntilDone）、DeletedAccountsClient で削除済みアカウントを検索して完全消去（BeginPurge・PollUntilDone）、リソースグループ削除対象の場合は ARM パイプライン経由でリソースグループの DELETE を発行して HEAD で 404 になるまで待機する。
+
+失敗時は変更前の状態・一覧を維持し、画面本文に `FOUNDRY_DELETE_FAILED` エラーコードと理由を表示する。
 
 ## エラーの表示
 

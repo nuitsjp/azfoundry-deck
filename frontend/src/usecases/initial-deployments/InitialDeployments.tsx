@@ -21,6 +21,12 @@ import {
   type FoundryCreateSpec,
 } from '../../features/foundry/create-foundry';
 import { deleteDeployment } from '../../features/foundry/delete-deployment';
+import {
+  deleteFoundry,
+  inspectFoundryDeletion,
+  type FoundryDeleteProgress,
+  type FoundryDeletionPlan,
+} from '../../features/foundry/delete-foundry';
 import { updateDeployment } from '../../features/foundry/update-deployment';
 import { loadInitialView } from '../../features/foundry/initial-view';
 import { refreshFoundries } from '../../features/foundry/refresh-view';
@@ -37,6 +43,7 @@ import { AcquisitionProgressModal } from './AcquisitionProgressModal';
 import { AddDeploymentModal } from './AddDeploymentModal';
 import { AddFoundryModal } from './AddFoundryModal';
 import { CreateFoundryProgressModal } from './CreateFoundryProgressModal';
+import { DeleteFoundryProgressModal } from './DeleteFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
@@ -66,6 +73,36 @@ function RefreshIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 5v14M5 12h14"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+      />
+    </svg>
+  );
+}
+
 export function InitialDeployments() {
   const [progress, setProgress] = useState<FoundryProgress | null>(null);
   const [changeProgress, setChangeProgress] = useState<FoundryProgress | null>(null);
@@ -84,6 +121,10 @@ export function InitialDeployments() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const [addFoundryOpened, setAddFoundryOpened] = useState(false);
   const [createFoundryProgress, setCreateFoundryProgress] = useState<FoundryCreateProgress | null>(
+    null,
+  );
+  const [deletePlan, setDeletePlan] = useState<FoundryDeletionPlan | null>(null);
+  const [deleteFoundryProgress, setDeleteFoundryProgress] = useState<FoundryDeleteProgress | null>(
     null,
   );
   const client = useQueryClient();
@@ -174,6 +215,21 @@ export function InitialDeployments() {
     },
     onSettled: () => setCreateFoundryProgress(null),
   });
+  const inspect = useMutation({
+    mutationFn: inspectFoundryDeletion,
+    onSuccess: setDeletePlan,
+  });
+  const removeFoundry = useMutation({
+    mutationFn: () => deleteFoundry(setDeleteFoundryProgress),
+    onSuccess: (view) => {
+      client.setQueryData(['foundry', 'initial-view'], view);
+      setDetailRevision((revision) => revision + 1);
+    },
+    onSettled: () => {
+      setDeletePlan(null);
+      setDeleteFoundryProgress(null);
+    },
+  });
   const busy = useIsMutating() > 0 || deploying || updating;
 
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
@@ -214,6 +270,9 @@ export function InitialDeployments() {
       )}
       {create.isPending && createFoundryProgress && (
         <CreateFoundryProgressModal progress={createFoundryProgress} />
+      )}
+      {removeFoundry.isPending && deleteFoundryProgress && (
+        <DeleteFoundryProgressModal progress={deleteFoundryProgress} />
       )}
       {changeProgress && (
         <AcquisitionProgressModal
@@ -331,93 +390,81 @@ export function InitialDeployments() {
           </Group>
         </Stack>
       </Modal>
+      <Modal
+        opened={deletePlan !== null && !removeFoundry.isPending}
+        onClose={() => setDeletePlan(null)}
+        title="Delete Foundry"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+            {deletePlan?.deleteResourceGroup
+              ? `Delete Foundry “${deletePlan?.foundryName}”? Resource group “${deletePlan?.resourceGroupName}” contains only Foundry resources, so the whole resource group will be deleted and the Foundry purged. This cannot be undone.`
+              : `Delete Foundry “${deletePlan?.foundryName}”? The Foundry will be deleted and purged. Other resources in resource group “${deletePlan?.resourceGroupName}” will be preserved. This cannot be undone.`}
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setDeletePlan(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={() => {
+                if (!deletePlan) return;
+                setDeleteFoundryProgress({
+                  foundryName: deletePlan.foundryName,
+                  resourceGroupName: deletePlan.resourceGroupName,
+                  deleteResourceGroup: deletePlan.deleteResourceGroup,
+                  foundryPhase: 'waiting',
+                  resourceGroupPhase: 'waiting',
+                } as FoundryDeleteProgress);
+                removeFoundry.mutate();
+              }}
+            >
+              Delete
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <ErrorNotice
-        error={change.error || refresh.error || refreshModels.error || remove.error}
+        error={
+          change.error ||
+          refresh.error ||
+          refreshModels.error ||
+          remove.error ||
+          inspect.error ||
+          removeFoundry.error
+        }
         onClose={() => {
           change.reset();
           refresh.reset();
           refreshModels.reset();
           remove.reset();
+          inspect.reset();
+          removeFoundry.reset();
         }}
       />
       <Stack gap={6}>
-        <Group justify="space-between" gap="sm">
-          <Text size="sm" fw={500}>
-            Foundry
-          </Text>
-          <Button
-            size="xs"
-            disabled={busy}
-            onClick={() => {
-              create.reset();
-              setAddFoundryOpened(true);
-            }}
-          >
-            + Add Foundry
-          </Button>
-        </Group>
-        <Group gap="xs" align="flex-end" wrap="nowrap">
-          <Combobox
-            store={combobox}
-            onOptionSubmit={(id) => {
-              combobox.closeDropdown();
-              if (id !== view.selectedFoundryId) {
-                setChangeProgress(null);
-                change.mutate(id);
-              }
-            }}
-            withinPortal
-          >
-            <Combobox.Target targetType="button" withExpandedAttribute>
-              <InputBase
-                component="button"
-                type="button"
+        <Group justify="space-between" gap="sm" align="center" style={{ minHeight: 36 }}>
+          <Group gap="sm" align="center">
+            <Text size="sm" fw={500} w={140}>
+              Foundry
+            </Text>
+            <Tooltip label="Add Foundry">
+              <ActionIcon
+                variant="subtle"
+                aria-label="Add Foundry"
                 disabled={busy}
-                aria-label="Foundry"
-                rightSection={<Combobox.Chevron />}
-                rightSectionPointerEvents="none"
-                onClick={() => combobox.toggleDropdown()}
-                style={{ flex: 1, minWidth: 0 }}
-                styles={{ input: { textAlign: 'left' } }}
+                onClick={() => {
+                  create.reset();
+                  setAddFoundryOpened(true);
+                }}
               >
-                <Tooltip label={label} disabled={combobox.dropdownOpened} multiline maw={600}>
-                  <Input.Placeholder
-                    component="span"
-                    c="inherit"
-                    style={{
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {label}
-                  </Input.Placeholder>
-                </Tooltip>
-              </InputBase>
-            </Combobox.Target>
-            <Combobox.Dropdown w="min(900px, calc(100vw - 48px))">
-              <Combobox.Options>
-                {view.foundries.map((foundry) => (
-                  <Combobox.Option
-                    key={foundry.id}
-                    value={foundry.id}
-                    active={foundry.id === view.selectedFoundryId}
-                    aria-selected={foundry.id === view.selectedFoundryId}
-                  >
-                    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                      {foundryLabel(foundry)}
-                    </Text>
-                  </Combobox.Option>
-                ))}
-              </Combobox.Options>
-            </Combobox.Dropdown>
-          </Combobox>
-          <Group gap="sm" wrap="nowrap" h={36}>
+                <PlusIcon />
+              </ActionIcon>
+            </Tooltip>
             <Tooltip label="Refresh Foundries">
               <ActionIcon
-                variant="default"
-                size={36}
+                variant="subtle"
                 aria-label="Refresh Foundries"
                 disabled={busy}
                 onClick={() => {
@@ -432,14 +479,100 @@ export function InitialDeployments() {
               Last fetched {fetchedAt(view.foundriesFetchedAt)}
             </Text>
           </Group>
+          <Tooltip label="Delete Foundry">
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              aria-label="Delete Foundry"
+              disabled={busy || !selected}
+              loading={inspect.isPending}
+              onClick={() => {
+                removeFoundry.reset();
+                inspect.mutate();
+              }}
+            >
+              <TrashIcon />
+            </ActionIcon>
+          </Tooltip>
         </Group>
+        <Combobox
+          store={combobox}
+          onOptionSubmit={(id) => {
+            combobox.closeDropdown();
+            if (id !== view.selectedFoundryId) {
+              setChangeProgress(null);
+              change.mutate(id);
+            }
+          }}
+          withinPortal
+        >
+          <Combobox.Target targetType="button" withExpandedAttribute>
+            <InputBase
+              component="button"
+              type="button"
+              disabled={busy}
+              aria-label="Foundry"
+              rightSection={<Combobox.Chevron />}
+              rightSectionPointerEvents="none"
+              onClick={() => combobox.toggleDropdown()}
+              style={{ width: '100%' }}
+              styles={{ input: { textAlign: 'left' } }}
+            >
+              <Tooltip label={label} disabled={combobox.dropdownOpened} multiline maw={600}>
+                <Input.Placeholder
+                  component="span"
+                  c="inherit"
+                  style={{
+                    display: 'block',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {label}
+                </Input.Placeholder>
+              </Tooltip>
+            </InputBase>
+          </Combobox.Target>
+          <Combobox.Dropdown w="min(900px, calc(100vw - 48px))">
+            <Combobox.Options>
+              {view.foundries.map((foundry) => (
+                <Combobox.Option
+                  key={foundry.id}
+                  value={foundry.id}
+                  active={foundry.id === view.selectedFoundryId}
+                  aria-selected={foundry.id === view.selectedFoundryId}
+                >
+                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                    {foundryLabel(foundry)}
+                  </Text>
+                </Combobox.Option>
+              ))}
+            </Combobox.Options>
+          </Combobox.Dropdown>
+        </Combobox>
       </Stack>
       <section aria-label="Deployments and details">
-        <Group className="deployment-workspace-title" justify="space-between" gap="sm">
-          <Group gap="sm">
-            <Text size="sm" fw={500}>
+        <Group
+          className="deployment-workspace-title"
+          justify="space-between"
+          gap="sm"
+          align="center"
+        >
+          <Group gap="sm" align="center">
+            <Text size="sm" fw={500} w={140}>
               Deployed Models
             </Text>
+            <Tooltip label="Add deployment">
+              <ActionIcon
+                variant="subtle"
+                aria-label="Add deployment"
+                disabled={busy || !selected}
+                onClick={() => setAddOpened(true)}
+              >
+                <PlusIcon />
+              </ActionIcon>
+            </Tooltip>
             <Tooltip label="Refresh models">
               <ActionIcon
                 variant="subtle"
@@ -459,9 +592,6 @@ export function InitialDeployments() {
                 ` · Last fetched ${fetchedAt(view.deploymentsFetchedAt)}`}
             </Text>
           </Group>
-          <Button size="xs" disabled={busy || !selected} onClick={() => setAddOpened(true)}>
-            + Add deployment
-          </Button>
         </Group>
         <div className="deployment-workspace">
           <DeploymentDetails
