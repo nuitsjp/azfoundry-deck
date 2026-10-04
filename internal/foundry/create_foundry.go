@@ -2,6 +2,7 @@ package foundry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -70,6 +71,9 @@ func (s *Service) GetFoundrySubscriptions(ctx context.Context) ([]FoundrySubscri
 		}
 	}
 	s.logger.Error("operation_failed", "operation", "foundry.GetFoundrySubscriptions", "cause", err)
+	if ctx.Err() != nil {
+		return nil, fault.Public(ctx.Err())
+	}
 	return nil, fault.New("FOUNDRY_SETTINGS_FAILED", "Could not load subscriptions for Foundry creation.")
 }
 
@@ -88,6 +92,9 @@ func (s *Service) GetFoundryRegions(ctx context.Context, subscriptionID string) 
 		}
 	}
 	s.logger.Error("operation_failed", "operation", "foundry.GetFoundryRegions", "cause", err)
+	if ctx.Err() != nil {
+		return nil, fault.Public(ctx.Err())
+	}
 	return nil, fault.New("FOUNDRY_SETTINGS_FAILED", "Could not load regions for Foundry creation.")
 }
 
@@ -104,7 +111,14 @@ func (s *Service) CreateFoundry(ctx context.Context, spec FoundryCreateSpec) (In
 	}
 	if err != nil {
 		s.logger.Error("operation_failed", "operation", "foundry.CreateFoundry", "cause", err)
-		return InitialFoundryView{}, fault.New("FOUNDRY_CREATE_FAILED", "Could not create the resource group and Foundry or update Home. Resources already created are not automatically deleted.")
+		if ctx.Err() != nil {
+			return InitialFoundryView{}, fault.Public(ctx.Err())
+		}
+		var public *fault.Error
+		if errors.As(err, &public) {
+			return InitialFoundryView{}, public
+		}
+		return InitialFoundryView{}, fault.New("FOUNDRY_CREATE_FAILED", fmt.Sprintf("Could not create Foundry %s in resource group %s or update Home. Resources already created are not automatically deleted.", spec.FoundryName, spec.ResourceGroupName))
 	}
 	return view, nil
 }
@@ -140,11 +154,11 @@ func (s *Service) createFoundry(ctx context.Context, file string, spec FoundryCr
 	// The ARM creation result is authoritative; do not wait for Resource Graph indexing.
 	view.Foundries = append(view.Foundries, created)
 	sortFoundries(view.Foundries)
-	s.clearDeployments()
 	view, err = s.acquireModels(ctx, file, view, created)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
+	s.limits = limitsCache{}
 	progress.ViewPhase = "completed"
 	s.emit(FoundryCreateProgressEvent, progress)
 	return view, nil

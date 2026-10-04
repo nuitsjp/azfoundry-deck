@@ -12,7 +12,7 @@
 
 | # | アクター | システム |
 | --- | --- | --- |
-| 1 | Home画面の「Add Foundry」を押す。 | 作成モーダルを開き、選択中テナントのサブスクリプション候補を取得して先頭を選択する。選択したサブスクリプションの Foundry 作成候補リージョンを取得し、East US 2（eastus2）を初期選択する。Keyword に sample を入れ、Resource group name に rg-sample-eastus2、Foundry name に foundry-sample-eastus2 を最初から表示する。 |
+| 1 | Home画面の Foundry ラベルと同じ段の右端にある「Add Foundry」を押す。 | 作成モーダルを開き、選択中テナントのサブスクリプション候補を取得して先頭を選択する。選択したサブスクリプションの Foundry 作成候補リージョンを取得し、East US 2（eastus2）を初期選択する。Keyword に sample を入れ、Resource group name に rg-sample-eastus2、Foundry name に foundry-sample-eastus2 を最初から表示する。 |
 | 2 | サブスクリプション、リージョン、キーワードを指定し、必要に応じてリソースグループ名と Foundry 名を直接編集する。 | サブスクリプション変更時はリージョン候補を取得し直す。キーワードまたはリージョンの変更時は、直接編集済みの値も含めて両方の名前を再生成する。必要な入力が有効になったら「Create」を有効にする。 |
 | 3 | 「Create」を押す。 | 入力を確定し、作成モーダルの前面に「Creating Foundry」の進捗モーダルを表示する。「Create resource group」「Create Foundry」「Update Home」の3行に、待機・実行中・完了を表示する。指定先にリソースグループを作成し、その中に Foundry を作成する。実行中は重複実行とモーダルの閉鎖を防ぐ。 |
 | 4 | 作成完了後のHome画面を確認する。 | 作成結果を Foundry 一覧に反映して新しい Foundry を選択する。一覧と選択を保存し、デプロイ一覧を取得して表示する。更新完了後、作成・進捗モーダルを閉じる。 |
