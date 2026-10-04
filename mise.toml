@@ -41,6 +41,10 @@ run = "node scripts/run.mjs build"
 description = "ビルド後、未署名NSISインストーラーをbin/に生成する"
 run = "node scripts/run.mjs package"
 
+[tasks."release:tag"]
+description = "バージョンを更新・コミットしてタグをpushする（未指定時は末尾を1増やす）"
+run = "node scripts/release-tag.mjs"
+
 [tasks.server]
 description = "Go実処理を使うブラウザ確認用サーバーを起動する"
 run = "node scripts/run.mjs server"
@@ -96,3 +100,7 @@ run = "node scripts/run.mjs verify"
 [tasks."test:core"]
 description = "Goの機能検証を実行する"
 run = "node scripts/run.mjs test:core"
+
+[tasks."test:installer"]
+description = "NSIS完了画面の選択・起動・ショートカットとアンインストールを検証して後片付けする"
+run = 'pwsh -NoProfile -File "tests/e2e/usecases/アプリをインストールする/インストールを完了して起動方法を選ぶ.ps1"'
