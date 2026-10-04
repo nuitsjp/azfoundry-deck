@@ -56,7 +56,7 @@ test.use({
 test('新規リソースグループとFoundryを作成する', async ({ page, app }) => {
   test.setTimeout(120_000);
   let files: ReturnType<typeof seed>;
-  const add = page.getByRole('button', { name: '+ Add Foundry' });
+  const add = page.getByRole('button', { name: 'Add Foundry' });
   const selected = page.getByRole('button', { name: 'Foundry', exact: true });
   const modal = page.getByRole('dialog', { name: 'Add Foundry', exact: true });
   const progress = page.getByRole('dialog', { name: 'Creating Foundry', exact: true });
@@ -85,7 +85,7 @@ test('新規リソースグループとFoundryを作成する', async ({ page, a
     await expect(selected).toHaveText('');
     await expect(rows).toHaveCount(0);
     await expect(add).toBeEnabled();
-    await expect(page.getByRole('button', { name: '+ Add deployment' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Add deployment' })).toBeDisabled();
   });
 
   await test.step('手順1', async () => {
@@ -213,7 +213,7 @@ test('新規リソースグループとFoundryを作成する', async ({ page, a
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(rows).toHaveCount(0);
     await expect(page.getByText(/^0 · Last fetched /)).toBeVisible();
-    await expect(page.getByRole('button', { name: '+ Add deployment' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Add deployment' })).toBeEnabled();
     await selected.click();
     await expect(page.getByRole('option')).toHaveCount(1);
     await expect(page.getByRole('option', { name: label, exact: true })).toHaveAttribute(
