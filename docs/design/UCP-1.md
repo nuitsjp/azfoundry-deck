@@ -11,6 +11,8 @@
 | Home画面 | ログイン済みでの閲覧要求、Foundry 一覧・デプロイ一覧の取得の進捗モーダル、Foundry の選択変更と Foundry 一覧・デプロイモデルの更新、プルダウンとデプロイ済みモデル・最終取得日時の表示、取得結果のメモリ保持 | `frontend/src/routes/index.tsx`、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx`、`frontend/src/usecases/initial-deployments/AcquisitionProgressModal.tsx`、`frontend/src/features/foundry/initial-view.ts`、`frontend/src/features/foundry/change-view.ts`、`frontend/src/features/foundry/refresh-view.ts`、`frontend/src/features/foundry/refresh-deployments.ts`、`frontend/src/features/foundry/progress.ts` |
 | Foundry サービス | ログイン済みの確認、状態ファイル（Foundry 一覧と選択）の読み込みと保存、Foundry の選択と変更、Foundry 一覧の更新、選択中の Foundry のデプロイ一覧の取得とメモリ保持、進捗イベントの通知、デプロイ一覧の取得後の状態ファイル保存、容量上限の取得とメモリ保持、結果確定 | `main.go`、`foundry_source.go`、`internal/foundry/service.go`、`internal/foundry/detail.go`、`internal/foundry/models.go`、`internal/foundry/progress.go`、`internal/foundry/storage.go` |
 | Foundry の Azure SDK 境界 | Azure Resource Graph による Foundry 一覧の取得（サブスクリプション名の結合を含む）、選択した Foundry の全デプロイ（SKU・容量・状態・更新ポリシーを含む）の取得、容量上限の元になるモデル定義と共有クォータの取得 | `internal/foundry/azure.go`、`internal/foundry/azure_limits.go` |
+| Foundry 作成画面とサービス | サブスクリプション・リージョン候補の表示、命名と直接編集、作成要求、3段階の進捗表示、作成結果による一覧と選択の更新・保存 | `frontend/src/usecases/initial-deployments/AddFoundryModal.tsx`、`frontend/src/usecases/initial-deployments/CreateFoundryProgressModal.tsx`、`frontend/src/features/foundry/create-foundry.ts`、`internal/foundry/create_foundry.go` |
+| Foundry 作成の Azure SDK 境界 | Enabled サブスクリプションの取得、AIServices／S0 のリージョンと制限の照合、既存リソースの事前確認、リソースグループと Foundry の作成・完了待機 | `internal/foundry/azure_create_foundry.go` |
 
 初回認証と保存済みログイン情報の復元では `EnableCAE: true` で ARM トークンを取得し、後続の ARM クライアントと同じ CAE 用キャッシュを使う。
 
@@ -235,6 +237,43 @@ Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内�
 Update は確認ダイアログを出さず、`frontend/src/features/foundry/update-deployment.ts` から `Service.UpdateDeployment` へ `DeploymentUpdateSpec` を渡す。実行中は設定モーダルの前面に `AcquisitionProgressModal` の `mode="update"`（「Updating deployment」、「Update」の1行にデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。Go サービスは既存の操作ロック内でログイン済みの確認と、メモリの一覧からの選択中の Foundry・指定デプロイの識別を行い、`DeploymentUpdateSource.UpdateDeployment` の完了後に既存の `acquireModels` で選択中 Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存する。保持した容量上限は取り直さない。失敗時はメモリの一覧を変えず、`DEPLOYMENT_UPDATE_FAILED` を返す。画面は成功後に両方のモーダルを閉じ、同じデプロイを選択したまま、置き換えた一覧から明細を即時表示する。失敗時は進捗モーダルだけを閉じ、設定モーダルの入力値を保持して同じエラーをモーダル内に表示する。設定取得の失敗も同じエラーコードで、変更は開始しない。
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が設定取得と変更の固定応答を返す。変更した Version、Capacity、Upgrade policy をプロセス内に記憶し、以降のデプロイ取得・設定取得へ反映する。ゲート `update-settings` は編集モーダルの共有クォータの取り直しを保留する。`AZFOUNDRYDECK_E2E_FAIL=update-settings` でその取り直しを失敗させ、`AZFOUNDRYDECK_E2E_FAIL=update` で変更を失敗させる。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-update-settings-release` と `e2e-foundry-update-release` で解放するまで各呼び出しを保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_update.go` の `azureSource.DeploymentSettings` と `azureSource.UpdateDeployment` が Azure SDK を呼ぶ。設定取得は一覧のデプロイと保持したモデル定義・共有クォータに、そのモデルのバージョン一覧（モデル定義から得る）を加える。一覧に現在のバージョンが無いときも、そのバージョンを選択肢に含める。容量の単位が取れないデプロイは Pay-as-you-go とし、Capacity は返さない。変更は現在のデプロイを取得し、モデル名・形式・SKU 名・RAI ポリシーを保ったまま Version、Capacity、Upgrade policy を変えて `DeploymentsClient.BeginCreateOrUpdate` で完了まで待つ。Capacity は明細に表示した値を、同じレート換算で SKU の capacity 整数へ戻す。呼び出しが失敗した場合は固定応答へ切り替わらない。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
+
+## 新規リソースグループとFoundryを作成する
+
+画面は `frontend/src/usecases/initial-deployments/AddFoundryModal.tsx` でサブスクリプション・リージョン候補と命名・直接編集を扱い、`frontend/src/features/foundry/create-foundry.ts` からサービスを呼ぶ。進捗は `CreateFoundryProgressModal.tsx` が `foundry:create-progress` の生成された `FoundryCreateProgress` 型を受け取って表示する。画面側に固定タイムラインを置かない。
+
+`internal/foundry/create_foundry.go` のサービスは既存の操作ロックとログイン確認を使い、`FoundryCreateSource` へ候補取得と2リソースの作成を依頼する。`FoundryCreateSpec` はサブスクリプションID、リソースグループ名、Foundry名、正式なリージョン識別名を保持する。候補取得は `FoundrySubscription` と `FoundryRegion` を返す。
+
+```mermaid
+sequenceDiagram
+  participant U as 作成画面
+  participant S as Foundryサービス
+  participant A as ARM境界
+  participant F as 状態ファイル
+  U->>S: サブスクリプションとリージョン候補を要求
+  S->>A: 候補取得
+  A-->>U: 表示名と識別名
+  U->>S: CreateFoundry(spec)
+  S-->>U: リソースグループ作成中
+  S->>A: CreateResourceGroup(spec)
+  S-->>U: リソースグループ完了・Foundry作成中
+  S->>A: CreateFoundry(spec)
+  A-->>S: 作成したFoundry
+  S-->>U: Foundry完了・Home更新中
+  S->>A: 作成したFoundryのデプロイ取得
+  S->>F: 作成結果を含む一覧と新しい選択を保存
+  S-->>U: Home更新完了・InitialFoundryView
+```
+
+一覧への反映は ARM の作成結果を使い、Resource Graph の反映を待たない。一覧は既存の順序に整列し、新しい Foundry のデプロイ取得と選択保存が成功した時点で閲覧結果を確定する。一覧取得を行っていないため `foundriesFetchedAt` は変更しない。保存形式は変更せず、デプロイと容量上限の扱いも既存の保存設計に従う。
+
+合成点は既存の `Source` 選択であり、`e2e` ビルドの `fixedSource` が同じ `FoundryCreateSource` 契約を実装する。`internal/foundry/e2e_create_foundry.go` に候補の固定表と作成応答を置き、確認用起動時だけ ARM 境界の固定応答に待機を入れる。作成済みの固定 Foundry は後続の一覧取得にも含め、初期デプロイは0件で既存の追加・変更・削除処理を通す。通常構成は `azureSource` に接続し、固定応答を含まない。
+
+通常構成の `internal/foundry/azure_create_foundry.go` は既存の選択テナントの資格情報を使う。Enabled サブスクリプションを名称順に取得し、Subscription List Locations と Resource SKUs の AIServices／S0 の提供リージョン・Location 制限を照合する。作成は ARM SDK のパイプラインでリソースグループを HEAD 確認した後に PUT し、既存グループは拒否する。アカウントも存在を事前確認し、Accounts BeginCreate と PollUntilDone で完了を待つ。Foundry は AIServices／S0、SystemAssigned identity、AllowProjectManagement=true、入力された Foundry 名の custom subdomain で作成し、プロジェクトは作成しない。リソースグループとアカウントの存在確認・作成は独立した ARM 操作であり、他クライアントとの同時作成を一つのトランザクションでは排他しない。
+
+サーバーモードの `main.go` は `Server.WriteTimeout=-1` とし、ARM の作成完了を待つ要求の成功応答が時間切れになることを防ぐ。
+
+失敗時は作成済みのリソースを自動削除せず、画面にエラーコードと理由を返す。サービスは失敗を成功として返さない。候補の実取得ではサブスクリプションの List Locations と AIServices／S0 の Resource Skus を照合する。
 
 ## エラーの表示
 

@@ -9,10 +9,12 @@
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
 | 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧と選択済み Foundry のファイル保存と復元、選択された Foundry の全デプロイ済みモデルの Azure からの取得とメモリでの保持、Foundry の変更・テナントの変更の後の閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの明細（一覧の取得結果の即時表示と、容量上限の取得）の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
-| 今回の対象外 | サブスクリプション・Foundry の操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
+| 今回の対象外 | サブスクリプションの変更操作、Foundry の新規作成以外の変更操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
 配布は、バージョンタグに対応するWindows x64用インストーラーのGitHub Releasesへの公開を対象とします。
+
+Foundry の追加は、新規リソースグループと Foundry をセットで作成する操作を対象とします。
 
 ## 2. 制約・品質要求・受け入れ条件
 
@@ -45,6 +47,7 @@
 | [デプロイモデルの設定を変更する](usecases/デプロイモデルの設定を変更する/README.md) | Azure にログイン済みの Foundry 運用者 | Home画面で選択中の Foundry にある既存のデプロイモデルの設定を Azure 上で変更し、一覧と明細を最新にする | 11 | [UCP-1](design/UCP-1.md) | 対象 |
 | [インストーラーをReleasesへ発行する](usecases/インストーラーをReleasesへ発行する/README.md) | リリース担当者 | 指定したバージョンのWindows用インストーラーを公開する | 12 | [UCP-2](design/UCP-2.md) | UI確認不要 |
 | [アプリをインストールする](usecases/アプリをインストールする/README.md) | Windowsでアプリを利用する人 | アプリをインストールし、起動方法を用意する | 13 | [UCP-2](design/UCP-2.md) | 対象 |
+| [Foundryを追加する](usecases/Foundryを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | 新規リソースグループと Foundry を作成し、Home画面で選択する | 14 | [UCP-1](design/UCP-1.md#新規リソースグループとfoundryを作成する) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -176,6 +179,9 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | インストーラーのローカル生成 | `mise run package` | `bin/azfoundrydeck-X.Y.Z-amd64-setup.exe` を生成する |
 | インストーラーのE2E検証 | `mise run test:installer` | 完了画面の4組み合わせ・起動・リンク・アンインストールを検証し、確認用の登録とファイルを削除する |
 | 文書の検査 | `python scripts/doc_check.py .` | `NG 0 件` |
+| Foundry追加の画面確認用起動 | `mise run server:review:foundry-add` | `http://127.0.0.1:34127/` が固定アカウントでログイン済み、Foundry 0件で起動する。起動ごとに空の一時フォルダーを作り、パスを表示する。Add Foundry で候補とデフォルト名を表示し、Create でリソースグループ作成・Foundry作成・Home更新の進捗を表示して新しい Foundry を選択する。候補取得と作成・デプロイ取得だけが固定応答で、サービスの進捗通知・選択・保存・表示は通常の処理を通す。実 Azure と本番保存先には触れない |
+| Foundry追加の画面確認用構成の終了 | 起動端末で `Ctrl+C` | 確認用サーバーを停止する。通常起動は `mise run server` または `mise run dev`。通常構成は実 Azure から候補を取得してリソースを作成し、固定応答へフォールバックしない |
+| Foundry追加の実処理確認 | 通常構成のHomeで Add Foundry を開き、作成先のサブスクリプション、eastus2、検証用キーワードを指定して Create を押す | 作成中の3段階の進捗表示後、新規 Foundry が選択される。Azure に新規リソースグループと AIServices アカウントが存在し、通常構成の画面再読み込みでも選択が復元され、デプロイ0件を取得する。作成済みリソースは自動削除しない |
 | CIの静的検査 | `actionlint -shellcheck= .github/workflows/windows.yml` | エラー出力なしで終了する。ShellCheckの検査は省略する |
 
 公開用タグのpushはWindows CIを起動します。GitHub Actionsの `Windows checks` でビルド・検証と `release` ジョブの成功を確認し、ジョブが表示するURLからインストーラーを取得します。Git操作が失敗した場合は出力とローカルのバージョン・コミット・タグを確認し、自動再試行は行いません。

@@ -41,16 +41,26 @@ func (fixedSource) Foundries(ctx context.Context) ([]Foundry, error) {
 	}
 	// AZFOUNDRYDECK_E2E_FOUNDRIES=none: no Foundry is readable.
 	if os.Getenv("AZFOUNDRYDECK_E2E_FOUNDRIES") == "none" {
-		return []Foundry{}, ctx.Err()
+		return fixedCreatedFoundries(), ctx.Err()
 	}
-	return []Foundry{
+	return append([]Foundry{
 		{ID: "/subscriptions/review-production/resourceGroups/rg-ai-production-japaneast/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-production-japaneast", Name: "contoso-foundry-production-japaneast", SubscriptionName: "Contoso AI Production Subscription", ResourceGroupName: "rg-ai-production-japaneast"},
 		{ID: "/subscriptions/review-development/resourceGroups/rg-ai-development/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-development", Name: "contoso-foundry-development", SubscriptionName: "Contoso Development", ResourceGroupName: "rg-ai-development"},
 		{ID: "/subscriptions/review-research/resourceGroups/rg-ai-research/providers/Microsoft.CognitiveServices/accounts/contoso-foundry-research", Name: "contoso-foundry-research", SubscriptionName: "Contoso Research", ResourceGroupName: "rg-ai-research"},
-	}, ctx.Err()
+	}, fixedCreatedFoundries()...), ctx.Err()
 }
 
 func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func(int)) ([]Deployment, error) {
+	newFoundry := false
+	for _, created := range fixedCreatedFoundries() {
+		if created.ID == foundry.ID {
+			if err := fixedCreationWait(ctx, time.Second); err != nil {
+				return nil, err
+			}
+			newFoundry = true
+			break
+		}
+	}
 	deployments := []Deployment{
 		{ID: foundry.ID + "/deployments/chat-production", DeploymentName: "chat-production", ModelName: "gpt-4.1", Version: "2025-04-14"},
 		{ID: foundry.ID + "/deployments/chat-mini", DeploymentName: "chat-mini", ModelName: "gpt-4.1-mini", Version: "2025-04-14"},
@@ -67,6 +77,9 @@ func (fixedSource) Deployments(ctx context.Context, foundry Foundry, report func
 		deployments = []Deployment{
 			{ID: foundry.ID + "/deployments/research-chat", DeploymentName: "research-chat", ModelName: "gpt-4.1", Version: "2025-04-14"},
 		}
+	}
+	if newFoundry {
+		deployments = []Deployment{}
 	}
 	if err := waitForRelease(ctx, "models"); err != nil {
 		return nil, err
