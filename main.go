@@ -139,8 +139,9 @@ func run() error {
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
 		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService)},
 		MarshalError: fault.Marshal,
-		Server:       application.ServerOptions{Host: "127.0.0.1", Port: port},
-		Windows:      application.WindowsOptions{WebviewUserDataPath: filepath.Join(dir, "webview")},
+		// ARM creation can outlast Wails' default 30-second response deadline.
+		Server:  application.ServerOptions{Host: "127.0.0.1", Port: port, WriteTimeout: -1},
+		Windows: application.WindowsOptions{WebviewUserDataPath: filepath.Join(dir, "webview")},
 	}
 	if !serverMode {
 		// A deterministic per-product key, not a secret or an updater key.

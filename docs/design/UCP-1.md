@@ -271,6 +271,8 @@ sequenceDiagram
 
 通常構成の `internal/foundry/azure_create_foundry.go` は既存の選択テナントの資格情報を使う。Enabled サブスクリプションを名称順に取得し、Subscription List Locations と Resource SKUs の AIServices／S0 の提供リージョン・Location 制限を照合する。作成は ARM SDK のパイプラインでリソースグループを HEAD 確認した後に PUT し、既存グループは拒否する。アカウントも存在を事前確認し、Accounts BeginCreate と PollUntilDone で完了を待つ。Foundry は AIServices／S0、SystemAssigned identity、AllowProjectManagement=true、入力された Foundry 名の custom subdomain で作成し、プロジェクトは作成しない。リソースグループとアカウントの存在確認・作成は独立した ARM 操作であり、他クライアントとの同時作成を一つのトランザクションでは排他しない。
 
+サーバーモードの `main.go` は `Server.WriteTimeout=-1` とし、ARM の作成完了を待つ要求の成功応答が時間切れになることを防ぐ。
+
 失敗時は作成済みのリソースを自動削除せず、画面にエラーコードと理由を返す。サービスは失敗を成功として返さない。候補の実取得ではサブスクリプションの List Locations と AIServices／S0 の Resource Skus を照合する。
 
 ## エラーの表示
