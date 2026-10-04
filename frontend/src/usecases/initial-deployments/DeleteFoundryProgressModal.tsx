@@ -22,7 +22,6 @@ export function DeleteFoundryProgressModal({ progress }: { progress: FoundryDele
       </Text>
       <Box aria-live="polite" aria-busy="true">
         <Step label="Delete Foundry" name={progress.foundryName} phase={progress.foundryPhase} />
-        <Step label="Purge Foundry" name={progress.foundryName} phase={progress.purgePhase} />
         {progress.deleteResourceGroup && (
           <Step
             label="Delete resource group"
@@ -30,11 +29,6 @@ export function DeleteFoundryProgressModal({ progress }: { progress: FoundryDele
             phase={progress.resourceGroupPhase}
           />
         )}
-        <Step
-          label="Update Home"
-          name="Update the list and select the next Foundry"
-          phase={progress.viewPhase}
-        />
       </Box>
       <Text size="xs" c="dimmed" mt="md">
         Please wait until deletion is complete.

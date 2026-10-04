@@ -187,9 +187,9 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | Foundry追加の画面確認用起動 | `mise run server:review:foundry-add` | `http://127.0.0.1:34127/` が固定アカウントでログイン済み、Foundry 0件で起動する。起動ごとに空の一時フォルダーを作り、パスを表示する。Add Foundry で候補とデフォルト名を表示し、Create でリソースグループ作成・Foundry作成・Home更新の進捗を表示して新しい Foundry を選択する。候補取得と作成・デプロイ取得だけが固定応答で、サービスの進捗通知・選択・保存・表示は通常の処理を通す。実 Azure と本番保存先には触れない |
 | Foundry追加の画面確認用構成の終了 | 起動端末で `Ctrl+C` | 確認用サーバーを停止する。通常起動は `mise run server` または `mise run dev`。通常構成は実 Azure から候補を取得してリソースを作成し、固定応答へフォールバックしない |
 | Foundry追加の実処理確認 | 通常構成のHomeで Add Foundry を開き、作成先のサブスクリプション、eastus2、検証用キーワードを指定して Create を押す | 作成中の3段階の進捗表示後、新規 Foundry が選択される。Azure に新規リソースグループと AIServices アカウントが存在し、通常構成の画面再読み込みでも選択が復元され、デプロイ0件を取得する。作成済みリソースは自動削除しない |
-| Foundry削除の画面確認用起動 | `node scripts/run.mjs server:review:foundry-delete` | `http://127.0.0.1:34128/` が固定アカウントでログイン済み、Foundry 3件で起動する。Delete Foundry で確認ダイアログを表示し、Delete で Foundry削除・Purge・リソースグループ削除・Home更新の4段階の進捗を表示して次の Foundry を選択する。外部削除処理だけが固定応答で、進捗通知・選択・保存・表示は通常の処理を通す。実 Azure と本番保存先には触れない |
+| Foundry削除の画面確認用起動 | `node scripts/run.mjs server:review:foundry-delete` | `http://127.0.0.1:34128/` が固定アカウントでログイン済み、Foundry 3件で起動する。Delete Foundry で確認ダイアログを表示し、Delete で Foundry削除（Purge含む）・リソースグループ削除の進捗を表示して次の Foundry を選択する。外部削除処理だけが固定応答で、進捗通知・選択・保存・表示は通常の処理を通す。実 Azure と本番保存先には触れない |
 | Foundry削除の画面確認用構成の終了 | 起動端末で `Ctrl+C` | 確認用サーバーを停止する。通常起動は `mise run server` または `mise run dev`。通常構成は実 Azure のリソースを削除し、固定応答へフォールバックしない |
-| Foundry削除の実処理確認（段階5） | 通常構成（`mise run server` または `mise run dev`）のHomeで削除対象の Foundry を選び、ゴミ箱アイコンから Delete を押す | 4段階の進捗（Delete Foundry、Purge Foundry、Delete resource group、Update Home）が表示され、Azure 上の AIServices アカウントとリソースグループが実際に削除される。Home画面のFoundry一覧から削除対象が消え、次のFoundryが選択される |
+| Foundry削除の実処理確認（段階5） | 通常構成（`mise run server` または `mise run dev`）のHomeで削除対象の Foundry を選び、ゴミ箱アイコンから Delete を押す | 進捗モーダル（Delete Foundry、Delete resource group。リソースグループ保持時は Delete Foundry のみ）が表示され、Azure 上の AIServices アカウント（および対象時はリソースグループ）が実際に削除・完全消去される。Home画面のFoundry一覧から削除対象が消え、次のFoundryが選択される |
 | CIの静的検査 | `actionlint -shellcheck= .github/workflows/windows.yml` | エラー出力なしで終了する。ShellCheckの検査は省略する |
 
 公開用タグのpushはWindows CIを起動します。GitHub Actionsの `Windows checks` でビルド・検証と `release` ジョブの成功を確認し、ジョブが表示するURLからインストーラーを取得します。Git操作が失敗した場合は出力とローカルのバージョン・コミット・タグを確認し、自動再試行は行いません。

@@ -415,9 +415,7 @@ export function InitialDeployments() {
                   resourceGroupName: deletePlan.resourceGroupName,
                   deleteResourceGroup: deletePlan.deleteResourceGroup,
                   foundryPhase: 'waiting',
-                  purgePhase: 'waiting',
                   resourceGroupPhase: 'waiting',
-                  viewPhase: 'waiting',
                 } as FoundryDeleteProgress);
                 removeFoundry.mutate();
               }}

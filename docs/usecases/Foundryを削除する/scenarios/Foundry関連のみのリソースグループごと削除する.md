@@ -13,7 +13,7 @@
 | # | アクター | システム |
 | --- | --- | --- |
 | 1 | Foundry 見出し行の右端にある「Delete Foundry」アイコンボタンを押す。 | 削除対象のリソースグループ内のリソース一覧を取得して分類する。Foundry 関連のみなら「リソースグループごと削除」と判定し、確認ダイアログを開く。ダイアログには Foundry 名、リソースグループ名、リソースグループごと削除される旨、「This cannot be undone.」を表示する。 |
-| 2 | 「Delete」を押す。 | 「Deleting Foundry」の進捗モーダルを表示する。「Delete Foundry」「Purge Foundry」「Delete resource group」「Update Home」の4行に、待機・実行中・完了を表示する。指定のFoundryを削除して完全消去（purge）し、その後にリソースグループを削除する。実行中は重複実行とモーダルの閉鎖を防ぐ。 |
+| 2 | 「Delete」を押す。 | 「Deleting Foundry」の進捗モーダルを表示する。「Delete Foundry」「Delete resource group」の2行に、待機・実行中・完了を表示する。指定のFoundryを削除して完全消去（purge）し、その後にリソースグループを削除する。実行中は重複実行とモーダルの閉鎖を防ぐ。 |
 | 3 | 完了後のHome画面を確認する。 | 削除結果を Foundry 一覧に反映し、先頭の Foundry を選択してデプロイ一覧を取得して表示する。0件なら空の状態を表示する。一覧と選択を保存し、進捗モーダルを閉じる。 |
 
 ## 受け入れ条件

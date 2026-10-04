@@ -24,9 +24,7 @@ type FoundryDeleteProgress struct {
 	ResourceGroupName   string `json:"resourceGroupName"`
 	DeleteResourceGroup bool   `json:"deleteResourceGroup"`
 	FoundryPhase        string `json:"foundryPhase"`
-	PurgePhase          string `json:"purgePhase"`
 	ResourceGroupPhase  string `json:"resourceGroupPhase"`
-	ViewPhase           string `json:"viewPhase"`
 }
 
 // FoundryDeleteSource is the ARM boundary shared by the deletion UI and service.
@@ -153,20 +151,16 @@ func (s *Service) deleteFoundry(ctx context.Context) (InitialFoundryView, error)
 		ResourceGroupName:   plan.ResourceGroupName,
 		DeleteResourceGroup: plan.DeleteResourceGroup,
 		FoundryPhase:        "running",
-		PurgePhase:          "waiting",
 		ResourceGroupPhase:  "waiting",
-		ViewPhase:           "waiting",
 	}
 	s.emit(FoundryDeleteProgressEvent, progress)
 	if err := source.DeleteFoundry(ctx, selected); err != nil {
 		return InitialFoundryView{}, err
 	}
-	progress.FoundryPhase, progress.PurgePhase = "completed", "running"
-	s.emit(FoundryDeleteProgressEvent, progress)
 	if err := source.PurgeFoundry(ctx, selected); err != nil {
 		return InitialFoundryView{}, err
 	}
-	progress.PurgePhase = "completed"
+	progress.FoundryPhase = "completed"
 	if plan.DeleteResourceGroup {
 		progress.ResourceGroupPhase = "running"
 		s.emit(FoundryDeleteProgressEvent, progress)
@@ -174,9 +168,10 @@ func (s *Service) deleteFoundry(ctx context.Context) (InitialFoundryView, error)
 			return InitialFoundryView{}, err
 		}
 		progress.ResourceGroupPhase = "completed"
+		s.emit(FoundryDeleteProgressEvent, progress)
+	} else {
+		s.emit(FoundryDeleteProgressEvent, progress)
 	}
-	progress.ViewPhase = "running"
-	s.emit(FoundryDeleteProgressEvent, progress)
 	inGroup := func(foundry Foundry) bool {
 		return foundry.ID == selected.ID || (plan.DeleteResourceGroup && foundry.SubscriptionName == selected.SubscriptionName && foundry.ResourceGroupName == selected.ResourceGroupName)
 	}
@@ -192,7 +187,5 @@ func (s *Service) deleteFoundry(ctx context.Context) (InitialFoundryView, error)
 		return InitialFoundryView{}, err
 	}
 	s.limits = limitsCache{}
-	progress.ViewPhase = "completed"
-	s.emit(FoundryDeleteProgressEvent, progress)
 	return view, nil
 }

@@ -287,22 +287,22 @@ sequenceDiagram
   participant F as 状態ファイル
   U->>S: InspectFoundryDeletion()
   S->>A: ResourceGroupHoldsOnlyFoundry(selected)
-  A-->>S: 分類結果（true）
+  A-->>S: 分類結果（true または false）
   S-->>U: FoundryDeletionPlan（確認ダイアログ表示）
   U->>S: DeleteFoundry()
   S-->>U: Foundry削除中（FoundryPhase: running）
   S->>A: DeleteFoundry(selected)
-  S-->>U: Foundry完全消去中（PurgePhase: running）
   S->>A: PurgeFoundry(selected)
-  S-->>U: リソースグループ削除中（ResourceGroupPhase: running）
-  S->>A: DeleteResourceGroup(selected)
-  S-->>U: Home更新中（ViewPhase: running）
+  alt リソースグループごと削除する場合
+    S-->>U: リソースグループ削除中（ResourceGroupPhase: running）
+    S->>A: DeleteResourceGroup(selected)
+  end
   S->>F: 削除したFoundryを除いた一覧と次の選択を保存
   S->>A: 次のFoundryのデプロイ取得
   S-->>U: Home更新完了・InitialFoundryView
 ```
 
-一覧への反映は、削除された Foundry（リソースグループごと削除の場合は同一リソースグループの全 Foundry、リソースグループを保持する場合は削除対象の Foundry のみ）を一覧から除外する。進捗モーダルはリソースグループ削除を行わない場合は該当ステップをスキップして3段階で進行する。次の Foundry（先頭）を選択してデプロイ一覧を取得し、状態ファイルを更新する。最後の1件を削除した場合は選択なし・デプロイ0件として保存する。一覧取得は行わないため `foundriesFetchedAt` は維持する。
+一覧への反映は、削除された Foundry（リソースグループごと削除の場合は同一リソースグループの全 Foundry、リソースグループを保持する場合は削除対象の Foundry のみ）を一覧から除外する。進捗モーダルは Delete Foundry（完全消去を含む）と Delete resource group の最大2段階（リソースグループ保持時は Delete Foundry の1段階）を表示し、完了後に閉じて Home 画面を更新する。次の Foundry（先頭）を選択してデプロイ一覧を取得し、状態ファイルを更新する。最後の1件を削除した場合は選択なし・デプロイ0件として保存する。一覧取得は行わないため `foundriesFetchedAt` は維持する。
 
 合成点は既存の `Source` 選択であり、`e2e` ビルドの `fixedSource` が同じ `FoundryDeleteSource` 契約を実装する。`internal/foundry/e2e_delete_foundry.go` に固定応答と画面確認用の待機を置き、削除済み ID をメモリに保持して以降の一覧取得から除外する。通常構成は `azureSource` に接続し、固定応答を含まない。
 
