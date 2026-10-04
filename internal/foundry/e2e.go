@@ -148,6 +148,13 @@ type fixedLimits struct{}
 
 // CapacityLimits is the held first fetch of the limits; AZFOUNDRYDECK_E2E_FAIL=detail fails it.
 func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry) (CapacityLimits, error) {
+	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(4 * time.Second):
+		}
+	}
 	if err := waitForRelease(ctx, "detail"); err != nil {
 		return nil, err
 	}

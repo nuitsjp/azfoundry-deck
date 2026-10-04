@@ -9,9 +9,10 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
-import { getCapacityMaximum } from '../../features/foundry/capacity-maximum';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Events } from '@wailsio/runtime';
+import { useEffect, useState } from 'react';
+import { getCapacityState } from '../../features/foundry/capacity-maximum';
 import type { Deployment } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 
@@ -56,51 +57,49 @@ function capacityValue(value: number | null | undefined) {
 }
 
 export function DeploymentDetails({
+  foundryID,
   deployments,
   busy,
   onDelete,
   onEdit,
 }: {
+  foundryID: string;
   deployments: Deployment[];
   busy: boolean;
   onDelete: (deployment: Deployment) => void;
   onEdit: (deployment: Deployment) => void;
 }) {
   const [selectedID, setSelectedID] = useState<string | null>(null);
-  const [maximum, setMaximum] = useState<number | null | undefined>(undefined);
-  const [error, setError] = useState<unknown>(null);
-  const request = useRef(0);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      request.current += 1;
-    };
-  }, []);
-  // The details come from the listed deployment; only the capacity maximum is fetched.
-  const fetchMaximum = useMutation({
-    // The key also keeps the tenant selector disabled while the maximum is fetched.
-    mutationKey: ['foundry', 'deployment-detail'],
+  const [capacityRevision, setCapacityRevision] = useState(0);
+  const capacity = useQuery({
+    queryKey: ['foundry', 'capacity', foundryID, deployments, capacityRevision],
+    queryFn: () => getCapacityState(),
+    enabled: !!foundryID,
+    staleTime: Infinity,
     gcTime: 0,
     retry: false,
-    mutationFn: async ({ id, sequence }: { id: string; sequence: number }) => {
-      try {
-        const result = await getCapacityMaximum(id);
-        if (mounted.current && request.current === sequence) setMaximum(result);
-      } catch (failure) {
-        if (mounted.current && request.current === sequence) setError(failure);
-      }
-    },
+  });
+  useEffect(
+    () =>
+      Events.On('foundry:capacity-ready', (event) => {
+        if (event.data === foundryID) {
+          setCapacityRevision((revision) => revision + 1);
+        }
+      }),
+    [foundryID],
+  );
+  const retryCapacity = useMutation({
+    mutationFn: () => getCapacityState(true),
+    onSuccess: () => setCapacityRevision((revision) => revision + 1),
   });
   const detail = deployments.find((deployment) => deployment.id === selectedID) ?? null;
+  const loading = capacity.isPending || capacity.data?.loading === true;
+  const maximum = detail ? capacity.data?.maximums?.[detail.id] : null;
+  const error = retryCapacity.error ?? capacity.error ?? capacity.data?.error;
 
   function selectDeployment(id: string) {
-    if (busy || fetchMaximum.isPending) return;
+    if (busy) return;
     setSelectedID(id);
-    setMaximum(undefined);
-    setError(null);
-    fetchMaximum.mutate({ id, sequence: ++request.current });
   }
 
   return (
@@ -123,7 +122,7 @@ export function DeploymentDetails({
                 <Table.Tr
                   key={deployment.id}
                   className={`deployment-row${selectedID === deployment.id ? ' deployment-selected' : ''}`}
-                  aria-disabled={busy || fetchMaximum.isPending}
+                  aria-disabled={busy}
                   onClick={() => selectDeployment(deployment.id)}
                 >
                   <Table.Td>
@@ -131,7 +130,7 @@ export function DeploymentDetails({
                       type="button"
                       className="deployment-select"
                       aria-pressed={selectedID === deployment.id}
-                      disabled={busy || fetchMaximum.isPending}
+                      disabled={busy}
                       onClick={(event) => {
                         event.stopPropagation();
                         selectDeployment(deployment.id);
@@ -148,11 +147,7 @@ export function DeploymentDetails({
           </Table>
         </div>
       </section>
-      <section
-        className="deployment-detail-pane"
-        aria-label="Details"
-        aria-busy={fetchMaximum.isPending}
-      >
+      <section className="deployment-detail-pane" aria-label="Details" aria-busy={loading}>
         <header className="deployment-pane-heading">
           <Title order={5}>Details</Title>
         </header>
@@ -180,7 +175,7 @@ export function DeploymentDetails({
                   variant="default"
                   size={32}
                   aria-label="Edit deployment"
-                  disabled={busy || fetchMaximum.isPending}
+                  disabled={busy || loading}
                   onClick={() => onEdit(detail)}
                 >
                   <EditIcon />
@@ -197,7 +192,7 @@ export function DeploymentDetails({
               <dt>Capacity</dt>
               <dd>
                 {capacityValue(detail.capacity)} /{' '}
-                {fetchMaximum.isPending ? (
+                {loading ? (
                   <Group component="span" gap={6} role="status" display="inline-flex">
                     <Loader size="xs" />
                     <span>Loading...</span>
@@ -216,8 +211,8 @@ export function DeploymentDetails({
                       <Button
                         variant="default"
                         size="xs"
-                        disabled={busy}
-                        onClick={() => selectDeployment(detail.id)}
+                        disabled={busy || loading}
+                        onClick={() => retryCapacity.mutate()}
                       >
                         Retry
                       </Button>
@@ -242,7 +237,7 @@ export function DeploymentDetails({
                   variant="subtle"
                   size={32}
                   aria-label="Delete deployment"
-                  disabled={busy || fetchMaximum.isPending}
+                  disabled={busy || loading}
                   onClick={() => onDelete(detail)}
                 >
                   <TrashIcon />

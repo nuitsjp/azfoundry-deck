@@ -24,7 +24,7 @@ Azure にログイン済みである。
 - 最終取得日時は、直近に Azure から取得が完了した時刻をローカル時刻の YYYY-MM-DD HH:mm 形式で表示する。
 - デプロイ済みモデルの一覧は保存せず、Home画面を表示するたびに Azure から取得する。取得した一覧と取得日時はメモリだけに持つ。
 - 状態ファイルには Foundry 一覧・選択済み Foundry・Foundry 一覧の最終取得日時（`foundries`・`selectedFoundryId`・`foundriesFetchedAt`）だけを保存する。デプロイ済みモデルの一覧のファイルや `foundry-models` ディレクトリは作らない。
-- 保存済みの Foundry 一覧・選択済み Foundry がある場合は、Foundry 一覧を取得せず、選択済み Foundry のデプロイ済みモデルだけを Azure から取得する。
+- 保存済みの Foundry 一覧・選択済み Foundry がある場合は、Foundry 一覧を取得せず、選択済み Foundry のデプロイ済みモデルと容量上限情報を並行して Azure から取得する。
 
 ## シナリオ
 

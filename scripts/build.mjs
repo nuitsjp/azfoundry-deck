@@ -60,6 +60,7 @@ try {
     const deploymentDeleteReview = command === 'run-server-review-deployment-delete';
     const deploymentUpdateReview = command === 'run-server-review-deployment-update';
     const deploymentDetailReview = command === 'run-server-review-deployment-detail' || deploymentDeleteReview || deploymentAddReview || deploymentUpdateReview;
+    if (command === 'run-server-review-deployment-detail') process.env.AZFOUNDRYDECK_E2E_CAPACITY_REVIEW = '1';
     const tenantRevisitReview = command === 'run-server-review-tenant-revisit';
     // The revisit review is the tenant change fixture plus saved views of another tenant.
     const tenantChangeReview = command === 'run-server-review-tenant-change' || tenantRevisitReview;

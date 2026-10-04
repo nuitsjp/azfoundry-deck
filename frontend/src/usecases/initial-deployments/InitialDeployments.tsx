@@ -596,6 +596,7 @@ export function InitialDeployments() {
         <div className="deployment-workspace">
           <DeploymentDetails
             key={`${view.selectedFoundryId}:${detailRevision}`}
+            foundryID={view.selectedFoundryId}
             deployments={view.deployments}
             busy={busy}
             onDelete={setDeleteTarget}

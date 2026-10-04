@@ -52,6 +52,7 @@ type deploymentsCache struct {
 type limitsCache struct {
 	file, foundryID string
 	value           CapacityLimits
+	fetch           *limitsFetch
 }
 
 // readView reads the saved Foundry list and selection and adds the deployments held in memory.
@@ -71,6 +72,9 @@ func (s *Service) setDeployments(file, foundryID string, deployments []Deploymen
 }
 
 func (s *Service) clearDeployments() {
+	if s.limits.fetch != nil {
+		s.limits.fetch.cancel()
+	}
 	s.current, s.limits = deploymentsCache{}, limitsCache{}
 }
 
@@ -177,6 +181,7 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
+	s.startCapacityLimits(ctx, file, selected, source)
 	models, err := source.Deployments(ctx, selected, func(count int) {
 		progress.ModelCount = count
 		s.emit(ProgressEvent, progress)

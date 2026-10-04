@@ -70,11 +70,11 @@ sequenceDiagram
 
 ## デプロイモデルを閲覧する
 
-Home画面はログイン済みになったときに `Service.GetInitialView` を呼び、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx` で Foundry とデプロイ済みモデルを表示する。サービスはまず、メモリに保持した容量上限を破棄する。状態ファイルが存在しなければ Foundry 一覧を取得して先頭を選択し、存在すれば保存された Foundry 一覧と選択を復元する。どちらの場合も、選択中の Foundry のデプロイ一覧は保存せず、毎回 Azure から取得してメモリに保持する。入出力の型は `internal/foundry/models.go` の `Foundry`、`Deployment`、`InitialFoundryView` を Wails のバインディングで生成し、`frontend/src/features/foundry/models.ts` から再公開する。Foundry はリソース ID で識別し、選択済み Foundry を `selectedFoundryId` で参照する。`Deployment` は `id`、`deploymentName`、`modelName`、`version` に加え、一覧から得る `skuName`、`capacity`、`capacityUnit`、`provisioningState`、`versionUpgradePolicy` を持つ。Azure が返さない項目は `null` とする。
+Home画面はログイン済みになったときに `Service.GetInitialView` を呼び、`frontend/src/usecases/initial-deployments/InitialDeployments.tsx` で Foundry とデプロイ済みモデルを表示する。サービスはまず、メモリに保持した容量上限を破棄する。状態ファイルが存在しなければ Foundry 一覧を取得して先頭を選択し、存在すれば保存された Foundry 一覧と選択を復元する。どちらの場合も、選択中の Foundry のデプロイ一覧は保存せず、毎回 Azure から取得してメモリに保持する。対象 Foundry の確定時に、明細の設計に従って容量上限のバックグラウンド取得も同時に開始する。入出力の型は `internal/foundry/models.go` の `Foundry`、`Deployment`、`InitialFoundryView` を Wails のバインディングで生成し、`frontend/src/features/foundry/models.ts` から再公開する。Foundry はリソース ID で識別し、選択済み Foundry を `selectedFoundryId` で参照する。`Deployment` は `id`、`deploymentName`、`modelName`、`version` に加え、一覧から得る `skuName`、`capacity`、`capacityUnit`、`provisioningState`、`versionUpgradePolicy` を持つ。Azure が返さない項目は `null` とする。
 
 進捗モーダルは `FoundryProgress` を受け取り、「Foundries」と「Deployments」の2行を、開いた時点から完了まで固定の高さで表示する。各行は待機中・取得中・完了と回転表示、行の右側の結果（Foundry 件数、選択した Foundry の名称とデプロイ件数）を示す。保存済みの一覧を復元する場合は、「Foundries」を最初から完了として件数を示す。行の増減や経過時間の表示はしない。状態ファイルの保存は一瞬のため進捗に表さない。処理中は Escape と外側クリックでも閉じない。結果取得と保存の成功後に自動で閉じる。取得失敗は既存の Home画面のエラー表示に従う。
 
-進捗の主体は Go サービスで、`internal/foundry/progress.go` の `Progress` に Foundry 一覧・デプロイの各状態（待機中・取得中・完了）と Foundry 件数、選択先の名称、デプロイ件数をまとめ、状態の変化ごとに通知する。処理は直列なので排他制御は置かない。`main.go` で型付きの Wails イベント `foundry:progress` を登録し、サービスから通知する。型は Wails のバインディングで生成し、`frontend/src/features/foundry/progress.ts` から `FoundryProgress` として再公開する。閲覧ローダーは `GetInitialView` の呼び出し前にイベントを購読し、成功・失敗のどちらでも購読を解除する。進捗の状態は結果とは別に画面で保持する。
+進捗の主体は Go サービスで、`internal/foundry/progress.go` の `Progress` に Foundry 一覧・デプロイの各状態（待機中・取得中・完了）と Foundry 件数、選択先の名称、デプロイ件数をまとめ、状態の変化ごとに通知する。Foundry 一覧・デプロイ一覧の進捗通知は直列に行う。容量上限のバックグラウンド取得は別の状態と完了通知で管理する。`main.go` で型付きの Wails イベント `foundry:progress` を登録し、サービスから通知する。型は Wails のバインディングで生成し、`frontend/src/features/foundry/progress.ts` から `FoundryProgress` として再公開する。閲覧ローダーは `GetInitialView` の呼び出し前にイベントを購読し、成功・失敗のどちらでも購読を解除する。進捗の状態は結果とは別に画面で保持する。
 
 Go サービスはログイン済みを確認し、保存済みアカウント識別情報と永続トークンキャッシュを使う `azauth.NewSilentCredential` で Azure SDK を呼ぶ。追加のブラウザー認証は行わない。Foundry 一覧は Azure Resource Graph（`POST https://management.azure.com/providers/Microsoft.ResourceGraph/resources`）への1回のクエリで取得する。クエリは `resources` から種別が `microsoft.cognitiveservices/accounts` かつ `kind` が `AIServices` のものを選び、`resourcecontainers` の `microsoft.resources/subscriptions` と `subscriptionId` で結合してサブスクリプション名を得る。結果は `skipToken` で全ページ取得し、サブスクリプション名、Foundry 名の昇順に並べる。一覧の取得を完了してから、先頭の Foundry を選択し、そのデプロイの全ページ取得を始める。デプロイはページ取得ごとに累積件数を通知する。取得後に Foundry 一覧と選択を状態ファイルへ保存し、成功後に結果を返す。参照可能な Foundry が0件の場合はデプロイを取得しない。
 
@@ -95,6 +95,7 @@ sequenceDiagram
     S->>S: 並べた先頭を初期選択に確定
   end
   S-->>U: Foundry一覧の完了と件数
+  S->>S: 容量上限のバックグラウンド取得を開始
   S->>K: 選択したFoundryの全デプロイを取得
   K-->>S: デプロイ一覧
   S-->>U: デプロイ取得状態と累積件数
@@ -114,7 +115,7 @@ sequenceDiagram
 
 画面は `frontend/src/features/foundry/change-view.ts` から変更先のリソース ID を `Service.ChangeFoundry` に渡す。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使い、画面側に固定応答や人工的な待ち時間を置かない。
 
-Go サービスはログイン済みを確認し、状態ファイルの Foundry 一覧に変更先が含まれることを確認する。同じ Foundry なら現在の閲覧結果を返し、取得・進捗通知・保存を行わない。異なる Foundry なら、メモリに保持した変更前のデプロイ一覧と容量上限を破棄し、`Source.Deployments` で変更先の全ページを取得して、デプロイ取得状態とページごとの累積件数を通知する。Foundry の一覧は再取得しない。取得したデプロイ一覧と取得日時はメモリに保持し、変更先の選択を状態ファイルに保存して、成功後に結果を返す。変更前の Foundry のデプロイ一覧は保持しないため、変更前の Foundry に戻す場合も取得し直す。取得・保存の失敗時は既存の `FOUNDRY_LOAD_FAILED` を返し、固定応答や取得へのフォールバックは行わない。ファイルの形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
+Go サービスはログイン済みを確認し、状態ファイルの Foundry 一覧に変更先が含まれることを確認する。同じ Foundry なら現在の閲覧結果を返し、取得・進捗通知・保存を行わない。異なる Foundry なら、メモリに保持した変更前のデプロイ一覧と容量上限を破棄し、変更先の容量上限のバックグラウンド取得を開始する。同時に `Source.Deployments` で変更先の全ページを取得して、デプロイ取得状態とページごとの累積件数を通知する。Foundry の一覧は再取得しない。取得したデプロイ一覧と取得日時はメモリに保持し、変更先の選択を状態ファイルに保存して、成功後に結果を返す。変更前の Foundry のデプロイ一覧は保持しないため、変更前の Foundry に戻す場合も取得し直す。取得・保存の失敗時は既存の `FOUNDRY_LOAD_FAILED` を返し、固定応答や取得へのフォールバックは行わない。ファイルの形式は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
 `AcquisitionProgressModal` は変更時に「Deployments」の1行だけを表示し、Foundry 一覧取得の行を省く。処理中は元の選択とデプロイ一覧を維持し、変更を受け付けない。成功後に React Query の閲覧結果を置き換える。同じ Foundry を選んだ場合はプルダウンを閉じるだけとする。
 
@@ -126,7 +127,7 @@ Go サービスはログイン済みを確認し、状態ファイルの Foundry
 
 画面は `frontend/src/features/foundry/refresh-view.ts` から `Service.RefreshFoundries` を呼ぶ。呼び出し前に既存の `foundry:progress` イベントを購読し、成功・失敗のどちらでも購読を解除する。結果は既存の `InitialFoundryView`、進捗は既存の `FoundryProgress` を使う。
 
-Go サービスはログイン済みを確認し、状態ファイルを読み込んだ後、閲覧と同じ `Source.Foundries` で Foundry 一覧を取得し、「Foundries」の状態と件数を通知する。一覧が空の場合は、[Foundryが存在しない状態へ一覧を更新する](#foundryが存在しない状態へ一覧を更新する) の扱いに従う。選択中の Foundry が更新後の一覧に含まれる場合は選択、メモリのデプロイ一覧とその取得日時、容量上限を維持し、デプロイを取得しない。含まれない場合は、メモリのデプロイ一覧と容量上限を破棄し、一覧の最初の Foundry を選択して、`Source.Deployments` で全ページを取得し、選択先の名称・デプロイ取得状態・累積件数を通知する。選択中の Foundry が残る場合、「Deployments」は待機中のまま保存へ進む。
+Go サービスはログイン済みを確認し、状態ファイルを読み込んだ後、閲覧と同じ `Source.Foundries` で Foundry 一覧を取得し、「Foundries」の状態と件数を通知する。一覧が空の場合は、[Foundryが存在しない状態へ一覧を更新する](#foundryが存在しない状態へ一覧を更新する) の扱いに従う。選択中の Foundry が更新後の一覧に含まれる場合は選択、メモリのデプロイ一覧とその取得日時、容量上限を維持し、デプロイを取得しない。含まれない場合は、メモリのデプロイ一覧と容量上限を破棄し、一覧の最初の Foundry を選択して容量上限のバックグラウンド取得を開始し、同時に `Source.Deployments` で全ページを取得し、選択先の名称・デプロイ取得状態・累積件数を通知する。選択中の Foundry が残る場合、「Deployments」は待機中のまま保存へ進む。
 
 最後に Foundry 一覧・選択・Foundry 一覧の取得日時を状態ファイルに保存し、成功後に結果を返す。取得・保存のいずれかが失敗した場合は既存の `FOUNDRY_LOAD_FAILED` を返し、固定データや保存済みファイルへのフォールバックは行わない。取得日時は [データ設計](data.md#foundry-とデプロイモデル) を参照する。
 
@@ -171,7 +172,7 @@ Go サービスはログイン済みを確認し、状態ファイルを読み�
 
 Go サービスはログイン済みであることを確認し、同じテナントなら現在の状態をそのまま返す。異なるテナントなら、保存済みのテナント一覧に含まれることを確認し、変更先の選択を持つ認証記録でトークンをブラウザーを開かずに取得してから、その認証記録を保存する。トークン取得と保存の両方に成功した後にだけメモリ上の状態を更新する。失敗時は変更前の選択と状態を維持し、`SELECT_TENANT_FAILED` を返す。無効なテナント ID は `INVALID_TENANT`、ログイン前は `NOT_SIGNED_IN` を返す。
 
-成功後、画面は React Query の Foundry 関連の結果を破棄して状態を置き換える。Home は [閲覧](#デプロイモデルを閲覧する) を、変更先のアカウント・テナントの閲覧保存先に対して行う。メモリのデプロイ一覧と容量上限は閲覧の開始時に破棄される。変更先に保存済みの Foundry 一覧と選択があれば、それを復元してデプロイ一覧だけを取得し、なければ Foundry 一覧から取得する。どちらも進捗モーダルを使う。変更前のテナントの閲覧保存先は変更しない。閲覧に失敗した場合の表示は既存の `FOUNDRY_LOAD_FAILED` に従う。
+成功後、画面は React Query の Foundry 関連の結果を破棄して状態を置き換える。Home は [閲覧](#デプロイモデルを閲覧する) を、変更先のアカウント・テナントの閲覧保存先に対して行う。メモリのデプロイ一覧と容量上限は閲覧の開始時に破棄される。変更先に保存済みの Foundry 一覧と選択があれば、それを復元してデプロイ一覧と容量上限を並行して取得し、なければ Foundry 一覧から取得する。どちらも進捗モーダルを使う。変更前のテナントの閲覧保存先は変更しない。閲覧に失敗した場合の表示は既存の `FOUNDRY_LOAD_FAILED` に従う。
 
 画面確認用の E2E ビルドでは、トークン取得と一覧取得の外部境界だけを固定応答に差し替える。確認用起動 `server:review:tenant-change` は、テナント3件（Contoso、Fabrikam、Northwind）の認証記録を置く。確認用起動 `server:review:tenant-revisit` は、`Fabrikam` の閲覧保存先に Foundry 2件（2件目を選択）の状態ファイルを用意する。実 Azure でのトークン取得は検証対象に含めない。
 
@@ -195,30 +196,39 @@ Foundry 一覧の更新で、Foundry 一覧の取得が成功し、参照可能�
 
 Home画面のモデル領域は、[明細シナリオ](../usecases/デプロイモデルの詳細を確認する/scenarios/一覧からデプロイモデルの明細を表示する.md) の共通外枠と左右同幅の一覧・明細を `frontend/src/usecases/deployment-details/DeploymentDetails.tsx` で表示する。
 
-明細の項目（`Model`、`Version`、`SKU`、`Capacity` の現在値と単位、`Provisioning state`、`Upgrade policy`）は、選択した行の `Deployment`（一覧の取得結果）から、Go を呼ばずに即時表示する。明細に取得日時は表示しない。`Capacity` の上限だけを `frontend/src/features/foundry/capacity-maximum.ts` から `Service.GetCapacityMaximum(deploymentId)` で取得し、上限の位置に取得中は `Loading...` を表示する。
+明細の項目（`Model`、`Version`、`SKU`、`Capacity` の現在値と単位、`Provisioning state`、`Upgrade policy`）は、選択した行の `Deployment`（一覧の取得結果）から即時表示する。明細に取得日時は表示しない。画面は `Service.GetCapacityState(ctx, retry)` で選択中 Foundry の容量上限の取得状態と各デプロイの上限を、取得完了を待たずに参照する。通常は `retry=false` とし、`retry=true` は失敗済みの取得だけを再開始する。取得済みなら選択時に上限も即時表示し、取得中なら分母だけを `Loading...` にする。
 
-Go サービス（`internal/foundry/detail.go`）は既存の操作ロック内でログイン済みの確認と、メモリの一覧から選択中の Foundry・指定デプロイの識別を行う。その Foundry の容量上限の元になる情報（モデル定義一覧と共有クォータ一覧）が `Service` のメモリになければ、`CapacitySource.CapacityLimits` で Foundry ごとに2つを並列に取得して保持し、あれば Azure を呼ばない。保持した情報から指定デプロイの上限を計算して返す。保持した情報は `GetInitialView`（画面の読み込み、テナントの変更、ログアウト後の再ログインを含む）と Foundry の変更で破棄し、更新ボタンと追加・変更・削除の成功後には取り直さない。取得の失敗は `DEPLOYMENT_DETAIL_FAILED` と英語の理由を返す。ファイルへの保存は行わない。
+Go サービス（`internal/foundry/detail.go`）は、起動時の `GetInitialView`、Foundry の変更、テナント変更後の閲覧で対象 Foundry が確定したら、デプロイ一覧の取得と並行して `CapacitySource.CapacityLimits` を開始する。モデル定義一覧と共有クォータ一覧を並列に取得し、取得状態と結果を `Service` のメモリに保持する。一覧取得と保存の完了は容量上限の取得を待たない。画面からの状態参照や行選択では取得を重複して開始しない。完了時に `foundry:capacity-ready` を通知し、画面が状態を参照し直す。`GetCapacityMaximum` は既存の上限取得の用途で保持結果を使う。保持状態は `GetInitialView`（画面の読み込み、テナントの変更、ログアウト後の再ログインを含む）と Foundry の変更で破棄し、破棄前の取得が後から完了しても現在の保持状態・画面へ反映しない。更新ボタンと追加・変更・削除の成功後には取り直さない。取得の失敗は `DEPLOYMENT_DETAIL_FAILED` と英語の理由として保持し、一覧表示を止めない。ファイルへの保存は行わない。
 
-画面は行全体のクリックまたはデプロイ名のキーボード操作で選択し、明細を即時表示して、以前の上限を破棄してから上限の取得を始める。TanStack Query の mutation は結果を返さず、上限だけをコンポーネントの状態に保持する。mutation の `gcTime` は0とし、結果を再利用しない。取得中は既存の取得・更新操作と追加のモデル選択を無効にし、ヘッダーのテナント選択も同じ mutation の実行状態で無効にする。Foundry が変わるか、デプロイ一覧の更新が成功するとコンポーネントを再作成し、選択と表示を破棄する。破棄後のリクエストの結果は表示しない。失敗時は上限の位置に `Not set` と、エラーと `Retry` を表示し、上限以外の項目と左の一覧は維持する。`Retry` は上限の取得だけをやり直す。
+画面は行全体のクリックまたはデプロイ名のキーボード操作で選択し、一覧の取得結果と容量上限の保持状態から明細を表示する。容量上限の取得中も一覧表示・モデル選択・Foundry 切替を受け付け、編集と削除は無効にする。完了通知で選択中の明細を更新する。Foundry が変わるか、デプロイ一覧の更新が成功すると選択と表示を破棄する。破棄後のリクエストの結果は表示しない。失敗時は上限の位置に `Not set` と、エラーと `Retry` を表示し、上限以外の項目と左の一覧は維持する。選択前に取得が失敗した場合も、行を選んだ時点で同じ失敗表示を行う。`Retry` は上限の取得だけをやり直す。
+
+`foundry:capacity-ready` の通知内容は対象 Foundry のリソース ID 文字列とする。取得は開始時の取得オブジェクトへ結果を保持する。保持状態を破棄した後に古い取得が完了しても、現在のキャッシュへ書き込まない。
 
 ```mermaid
 sequenceDiagram
   participant U as Home画面
   participant S as Foundry サービス
   participant K as 上限の取得境界
-  U->>U: 一覧のデプロイを選び、取得結果から明細を即時表示
-  U->>S: GetCapacityMaximum(デプロイID)
-  S->>S: ログイン状態と選択先を確認
-  opt この Foundry の上限情報がメモリにない
-    S->>K: モデル定義一覧と共有クォータ一覧を並列に取得
+  S->>S: 閲覧対象のFoundryを確定
+  S->>K: 一覧取得と並行してモデル定義・共有クォータの取得を開始
+  S-->>U: 上限を待たず一覧取得結果を返す
+  U->>S: GetCapacityState(retry=false)
+  S-->>U: 取得状態と各デプロイの上限
+  U->>U: 行を選び、取得済みなら上限も即時表示
+  opt 上限が取得中
+    U->>U: 分母だけLoadingを表示
     K-->>S: 上限の元になる情報
-    S->>S: メモリに保持
+    S->>S: 現在のFoundryの結果としてメモリに保持
+    S-->>U: foundry:capacity-ready(Foundry ID)
+    U->>S: GetCapacityState(retry=false)
+    S-->>U: 各デプロイの上限
+    U->>U: 選択中の明細を更新
   end
-  S-->>U: 上限
-  U->>U: 上限の位置に表示
 ```
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が一覧の新項目（モデルごとの固定の SKU・容量・状態・更新ポリシー）と上限の固定応答を返す。固定の上限は gpt-4.1 系 `160,000`、gpt-4.1-mini `250,000`、text-embedding-3-large `80,000`（単位 TPM）で、固定の現在容量は 50,000 / 100,000 / 20,000 とする。ゲート `detail` は上限の初回取得を保留し、`AZFOUNDRYDECK_E2E_FAIL=detail` はその取得を失敗させる。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_limits.go` が Azure SDK を呼ぶ。デプロイ一覧の取得（`azureSource.Deployments`）が Deployments List で各 `Deployment` の SKU・容量・状態・更新ポリシー・rateLimits を得る。上限の取得（`azureSource.CapacityLimits`）は Accounts ListModels でモデル定義一覧を取得し、並列に Accounts Get（リージョンのため。Foundry ごとに1回）と Usages List でそのリージョンの共有クォータ一覧を取得する。モデルの形式・名前・版と SKU 名で定義を選び、その `usageName` を共有クォータへ照合する。UI・サービス・入出力の型は両構成で共有する。固定の認証・Foundry とデプロイ一覧を使う専用起動で確認する。起動と終了は [実行手順](../project.md#commands) に従う。
+
+画面確認用起動 `server:review:deployment-detail` は `AZFOUNDRYDECK_E2E_CAPACITY_REVIEW=1` を設定し、`fixedSource.CapacityLimits` が固定結果を返す前に4秒待機する。取得中に行を選んで自動更新を確認し、取得開始から4秒以上待って選んで即時表示を確認できる。遅延は外部取得境界にだけ置き、画面に固定タイムラインは置かない。
 
 容量の契約は設定済み容量 `capacity`、割り当て可能上限（`GetCapacityMaximum` の戻り値）、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限し、許可値または設定の刻みに切り下げる。Standard 系の単位はデプロイの token レートなら TPM、request のみなら RPM とし、秒単位のレートを毎分へ変換して設定容量あたりの倍率を求める。Provisioned 系は PTU とする。モデル定義・容量換算・クォータが不明な項目は補完せず、取得できた値だけを返す（上限を求められない場合の戻り値は `null`）。必要なモデル定義と共有クォータは Foundry ごとにメモリへ保持し、保持している間は Azure を呼ばない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
 

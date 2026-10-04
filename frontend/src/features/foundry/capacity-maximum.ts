@@ -1,5 +1,5 @@
-import { GetCapacityMaximum } from '@bindings/azfoundrydeck/internal/foundry/service';
+import { GetCapacityState } from '@bindings/azfoundrydeck/internal/foundry/service';
 
-export async function getCapacityMaximum(deploymentID: string): Promise<number | null> {
-  return GetCapacityMaximum(deploymentID);
+export async function getCapacityState(retry = false) {
+  return GetCapacityState(retry);
 }
