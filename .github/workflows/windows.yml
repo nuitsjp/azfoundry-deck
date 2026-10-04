@@ -167,6 +167,10 @@ jobs:
           "NSIS_EXE=$nsis" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Installer
         run: node scripts/run.mjs package:prepared
+      - name: Installer E2E
+        if: matrix.directory == '.'
+        shell: pwsh
+        run: pwsh -NoProfile -File "tests/e2e/usecases/アプリをインストールする/インストールを完了して起動方法を選ぶ.ps1"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build-${{ matrix.directory == '.' && 'project' || 'reference' }}
