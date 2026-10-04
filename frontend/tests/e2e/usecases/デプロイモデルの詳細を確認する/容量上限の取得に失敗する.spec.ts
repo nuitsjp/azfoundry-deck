@@ -66,8 +66,9 @@ test.describe('容量上限の取得失敗', () => {
     const calls: string[] = [];
     page.on('request', (request) => {
       if (request.method() !== 'POST' || !request.url().includes('/wails/runtime')) return;
-      const body = request.postDataJSON() as { args?: { methodName?: string } };
+      const body = request.postDataJSON() as { args?: { methodName?: string; args?: unknown[] } };
       const method = body.args?.methodName ?? '';
+      if (method.endsWith('.GetCapacityState') && body.args?.args?.[0] !== true) return;
       if (method.startsWith('azfoundrydeck/internal/foundry.Service.'))
         calls.push(method.slice(method.lastIndexOf('.') + 1));
     });
@@ -81,9 +82,7 @@ test.describe('容量上限の取得失敗', () => {
     // The other fields stay; the maximum is replaced by Not set and the error row follows.
     const checkFailed = async () => {
       await expect(details).toContainText('DEPLOYMENT_DETAIL_FAILED');
-      await expect(details).toContainText(
-        'Could not retrieve the capacity maximum from the source or read the current Foundry selection.',
-      );
+      await expect(details).toContainText('Could not retrieve the capacity maximum.');
       await expect(retry).toBeEnabled();
       await expect(details.getByRole('heading', { name: 'chat-production' })).toBeVisible();
       await expect(details.locator('dd').nth(0)).toHaveText('gpt-4.1');
@@ -114,26 +113,26 @@ test.describe('容量上限の取得失敗', () => {
 
     await test.step('手順2', async () => {
       await checkFailed();
-      expect(calls).toEqual(['GetCapacityMaximum']);
+      expect(calls).toEqual([]);
     });
 
     await test.step('手順3', async () => {
       await retry.click();
-      await expect.poll(() => calls.length).toBe(2);
+      await expect.poll(() => calls.length).toBe(1);
       await checkFailed();
       // Only the maximum is fetched again; the list is not.
-      expect(calls).toEqual(['GetCapacityMaximum', 'GetCapacityMaximum']);
+      expect(calls).toEqual(['GetCapacityState']);
     });
 
     await test.step('受け入れ条件', async () => {
       expect(identity(files.stateFile)).toEqual(original);
       expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
-      // The failed result is not kept: another row fetches again and fails the same way.
+      // The retained failed result is displayed for another row without fetching again.
       await rows.nth(1).click();
       await expect(details.getByRole('heading', { name: 'chat-mini' })).toBeVisible();
       await expect(details).toContainText('DEPLOYMENT_DETAIL_FAILED');
       await expect(details.locator('dd').nth(3)).toHaveText('100,000 / Not set TPM');
-      expect(calls.length).toBe(3);
+      expect(calls.length).toBe(1);
       await checkRows();
     });
   });

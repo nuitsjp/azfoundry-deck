@@ -76,6 +76,15 @@ func (s *Service) GetCapacityState(ctx context.Context, retry bool) (CapacitySta
 	if err := s.signedIn(ctx); err != nil {
 		return state, err
 	}
+	file, err := s.file()
+	if err != nil {
+		return state, fault.Public(err)
+	}
+	if file != s.current.file {
+		s.clearDeployments()
+		state.FoundryID = ""
+		return state, nil
+	}
 	if state.FoundryID == "" {
 		return state, nil
 	}

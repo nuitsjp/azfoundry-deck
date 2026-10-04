@@ -242,7 +242,7 @@ test.describe('変更成功', () => {
       await expect(dialog.getByRole('button', { name: 'Update', exact: true })).toBeDisabled();
       expect(updates()).toBe(0);
       expect(settings()).toBe(1);
-      expect(maximums()).toBe(1);
+      expect(maximums()).toBe(0);
       expect(identity(files.stateFile)).toEqual(stateFile);
     });
 
@@ -293,7 +293,7 @@ test.describe('変更成功', () => {
       await expect(modelsFetched).toHaveText(fetchedPattern);
       await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
       expect(updates()).toBe(1);
-      expect(maximums()).toBe(1);
+      expect(maximums()).toBe(0);
     });
 
     await test.step('受け入れ条件', async () => {
@@ -320,7 +320,7 @@ test.describe('変更成功', () => {
       await expect(page.locator('[role="dialog"]')).toHaveCount(0);
       await assertRows(rows, updatedModels);
       expect(updates()).toBe(1);
-      expect(maximums()).toBe(1);
+      expect(maximums()).toBe(0);
 
       // The list is fetched from Azure each time, so coming back shows the changed deployment.
       await selected.click();

@@ -109,8 +109,9 @@ func run() error {
 		return nil
 	}
 	operations := &sync.Mutex{}
-	authService := azauth.New(authStore, logger, clearViews, operations)
-	foundryService := foundry.New(operations, func() (foundry.Source, error) { return foundrySource(authStore) }, func(ctx context.Context) error {
+	var foundryService *foundry.Service
+	authService := azauth.New(authStore, logger, clearViews, operations, func(discard bool) { foundry.StopView(foundryService, discard) })
+	foundryService = foundry.New(operations, func() (foundry.Source, error) { return foundrySource(authStore) }, func(ctx context.Context) error {
 		status, err := authService.GetStatus(ctx)
 		if err != nil {
 			return err

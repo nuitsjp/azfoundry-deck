@@ -136,7 +136,7 @@ test.describe('明細表示', () => {
       await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
       await expect(selected).toHaveText(label(0));
       await checkRows();
-      expect(calls).toEqual(['GetCapacityMaximum']);
+      expect(calls.filter((method) => method !== 'GetCapacityState')).toEqual([]);
       expect(identity(files.stateFile)).toEqual(original);
       writeFileSync(release, '');
       await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
@@ -157,7 +157,7 @@ test.describe('明細表示', () => {
       await page.keyboard.press('Space');
       await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
       // Showing details never fetches the list again.
-      expect(new Set(calls)).toEqual(new Set(['GetCapacityMaximum']));
+      expect(new Set(calls.filter((method) => method !== 'GetCapacityState'))).toEqual(new Set());
     });
 
     await test.step('受け入れ条件', async () => {

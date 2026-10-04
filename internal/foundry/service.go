@@ -78,6 +78,23 @@ func (s *Service) clearDeployments() {
 	s.current, s.limits = deploymentsCache{}, limitsCache{}
 }
 
+// StopView is called with the shared operation lock held by the auth service.
+// Waiting for the cancelled fetch prevents it from writing a token cache after
+// logout has deleted that cache. This package function is not a Wails binding.
+func StopView(s *Service, discard bool) {
+	if s.limits.fetch != nil {
+		s.limits.fetch.cancel()
+		<-s.limits.fetch.done
+	}
+	if discard {
+		s.clearDeployments()
+	} else if s.limits.fetch != nil {
+		// A failed logout keeps the screen mounted. Let it observe the stopped
+		// fetch instead of retaining Loading indefinitely.
+		s.emit(CapacityReadyEvent, s.limits.foundryID)
+	}
+}
+
 func New(operations *sync.Mutex, source func() (Source, error), signedIn func(context.Context) error, file func() (string, error), logger *slog.Logger, emit func(string, any)) *Service {
 	return &Service{source: source, signedIn: signedIn, file: file, logger: logger, emit: emit, operations: operations}
 }
