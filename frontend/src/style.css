@@ -84,6 +84,10 @@ body {
   justify-items: start;
   font-variant-numeric: tabular-nums;
 }
+.deployment-table-wrap .deployment-capacity > span:first-child,
+.deployment-table-wrap .deployment-capacity > span:nth-child(3):not([role='status']) {
+  justify-self: end;
+}
 .deployment-row {
   cursor: pointer;
 }
