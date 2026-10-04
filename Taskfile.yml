@@ -62,6 +62,10 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-foundry-add
+  server:review:foundry-delete:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-foundry-delete
   server:review:deployment-refresh:
     cmds:
       - task: build:server:e2e
