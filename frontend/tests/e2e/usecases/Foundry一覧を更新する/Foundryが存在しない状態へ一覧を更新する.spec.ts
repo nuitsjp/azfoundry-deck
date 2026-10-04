@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
 const foundry = (key: string, name: string, subscriptionName: string, group: string) => ({
@@ -19,18 +18,11 @@ const production = foundry(
 );
 const legacy = foundry('legacy', 'contoso-foundry-legacy', 'Contoso Legacy', 'rg-ai-legacy');
 const savedAt = '2001-02-03T13:05:06+09:00';
-const deployment = (owner: { id: string }, name: string) => ({
-  id: `${owner.id}/deployments/${name}`,
-  deploymentName: name,
-  modelName: `${name}-model`,
-  version: 'saved-version',
-});
-const original: InitialFoundryView = {
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
   foundries: [production, legacy],
   selectedFoundryId: production.id,
-  deployments: [deployment(production, 'saved-production-chat')],
   foundriesFetchedAt: savedAt,
-  deploymentsFetchedAt: savedAt,
 };
 
 // The fixed source finds one subscription without any Foundry; discovery waits for its release.
@@ -47,9 +39,6 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
       .digest('hex'),
   );
   const stateFile = join(viewDir, 'foundry-state.json');
-  const modelsDir = join(viewDir, 'foundry-models');
-  const modelFile = (owner: { id: string }) =>
-    join(modelsDir, `${createHash('sha256').update(owner.id).digest('hex')}.json`);
   const selected = page.locator('button[aria-label="Foundry"]');
   const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
   const updateFoundries = page.getByRole('button', { name: 'Refresh Foundries' });
@@ -92,19 +81,15 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    mkdirSync(modelsDir, { recursive: true });
+    mkdirSync(viewDir, { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    for (const owner of [production, legacy]) {
-      writeFileSync(
-        modelFile(owner),
-        JSON.stringify({ fetchedAt: savedAt, deployments: [deployment(owner, 'saved')] }, null, 2),
-      );
-    }
     await app.restart();
     await page.goto(app.url);
+    // Startup fetches the selected Foundry's deployments from Azure; release that held stage.
+    writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
     await expect(selected).toContainText(production.name);
-    await expect(modelRows).toHaveCount(1);
-    expect(snapshots).toEqual([]);
+    await expect(modelRows).toHaveCount(3);
+    snapshots.length = 0;
     before = readFileSync(stateFile, 'utf8');
   });
 
@@ -120,8 +105,7 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
     // 保存が成功するまで、更新前の一覧・選択・モデルを維持する。
     await expect(selected).toContainText(production.name);
     expect(readFileSync(stateFile, 'utf8')).toBe(before);
-    expect(existsSync(modelFile(production))).toBe(true);
-    expect(existsSync(modelFile(legacy))).toBe(true);
+    await expect(modelRows).toHaveCount(3);
   });
 
   await test.step('手順2', async () => {
@@ -139,17 +123,15 @@ test('Foundryが存在しない状態へ一覧を更新する', async ({ page, a
   });
 
   await test.step('受け入れ条件', async () => {
-    // 空の一覧・選択なし・空のモデル・一覧の取得日時だけを保存し、モデルファイルはすべて削除する。
+    // 空の一覧・選択なし・一覧の取得日時だけを保存し、デプロイ一覧やモデルファイルは保存しない。
     const saved = JSON.parse(readFileSync(stateFile, 'utf8'));
     expect(saved).toEqual({
       foundries: [],
       selectedFoundryId: '',
-      deployments: [],
       foundriesFetchedAt: expect.any(String),
-      deploymentsFetchedAt: '',
     });
     expect(saved.foundriesFetchedAt).not.toBe(savedAt);
-    expect(readdirSync(modelsDir)).toEqual([]);
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
     // 再読み込み・再起動後は、同じ表示にし、取得も再保存もしない。
     const text = readFileSync(stateFile, 'utf8');
     const modified = statSync(stateFile).mtimeMs;

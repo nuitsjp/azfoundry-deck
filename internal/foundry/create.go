@@ -118,7 +118,7 @@ func (s *Service) createDeployment(ctx context.Context, file string, spec Deploy
 	if strings.TrimSpace(spec.ModelName) == "" {
 		return InitialFoundryView{}, fmt.Errorf("model name cannot be empty")
 	}
-	view, err := read(file)
+	view, err := s.readView(file)
 	if err != nil {
 		return InitialFoundryView{}, err
 	}

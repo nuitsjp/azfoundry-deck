@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type IsolatedApp } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 
 const foundries = [
   {
@@ -19,20 +18,13 @@ const foundries = [
   },
 ];
 
-const models = [
-  ['chat-production', 'gpt-4.1', '2025-04-14'],
-  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
-  ['embeddings', 'text-embedding-3-large', '1'],
-];
-
 const savedAt = '2001-02-03T13:05:06+09:00';
-const deployments = (foundry: { id: string }, modelList: string[][]) =>
-  modelList.map(([deploymentName, modelName, version]) => ({
-    id: `${foundry.id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
+  foundries,
+  selectedFoundryId: foundries[0].id,
+  foundriesFetchedAt: savedAt,
+};
 
 function seed(app: IsolatedApp) {
   writeFileSync(
@@ -58,28 +50,10 @@ function seed(app: IsolatedApp) {
       .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
       .digest('hex'),
   );
-  mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-  const productionDeployments = deployments(foundries[0], models);
-
-  const original: InitialFoundryView = {
-    foundries,
-    selectedFoundryId: foundries[0].id,
-    deployments: productionDeployments,
-    foundriesFetchedAt: savedAt,
-    deploymentsFetchedAt: savedAt,
-  };
+  mkdirSync(viewDir, { recursive: true });
   const stateFile = join(viewDir, 'foundry-state.json');
-  const productionModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`,
-  );
   writeFileSync(stateFile, JSON.stringify(original));
-  writeFileSync(
-    productionModelFile,
-    JSON.stringify({ fetchedAt: savedAt, deployments: productionDeployments }),
-  );
-  return { viewDir, stateFile, productionModelFile };
+  return { viewDir, stateFile };
 }
 
 test.describe('デプロイモデルを追加する', () => {
@@ -188,24 +162,13 @@ test.describe('デプロイモデルを追加する', () => {
       await modal.getByRole('button', { name: 'Cancel' }).click();
       await expect(modal).not.toBeVisible();
 
-      // 5. 状態ファイルとモデルファイルに新しいデプロイが保存されていること
-      const stateContent = JSON.parse(readFileSync(files.stateFile, 'utf8')) as InitialFoundryView;
-      expect(stateContent.deployments).toHaveLength(4);
-      expect(stateContent.deployments.some((d) => d.deploymentName === 'gpt-4o-new')).toBe(true);
+      // 5. デプロイ一覧は保存されず、状態ファイルの内容が変わらないこと
+      expect(JSON.parse(readFileSync(files.stateFile, 'utf8'))).toEqual(original);
+      expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
 
-      const productionModelContent = JSON.parse(
-        readFileSync(files.productionModelFile, 'utf8'),
-      ) as {
-        deployments: { deploymentName: string }[];
-      };
-      expect(productionModelContent.deployments).toHaveLength(4);
-      expect(
-        productionModelContent.deployments.some((d) => d.deploymentName === 'gpt-4o-new'),
-      ).toBe(true);
-
-      // 6. 再起動後も追加後の4件を表示すること
-      await app.restart();
-      await page.goto(app.url);
+      // 6. 画面を再読み込みすると Azure から取得し直した追加後の4件を表示すること
+      //    （E2E の固定応答は作成済みのデプロイをプロセス内で覚えている）
+      await page.reload();
       await expect(rows).toHaveCount(4);
       await expect(rows.filter({ hasText: 'gpt-4o-new' })).toHaveCount(1);
     });

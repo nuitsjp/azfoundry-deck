@@ -6,14 +6,13 @@ import {
   Loader,
   Stack,
   Table,
-  Text,
   Title,
   Tooltip,
 } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { getDeploymentDetail } from '../../features/foundry/deployment-detail';
-import type { Deployment, DeploymentDetail } from '../../features/foundry/models';
+import { getCapacityMaximum } from '../../features/foundry/capacity-maximum';
+import type { Deployment } from '../../features/foundry/models';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 
 function EditIcon() {
@@ -56,34 +55,22 @@ function capacityValue(value: number | null | undefined) {
   return value?.toLocaleString('en-US') ?? 'Not set';
 }
 
-function fetchedAt(value: string) {
-  const time = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
-}
-
 export function DeploymentDetails({
   deployments,
   busy,
-  refreshToken = 0,
   onDelete,
   onEdit,
 }: {
   deployments: Deployment[];
   busy: boolean;
-  refreshToken?: number;
   onDelete: (deployment: Deployment) => void;
   onEdit: (deployment: Deployment) => void;
 }) {
   const [selectedID, setSelectedID] = useState<string | null>(null);
-  const [detail, setDetail] = useState<DeploymentDetail | null>(null);
+  const [maximum, setMaximum] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<unknown>(null);
   const request = useRef(0);
   const mounted = useRef(true);
-  const selectedIDRef = useRef<string | null>(null);
-  const fetchDetailRef = useRef<{
-    mutate: (variables: { id: string; sequence: number }) => void;
-  } | null>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -91,38 +78,29 @@ export function DeploymentDetails({
       request.current += 1;
     };
   }, []);
-  const fetchDetail = useMutation({
+  // The details come from the listed deployment; only the capacity maximum is fetched.
+  const fetchMaximum = useMutation({
+    // The key also keeps the tenant selector disabled while the maximum is fetched.
     mutationKey: ['foundry', 'deployment-detail'],
     gcTime: 0,
     retry: false,
     mutationFn: async ({ id, sequence }: { id: string; sequence: number }) => {
       try {
-        const result = await getDeploymentDetail(id);
-        if (mounted.current && request.current === sequence) setDetail(result);
+        const result = await getCapacityMaximum(id);
+        if (mounted.current && request.current === sequence) setMaximum(result);
       } catch (failure) {
         if (mounted.current && request.current === sequence) setError(failure);
       }
     },
   });
-  fetchDetailRef.current = fetchDetail;
-
-  useEffect(() => {
-    if (!refreshToken) return;
-    const id = selectedIDRef.current;
-    if (!id) return;
-    setSelectedID(id);
-    setDetail(null);
-    setError(null);
-    fetchDetailRef.current?.mutate({ id, sequence: ++request.current });
-  }, [refreshToken]);
+  const detail = deployments.find((deployment) => deployment.id === selectedID) ?? null;
 
   function selectDeployment(id: string) {
-    if (busy || fetchDetail.isPending) return;
-    selectedIDRef.current = id;
+    if (busy || fetchMaximum.isPending) return;
     setSelectedID(id);
-    setDetail(null);
+    setMaximum(undefined);
     setError(null);
-    fetchDetail.mutate({ id, sequence: ++request.current });
+    fetchMaximum.mutate({ id, sequence: ++request.current });
   }
 
   return (
@@ -145,7 +123,7 @@ export function DeploymentDetails({
                 <Table.Tr
                   key={deployment.id}
                   className={`deployment-row${selectedID === deployment.id ? ' deployment-selected' : ''}`}
-                  aria-disabled={busy || fetchDetail.isPending}
+                  aria-disabled={busy || fetchMaximum.isPending}
                   onClick={() => selectDeployment(deployment.id)}
                 >
                   <Table.Td>
@@ -153,7 +131,7 @@ export function DeploymentDetails({
                       type="button"
                       className="deployment-select"
                       aria-pressed={selectedID === deployment.id}
-                      disabled={busy || fetchDetail.isPending}
+                      disabled={busy || fetchMaximum.isPending}
                       onClick={(event) => {
                         event.stopPropagation();
                         selectDeployment(deployment.id);
@@ -173,29 +151,12 @@ export function DeploymentDetails({
       <section
         className="deployment-detail-pane"
         aria-label="Details"
-        aria-busy={fetchDetail.isPending}
+        aria-busy={fetchMaximum.isPending}
       >
         <header className="deployment-pane-heading">
           <Title order={5}>Details</Title>
         </header>
-        {fetchDetail.isPending ? (
-          <Group className="deployment-detail-content" role="status">
-            <Loader size="sm" />
-            <Text size="sm">Loading...</Text>
-          </Group>
-        ) : error ? (
-          <Stack className="deployment-detail-content" align="flex-start">
-            <ErrorNotice error={error} />
-            <Button
-              variant="default"
-              size="xs"
-              disabled={busy}
-              onClick={() => selectDeployment(selectedID!)}
-            >
-              Retry
-            </Button>
-          </Stack>
-        ) : detail ? (
+        {detail ? (
           <>
             <Group
               className="deployment-detail-title"
@@ -219,11 +180,8 @@ export function DeploymentDetails({
                   variant="default"
                   size={32}
                   aria-label="Edit deployment"
-                  disabled={busy}
-                  onClick={() => {
-                    const target = deployments.find((deployment) => deployment.id === detail.id);
-                    if (target) onEdit(target);
-                  }}
+                  disabled={busy || fetchMaximum.isPending}
+                  onClick={() => onEdit(detail)}
                 >
                   <EditIcon />
                 </ActionIcon>
@@ -238,9 +196,35 @@ export function DeploymentDetails({
               <dd>{detail.skuName ?? 'Not set'}</dd>
               <dt>Capacity</dt>
               <dd>
-                {capacityValue(detail.capacity)} / {capacityValue(detail.capacityMaximum)}
+                {capacityValue(detail.capacity)} /{' '}
+                {fetchMaximum.isPending ? (
+                  <Group component="span" gap={6} role="status" display="inline-flex">
+                    <Loader size="xs" />
+                    <span>Loading...</span>
+                  </Group>
+                ) : (
+                  capacityValue(maximum)
+                )}
                 {detail.capacityUnit ? ` ${detail.capacityUnit}` : ''}
               </dd>
+              {error ? (
+                <>
+                  <dt aria-hidden="true" />
+                  <dd>
+                    <Stack gap={6} align="flex-start">
+                      <ErrorNotice error={error} />
+                      <Button
+                        variant="default"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() => selectDeployment(detail.id)}
+                      >
+                        Retry
+                      </Button>
+                    </Stack>
+                  </dd>
+                </>
+              ) : null}
               <dt>Provisioning state</dt>
               <dd>{detail.provisioningState ?? 'Not set'}</dd>
               <dt>Upgrade policy</dt>
@@ -258,19 +242,13 @@ export function DeploymentDetails({
                   variant="subtle"
                   size={32}
                   aria-label="Delete deployment"
-                  disabled={busy}
-                  onClick={() => {
-                    const target = deployments.find((deployment) => deployment.id === detail.id);
-                    if (target) onDelete(target);
-                  }}
+                  disabled={busy || fetchMaximum.isPending}
+                  onClick={() => onDelete(detail)}
                 >
                   <TrashIcon />
                 </ActionIcon>
               </Tooltip>
             </div>
-            <footer className="deployment-detail-footer">
-              Last fetched {fetchedAt(detail.fetchedAt)}
-            </footer>
           </>
         ) : null}
       </section>

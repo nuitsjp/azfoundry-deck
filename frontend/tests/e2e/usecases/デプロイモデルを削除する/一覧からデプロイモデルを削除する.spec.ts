@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type IsolatedApp } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 
 const foundries = [
   {
@@ -18,22 +17,13 @@ const foundries = [
     resourceGroupName: 'rg-ai-development',
   },
 ];
-const models = [
-  ['chat-production', 'gpt-4.1', '2025-04-14'],
-  ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
-  ['embeddings', 'text-embedding-3-large', '1'],
-];
-const developmentModels = [
-  ['saved-development-chat', 'saved-development-model', 'saved-version-3'],
-];
 const savedAt = '2001-02-03T13:05:06+09:00';
-const deployments = (foundry: { id: string }, modelList: string[][]) =>
-  modelList.map(([deploymentName, modelName, version]) => ({
-    id: `${foundry.id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
+  foundries,
+  selectedFoundryId: foundries[0].id,
+  foundriesFetchedAt: savedAt,
+};
 
 function seed(app: IsolatedApp) {
   writeFileSync(
@@ -59,53 +49,20 @@ function seed(app: IsolatedApp) {
       .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
       .digest('hex'),
   );
-  mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-  const productionDeployments = deployments(foundries[0], models);
-  const developmentDeployments = deployments(foundries[1], developmentModels);
-
-  const original: InitialFoundryView = {
-    foundries,
-    selectedFoundryId: foundries[0].id,
-    deployments: productionDeployments,
-    foundriesFetchedAt: savedAt,
-    deploymentsFetchedAt: savedAt,
-  };
+  mkdirSync(viewDir, { recursive: true });
   const stateFile = join(viewDir, 'foundry-state.json');
-  const productionModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`,
-  );
-  const developmentModelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[1].id).digest('hex')}.json`,
-  );
   writeFileSync(stateFile, JSON.stringify(original));
-  writeFileSync(
-    productionModelFile,
-    JSON.stringify({ fetchedAt: savedAt, deployments: productionDeployments }),
-  );
-  writeFileSync(
-    developmentModelFile,
-    JSON.stringify({ fetchedAt: savedAt, deployments: developmentDeployments }),
-  );
-  return { viewDir, stateFile, productionModelFile, developmentModelFile };
+  return { viewDir, stateFile };
 }
 
 test.describe('デプロイモデルを削除する', () => {
   test('一覧からデプロイモデルを削除する', async ({ page, app }) => {
     let files: ReturnType<typeof seed>;
-    let developmentFileBefore: { text: string; mtimeMs: number };
     const rows = page.locator('table[aria-label="Deployments"] tbody tr');
     const details = page.getByRole('region', { name: 'Details', exact: true });
 
     await test.step('開始条件', async () => {
       files = seed(app);
-      developmentFileBefore = {
-        text: readFileSync(files.developmentModelFile, 'utf8'),
-        mtimeMs: statSync(files.developmentModelFile).mtimeMs,
-      };
       await app.restart();
       await page.goto(app.url);
       await expect(rows).toHaveCount(3);
@@ -155,29 +112,12 @@ test.describe('デプロイモデルを削除する', () => {
       // 1. 表示中だった明細が破棄されていること
       await expect(details.getByRole('heading', { level: 3, name: 'chat-mini' })).not.toBeVisible();
 
-      // 2. 状態ファイルとモデルファイルが更新され、chat-mini が含まれていないこと
-      const stateContent = JSON.parse(readFileSync(files.stateFile, 'utf8')) as InitialFoundryView;
-      expect(stateContent.deployments).toHaveLength(2);
-      expect(stateContent.deployments.map((d) => d.deploymentName)).toEqual([
-        'chat-production',
-        'embeddings',
-      ]);
-      const productionModelContent = JSON.parse(
-        readFileSync(files.productionModelFile, 'utf8'),
-      ) as {
-        deployments: { deploymentName: string }[];
-      };
-      expect(productionModelContent.deployments).toHaveLength(2);
-      expect(productionModelContent.deployments.map((d) => d.deploymentName)).toEqual([
-        'chat-production',
-        'embeddings',
-      ]);
+      // 2. デプロイ一覧は保存されず、状態ファイルの内容が変わらないこと
+      expect(JSON.parse(readFileSync(files.stateFile, 'utf8'))).toEqual(original);
+      expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
 
-      // 3. ほかの Foundry のモデルファイルは変更されていないこと
-      expect(readFileSync(files.developmentModelFile, 'utf8')).toBe(developmentFileBefore.text);
-      expect(statSync(files.developmentModelFile).mtimeMs).toBe(developmentFileBefore.mtimeMs);
-
-      // 4. ページを再読み込みしても削除後の2件を表示すること
+      // 3. ページを再読み込みすると Azure から取得し直した削除後の2件を表示すること
+      //    （E2E の固定応答は削除済みのデプロイをプロセス内で覚えている）
       await page.reload();
       await expect(rows).toHaveCount(2);
       await expect(rows.nth(0)).toContainText('chat-production');

@@ -31,9 +31,8 @@ type DeploymentUpdateSpec struct {
 	UpgradePolicy string `json:"upgradePolicy"`
 }
 
-// DeploymentUpdateSource loads and changes one deployment at the external boundary.
+// DeploymentUpdateSource changes one deployment at the external boundary.
 type DeploymentUpdateSource interface {
-	DeploymentSettings(context.Context, Foundry, Deployment) (DeploymentSettings, error)
 	UpdateDeployment(context.Context, Foundry, Deployment, DeploymentUpdateSpec) error
 }
 
@@ -59,20 +58,43 @@ func (s *Service) GetDeploymentSettings(ctx context.Context, deploymentID string
 	return settings, nil
 }
 
+// deploymentSettings builds the settings from the listed deployment and the
+// capacity limits. The shared quota is fetched again so the maximum is current.
 func (s *Service) deploymentSettings(ctx context.Context, file, deploymentID string) (DeploymentSettings, error) {
 	foundry, deployment, source, err := s.selectedDeployment(file, deploymentID)
 	if err != nil {
 		return DeploymentSettings{}, err
 	}
-	updateSource, ok := source.(DeploymentUpdateSource)
-	if !ok {
-		return DeploymentSettings{}, fmt.Errorf("deployment update is not connected to Azure yet")
+	limits, fetched, err := s.capacityLimits(ctx, file, foundry, source)
+	if err != nil {
+		return DeploymentSettings{}, err
 	}
-	return updateSource.DeploymentSettings(ctx, foundry, deployment)
+	if !fetched {
+		if limits, err = limits.RefreshQuota(ctx); err != nil {
+			return DeploymentSettings{}, err
+		}
+		s.limits.value = limits
+	}
+	settings := DeploymentSettings{
+		DeploymentID: deployment.ID, DeploymentName: deployment.DeploymentName, ModelName: deployment.ModelName,
+		Option: "Pay-as-you-go", Version: deployment.Version, Versions: limits.Versions(deployment),
+	}
+	if deployment.SKUName != nil {
+		settings.SKUName = *deployment.SKUName
+	}
+	if deployment.VersionUpgradePolicy != nil {
+		settings.UpgradePolicy = *deployment.VersionUpgradePolicy
+	}
+	if deployment.CapacityUnit != nil && *deployment.CapacityUnit != "" {
+		settings.Option = "Standard"
+		settings.Capacity, settings.CapacityUnit = deployment.Capacity, deployment.CapacityUnit
+		settings.CapacityMaximum = limits.Maximum(deployment)
+	}
+	return settings, nil
 }
 
 // UpdateDeployment changes one deployment of the selected Foundry, then re-fetches
-// that Foundry's models and replaces the saved files and the view.
+// that Foundry's models and replaces the in-memory deployments and the view.
 func (s *Service) UpdateDeployment(ctx context.Context, spec DeploymentUpdateSpec) (InitialFoundryView, error) {
 	s.operations.Lock()
 	defer s.operations.Unlock()
@@ -114,7 +136,7 @@ func (s *Service) updateDeployment(ctx context.Context, file string, spec Deploy
 }
 
 func (s *Service) selectedDeployment(file, deploymentID string) (Foundry, Deployment, Source, error) {
-	view, err := read(file)
+	view, err := s.readView(file)
 	if err != nil {
 		return Foundry{}, Deployment{}, nil, err
 	}

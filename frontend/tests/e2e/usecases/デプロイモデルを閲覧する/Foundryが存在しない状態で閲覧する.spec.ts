@@ -15,7 +15,7 @@ test.use({
   },
 });
 
-test('Foundryが存在しない状態で初回閲覧する', async ({ page, app }) => {
+test('Foundryが存在しない状態で閲覧する', async ({ page, app }) => {
   const viewDir = join(
     app.dataDir,
     'azure-views',
@@ -101,14 +101,12 @@ test('Foundryが存在しない状態で初回閲覧する', async ({ page, app 
   });
 
   await test.step('受け入れ条件', async () => {
-    // 0件の結果を、空の一覧と取得日時だけで保存する。モデルファイルは作らない。
+    // 0件の結果を、空の一覧と取得日時だけで保存する。デプロイ一覧もモデルファイルも作らない。
     const saved = JSON.parse(readFileSync(savedFile, 'utf8'));
     expect(saved).toEqual({
       foundries: [],
       selectedFoundryId: '',
-      deployments: [],
       foundriesFetchedAt: expect.any(String),
-      deploymentsFetchedAt: '',
     });
     expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
     // 再読み込み・再起動後は、保存済みの状態から同じ表示にし、取得も再保存もしない。

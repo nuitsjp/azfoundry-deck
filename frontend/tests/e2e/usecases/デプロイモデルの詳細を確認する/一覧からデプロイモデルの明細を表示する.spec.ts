@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type IsolatedApp } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 
 const foundries = [
   {
@@ -33,6 +32,8 @@ const identity = (path: string) => ({
   mtimeMs: statSync(path).mtimeMs,
 });
 
+// The saved file holds only the Foundry list and the selection. The deployments are fetched on
+// startup, so the models gate is released up front.
 function seed(app: IsolatedApp) {
   writeFileSync(
     join(app.dataDir, 'e2e-authentication-record.json'),
@@ -57,32 +58,21 @@ function seed(app: IsolatedApp) {
       .update(JSON.stringify(['e2e-object.e2e-tenant', 'e2e-azure-tenant']))
       .digest('hex'),
   );
-  mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
-  const deployments = models.map(([deploymentName, modelName, version]) => ({
-    id: `${foundries[0].id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
-  const original: InitialFoundryView = {
-    foundries,
-    selectedFoundryId: foundries[0].id,
-    deployments,
-    foundriesFetchedAt: savedAt,
-    deploymentsFetchedAt: savedAt,
-  };
+  mkdirSync(viewDir, { recursive: true });
   const stateFile = join(viewDir, 'foundry-state.json');
-  const modelFile = join(
-    viewDir,
-    'foundry-models',
-    `${createHash('sha256').update(foundries[0].id).digest('hex')}.json`,
+  writeFileSync(
+    stateFile,
+    JSON.stringify({
+      foundries,
+      selectedFoundryId: foundries[0].id,
+      foundriesFetchedAt: savedAt,
+    }),
   );
-  writeFileSync(stateFile, JSON.stringify(original));
-  writeFileSync(modelFile, JSON.stringify({ fetchedAt: savedAt, deployments }));
-  return [stateFile, modelFile];
+  writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+  return { viewDir, stateFile };
 }
 
-test.describe('明細取得成功', () => {
+test.describe('明細表示', () => {
   test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
 
   test('一覧からデプロイモデルの明細を表示する', async ({ page, app }) => {
@@ -91,80 +81,70 @@ test.describe('明細取得成功', () => {
     const selected = page.getByRole('button', { name: 'Foundry', exact: true });
     const refresh = page.getByRole('button', { name: 'Refresh models', exact: true });
     const release = join(app.dataDir, 'e2e-foundry-detail-release');
-    let detailRequests = 0;
+    const calls: string[] = [];
     page.on('request', (request) => {
       if (request.method() !== 'POST' || !request.url().includes('/wails/runtime')) return;
       const body = request.postDataJSON() as { args?: { methodName?: string } };
-      if (body.args?.methodName === 'azfoundrydeck/internal/foundry.Service.GetDeploymentDetail')
-        detailRequests += 1;
+      const method = body.args?.methodName ?? '';
+      if (method.startsWith('azfoundrydeck/internal/foundry.Service.'))
+        calls.push(method.slice(method.lastIndexOf('.') + 1));
     });
-    let paths: string[];
-    let originalFiles: ReturnType<typeof identity>[];
+    let files: ReturnType<typeof seed>;
+    let original: ReturnType<typeof identity>;
     const checkRows = async () => {
       await expect(rows).toHaveCount(3);
       for (const [index, model] of models.entries())
         await expect(rows.nth(index).locator('td')).toHaveText(model);
     };
-    const checkDetail = async (name: string, capacity: string, policy: string) => {
+    const checkDetail = async (name: string, capacity: string | RegExp, policy: string) => {
+      const model = models.find((item) => item[0] === name)!;
       await expect(details.getByRole('heading', { name, exact: true })).toBeVisible();
       await expect(details.locator('dd')).toHaveText([
-        models.find((model) => model[0] === name)![1],
-        models.find((model) => model[0] === name)![2],
+        model[1],
+        model[2],
         name === 'embeddings' ? 'Standard' : 'GlobalStandard',
         capacity,
         'Succeeded',
         policy,
       ]);
-      await expect(details.locator('footer')).toHaveText(
-        /^Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/,
-      );
     };
 
     await test.step('開始条件', async () => {
-      paths = seed(app);
-      originalFiles = paths.map(identity);
+      files = seed(app);
       await app.restart();
       await page.goto(app.url);
       await expect(selected).toHaveText(label(0));
       await checkRows();
+      await expect(
+        page.getByText(/^3 · Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),
+      ).toBeVisible();
       await expect(details).toHaveText('Details');
       await expect(rows.locator('button[aria-pressed="true"]')).toHaveCount(0);
+      original = identity(files.stateFile);
+      calls.length = 0;
     });
 
     await test.step('手順1', async () => {
-      // Selecting the Model cell exercises the row outside the name button.
+      // Selecting the Model cell exercises the row outside the name button. The capacity maximum
+      // is held, yet everything else is already displayed from the fetched list.
       await rows.nth(0).locator('td').nth(1).click();
-      await expect(details.getByRole('status')).toHaveText('Loading...');
-      await expect(details).toHaveAttribute('aria-busy', 'true');
+      await checkDetail(
+        'chat-production',
+        /^50,000 \/ Loading\.\.\. TPM$/,
+        'Upgrade to new default',
+      );
       await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
-      for (const button of await rows.getByRole('button').all())
-        await expect(button).toBeDisabled();
-      await expect(selected).toBeDisabled();
-      await expect(refresh).toBeDisabled();
-      await expect(page.getByRole('button', { name: 'Refresh Foundries' })).toBeDisabled();
-      await expect(page.getByRole('button', { name: 'テナント', exact: true })).toBeDisabled();
-      // A click in another row is ignored while the first request is pending.
-      await rows.nth(1).locator('td').nth(2).click();
-      expect(detailRequests).toBe(1);
-      expect(paths.map(identity)).toEqual(originalFiles);
-    });
-
-    await test.step('手順2', async () => {
-      writeFileSync(release, '');
-      await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
       await expect(selected).toHaveText(label(0));
       await checkRows();
+      expect(calls).toEqual(['GetCapacityMaximum']);
+      expect(identity(files.stateFile)).toEqual(original);
+      writeFileSync(release, '');
+      await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
       await expect(refresh).toBeEnabled();
     });
 
-    await test.step('手順3', async () => {
-      // Hold the same-row refetch to prove old contents disappear before completion.
-      unlinkSync(release);
+    await test.step('手順2', async () => {
       await rows.nth(0).locator('td').nth(2).click();
-      await expect(details.getByRole('status')).toHaveText('Loading...');
-      await expect(details.locator('dd')).toHaveCount(0);
-      expect(detailRequests).toBe(2);
-      writeFileSync(release, '');
       await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
       // Click whitespace at the right edge of a row.
       const box = await rows.nth(1).boundingBox();
@@ -176,11 +156,21 @@ test.describe('明細取得成功', () => {
       await rows.nth(0).getByRole('button').focus();
       await page.keyboard.press('Space');
       await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
-      expect(detailRequests).toBe(5);
+      // Showing details never fetches the list again.
+      expect(new Set(calls)).toEqual(new Set(['GetCapacityMaximum']));
     });
 
     await test.step('受け入れ条件', async () => {
-      expect(paths.map(identity)).toEqual(originalFiles);
+      expect(identity(files.stateFile)).toEqual(original);
+      const state = JSON.parse(readFileSync(files.stateFile, 'utf8')) as Record<string, unknown>;
+      expect(Object.keys(state).sort()).toEqual([
+        'foundries',
+        'foundriesFetchedAt',
+        'selectedFoundryId',
+      ]);
+      expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
+      await expect(details.getByText('Last fetched')).toHaveCount(0);
+      await expect(details.locator('footer')).toHaveCount(0);
       const left = await page.locator('.deployment-list-pane').boundingBox();
       const right = await details.boundingBox();
       expect(Math.abs(left!.width - right!.width)).toBeLessThanOrEqual(1);
@@ -193,27 +183,34 @@ test.describe('明細取得成功', () => {
         'Provisioning state',
         'Upgrade policy',
       ]);
-      writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+      // A refresh discards the selection and the displayed details.
       await refresh.click();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(details).toHaveText('Details');
       await expect(rows.locator('button[aria-pressed="true"]')).toHaveCount(0);
       await rows.nth(0).click();
       await checkDetail('chat-production', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      // Changing the Foundry discards them too.
       await selected.click();
       await page.getByRole('option', { name: label(1), exact: true }).click();
       await expect(selected).toHaveText(label(1));
       await expect(details).toHaveText('Details');
       await expect(rows.locator('button[aria-pressed="true"]')).toHaveCount(0);
-      await app.restart();
-      await page.goto(app.url);
-      await expect(selected).toHaveText(label(1));
-      await expect(details).toHaveText('Details');
-      expect(detailRequests).toBe(6);
       await rows.nth(0).click();
       await expect(
         details.getByRole('heading', { name: 'development-chat', exact: true }),
       ).toBeVisible();
+      // So does the restart.
+      await app.restart();
+      await page.goto(app.url);
+      await expect(selected).toHaveText(label(1));
+      await expect(rows).toHaveCount(3);
+      await expect(details).toHaveText('Details');
+      await rows.nth(0).click();
+      await expect(
+        details.getByRole('heading', { name: 'development-chat', exact: true }),
+      ).toBeVisible();
+      // Changing the tenant discards them. Its Foundry list is discovered first.
       writeFileSync(join(app.dataDir, 'e2e-foundry-discovery-release'), '');
       const tenant = page.getByRole('button', { name: 'テナント', exact: true });
       await tenant.click();
@@ -225,41 +222,7 @@ test.describe('明細取得成功', () => {
       await expect(details).toHaveText('Details');
       await expect(rows.locator('button[aria-pressed="true"]')).toHaveCount(0);
       await expect(refresh).toBeEnabled();
-      expect(detailRequests).toBe(7);
+      unlinkSync(release);
     });
-  });
-});
-
-test.describe('明細取得失敗', () => {
-  test.use({ serverEnv: { AZFOUNDRYDECK_E2E_FAIL: 'detail' } });
-
-  test('取得失敗時も一覧を維持して再試行する', async ({ page, app }) => {
-    const paths = seed(app);
-    const originalFiles = paths.map(identity);
-    await app.restart();
-    await page.goto(app.url);
-    const rows = page.locator('table[aria-label="Deployments"] tbody tr');
-    const details = page.getByRole('region', { name: 'Details', exact: true });
-    let requests = 0;
-    page.on('request', (request) => {
-      if (request.method() !== 'POST' || !request.url().includes('/wails/runtime')) return;
-      const body = request.postDataJSON() as { args?: { methodName?: string } };
-      if (body.args?.methodName === 'azfoundrydeck/internal/foundry.Service.GetDeploymentDetail')
-        requests += 1;
-    });
-    await expect(rows).toHaveCount(3);
-    await rows.nth(0).click();
-    await expect(details).toContainText('DEPLOYMENT_DETAIL_FAILED');
-    await expect(details).toContainText(
-      'Could not retrieve deployment details from the source or read the current Foundry selection.',
-    );
-    await expect(details.locator('dd')).toHaveCount(0);
-    for (const [index, model] of models.entries())
-      await expect(rows.nth(index).locator('td')).toHaveText(model);
-    await details.getByRole('button', { name: 'Retry', exact: true }).click();
-    await expect(details).toContainText('DEPLOYMENT_DETAIL_FAILED');
-    await expect.poll(() => requests).toBe(2);
-    await expect(details.getByRole('button', { name: 'Retry' })).toBeEnabled();
-    expect(paths.map(identity)).toEqual(originalFiles);
   });
 });

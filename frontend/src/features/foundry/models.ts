@@ -1,7 +1,6 @@
 import type {
   Foundry,
   Deployment,
-  DeploymentDetail,
   ModelCatalogItem,
   ModelSKUItem,
   DeploymentCreateSpec,
@@ -13,7 +12,6 @@ import type {
 export type {
   Foundry,
   Deployment,
-  DeploymentDetail,
   ModelCatalogItem,
   ModelSKUItem,
   DeploymentCreateSpec,

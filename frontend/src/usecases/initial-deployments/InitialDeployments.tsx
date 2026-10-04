@@ -65,7 +65,6 @@ export function InitialDeployments() {
   const [refreshProgress, setRefreshProgress] = useState<FoundryProgress | null>(null);
   const [modelsProgress, setModelsProgress] = useState<FoundryProgress | null>(null);
   const [detailRevision, setDetailRevision] = useState(0);
-  const [detailRefresh, setDetailRefresh] = useState(0);
   const [editTarget, setEditTarget] = useState<Deployment | null>(null);
   const [updating, setUpdating] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<FoundryProgress | null>(null);
@@ -124,7 +123,6 @@ export function InitialDeployments() {
       setEditTarget(null);
       setUpdateError(null);
       client.setQueryData(['foundry', 'initial-view'], view);
-      setDetailRefresh((value) => value + 1);
     },
     onError: (err) => setUpdateError(err),
     onSettled: () => {
@@ -321,8 +319,7 @@ export function InitialDeployments() {
                 rightSection={<Combobox.Chevron />}
                 rightSectionPointerEvents="none"
                 onClick={() => combobox.toggleDropdown()}
-                w="100%"
-                maw={520}
+                style={{ flex: 1, minWidth: 0 }}
                 styles={{ input: { textAlign: 'left' } }}
               >
                 <Tooltip label={label} disabled={combobox.dropdownOpened} multiline maw={600}>
@@ -413,7 +410,6 @@ export function InitialDeployments() {
             key={`${view.selectedFoundryId}:${detailRevision}`}
             deployments={view.deployments}
             busy={busy}
-            refreshToken={detailRefresh}
             onDelete={setDeleteTarget}
             onEdit={setEditTarget}
           />

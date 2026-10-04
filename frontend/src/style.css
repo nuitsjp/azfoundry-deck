@@ -1,11 +1,27 @@
 body {
   margin: 0;
 }
-button,
-a,
-input,
-textarea {
-  -webkit-app-region: no-drag;
+.app-shell {
+  --wails-draggable: drag;
+}
+.no-drag,
+.app-shell :is(button, a, input, textarea, select, table, [role='combobox']),
+.deployment-workspace {
+  --wails-draggable: no-drag;
+}
+.window-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 48px;
+}
+.window-controls button:hover {
+  background: var(--mantine-color-default-hover);
+}
+.window-controls .window-close:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 .deployment-workspace {

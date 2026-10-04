@@ -137,7 +137,7 @@ export function LoginModal() {
         <TenantSelection account={status.data.account} />
       ) : (
         <Stack align="center" gap="lg" py="md">
-          <Title order={3}>AzFoundryDeck</Title>
+          <Title order={3}>Azure Foundry Deck</Title>
           {waiting ? (
             <Group gap="sm" role="status">
               <Loader size="sm" />

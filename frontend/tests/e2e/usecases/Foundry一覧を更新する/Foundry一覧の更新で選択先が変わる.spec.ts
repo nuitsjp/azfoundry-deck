@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
-import type { InitialFoundryView } from '../../../../src/features/foundry/models';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
 
 const production = {
@@ -32,30 +31,18 @@ const legacy = {
 };
 const savedFoundries = [production, development, legacy];
 const refreshedFoundries = [production, development, research];
-const savedModels = [
-  ['saved-production-chat', 'saved-production-model', 'saved-version-1'],
-  ['saved-production-embedding', 'saved-embedding-model', 'saved-version-2'],
-];
-const legacyModels = [['legacy-chat', 'legacy-model', 'legacy-version']];
+// The e2e fixed source returns these for Production and, by default, for any other Foundry.
 const fetchedModels = [
   ['chat-production', 'gpt-4.1', '2025-04-14'],
   ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
-const deployments = (foundry: { id: string }, models: string[][]) =>
-  models.map(([deploymentName, modelName, version]) => ({
-    id: `${foundry.id}/deployments/${deploymentName}`,
-    deploymentName,
-    modelName,
-    version,
-  }));
 const savedAt = '2001-02-03T13:05:06+09:00';
-const original: InitialFoundryView = {
+// The state file holds only the Foundry list, the selection and the list's fetch time.
+const original = {
   foundries: savedFoundries,
   selectedFoundryId: legacy.id,
-  deployments: deployments(legacy, legacyModels),
   foundriesFetchedAt: savedAt,
-  deploymentsFetchedAt: savedAt,
 };
 const label = (foundry: typeof production) =>
   `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`;
@@ -78,18 +65,9 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
       .digest('hex'),
   );
   const stateFile = join(viewDir, 'foundry-state.json');
-  const modelFile = (foundry: { id: string }) =>
-    join(
-      viewDir,
-      'foundry-models',
-      `${createHash('sha256').update(foundry.id).digest('hex')}.json`,
-    );
-  const savedModelFile = (models: string[][], foundry: { id: string }) =>
-    JSON.stringify({ fetchedAt: savedAt, deployments: deployments(foundry, models) }, null, 2) +
-    '\n';
-  const productionText = savedModelFile(savedModels, production);
   const release = (stage: string) =>
     writeFileSync(join(app.dataDir, `e2e-foundry-${stage}-release`), '');
+  const hold = (stage: string) => rmSync(join(app.dataDir, `e2e-foundry-${stage}-release`));
   const snapshots: FoundryProgress[] = [];
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -114,7 +92,7 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
       await expect(modelRows.nth(index).locator('td')).toHaveText(model);
     }
   };
-  const readState = () => JSON.parse(readFileSync(stateFile, 'utf8')) as InitialFoundryView;
+  const readState = () => JSON.parse(readFileSync(stateFile, 'utf8'));
 
   await test.step('分岐条件', async () => {
     writeFileSync(
@@ -130,20 +108,22 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
         selectedTenantId: 'e2e-azure-tenant',
       }),
     );
-    mkdirSync(join(viewDir, 'foundry-models'), { recursive: true });
+    mkdirSync(viewDir, { recursive: true });
     writeFileSync(stateFile, JSON.stringify(original));
-    writeFileSync(modelFile(production), productionText);
-    writeFileSync(modelFile(legacy), savedModelFile(legacyModels, legacy));
     await app.restart();
     await page.goto(app.url);
     await expect(page.getByRole('banner')).toContainText('Contoso');
+    // Startup fetches the selected Foundry's deployments from Azure; release that held stage,
+    // then hold it again so the fetch after the refresh is observable.
+    release('models');
     await expect(selected).toHaveText(label(legacy));
-    await assertModels(legacyModels);
+    await assertModels(fetchedModels);
     await expect(foundriesFetched).toHaveText(`Last fetched ${displayed(savedAt)}`);
-    await expect(modelsFetched).toHaveText(`1 · Last fetched ${displayed(savedAt)}`);
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched /);
+    hold('models');
     await refresh.hover();
     await expect(page.getByRole('tooltip')).toHaveText('Refresh Foundries');
-    expect(snapshots).toEqual([]);
+    snapshots.length = 0;
   });
 
   await test.step('手順1', async () => {
@@ -163,7 +143,7 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(refresh).toBeDisabled();
     await expect(refreshModels).toBeDisabled();
     await expect(selected).toHaveText(label(legacy));
-    await assertModels(legacyModels);
+    await assertModels(fetchedModels);
     expect(readState()).toEqual(original);
   });
 
@@ -182,10 +162,8 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     const box = await dialog.boundingBox();
     expect(box && { width: box.width, height: box.height }).toEqual(dialogSize);
     await expect(selected).toHaveText(label(legacy));
-    await assertModels(legacyModels);
+    await assertModels(fetchedModels);
     expect(readState()).toEqual(original);
-    expect(readFileSync(modelFile(production), 'utf8')).toBe(productionText);
-    expect(existsSync(modelFile(legacy))).toBe(true);
     release('models');
     await expect
       .poll(() => snapshots.some((snapshot) => snapshot.modelPhase === 'completed'))
@@ -210,23 +188,14 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
       modelCount: 3,
     });
     const state = readState();
+    // Only the Foundry list, the selection and the list's fetch time are saved.
     expect(state).toEqual({
       foundries: refreshedFoundries,
       selectedFoundryId: production.id,
-      deployments: deployments(production, fetchedModels),
       foundriesFetchedAt: expect.any(String),
-      deploymentsFetchedAt: expect.any(String),
     });
     expect(state.foundriesFetchedAt).not.toBe(savedAt);
-    expect(state.deploymentsFetchedAt).not.toBe(savedAt);
-    expect(Date.parse(state.foundriesFetchedAt)).toBeLessThanOrEqual(
-      Date.parse(state.deploymentsFetchedAt),
-    );
-    expect(JSON.parse(readFileSync(modelFile(production), 'utf8'))).toEqual({
-      fetchedAt: state.deploymentsFetchedAt,
-      deployments: state.deployments,
-    });
-    expect(existsSync(modelFile(legacy))).toBe(false);
+    expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
     await expect(selected).toBeEnabled();
     await expect(refresh).toBeEnabled();
     await expect(refreshModels).toBeEnabled();
@@ -235,9 +204,7 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(foundriesFetched).toHaveText(
       `Last fetched ${displayed(state.foundriesFetchedAt)}`,
     );
-    await expect(modelsFetched).toHaveText(
-      `3 · Last fetched ${displayed(state.deploymentsFetchedAt)}`,
-    );
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   });
 
   await test.step('手順5', async () => {
@@ -268,10 +235,8 @@ test('Foundry一覧の更新で選択先が変わる', async ({ page, app }) => 
     await expect(foundriesFetched).toHaveText(
       `Last fetched ${displayed(refreshed.foundriesFetchedAt)}`,
     );
-    await expect(modelsFetched).toHaveText(
-      `3 · Last fetched ${displayed(refreshed.deploymentsFetchedAt)}`,
-    );
+    // The deployments are fetched again at startup; the Foundry list and selection are restored.
+    await expect(modelsFetched).toHaveText(/^3 · Last fetched /);
     expect(readState()).toEqual(refreshed);
-    expect(snapshots).toEqual([]);
   });
 });

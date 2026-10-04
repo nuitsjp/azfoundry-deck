@@ -15,9 +15,7 @@ import (
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
 
-	"azfoundrydeck/internal/appstate"
 	"azfoundrydeck/internal/azauth"
 	"azfoundrydeck/internal/desktop"
 	"azfoundrydeck/internal/diagnostics"
@@ -87,7 +85,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	state := &appstate.State{}
 	var app *application.App
 	var window *application.WebviewWindow
 	emit := func(name string, data any) {
@@ -95,7 +92,6 @@ func run() error {
 			app.Event.Emit(name, data)
 		}
 	}
-	controls := &desktop.Controls{Emit: emit}
 	authStore := recordStore(dir)
 	clearViews := func() error {
 		for _, name := range []string{"azure-views", "foundry-state.json", "foundry-models"} {
@@ -136,13 +132,12 @@ func run() error {
 		return filepath.Join(dir, "azure-views", fmt.Sprintf("%x", key), "foundry-state.json"), nil
 	}, logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
-	appService := desktop.New(info, state, controls, logger)
+	appService := desktop.New(info, logger)
 	options := application.Options{
 		Name: cfg.Name, Description: "Azure Foundry 管理用デスクトップアプリ", Logger: logger,
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
 		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService)},
 		MarshalError: fault.Marshal,
-		ShouldQuit:   controls.ShouldQuit,
 		Server:       application.ServerOptions{Host: "127.0.0.1", Port: port},
 		Windows:      application.WindowsOptions{WebviewUserDataPath: filepath.Join(dir, "webview")},
 	}
@@ -159,12 +154,7 @@ func run() error {
 	}
 	app = application.New(options)
 	if !serverMode {
-		window = app.Window.NewWithOptions(application.WebviewWindowOptions{Title: cfg.Name, Width: 1160, Height: 800, URL: "/"})
-		window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-			if !controls.ShouldQuit() {
-				e.Cancel()
-			}
-		})
+		window = app.Window.NewWithOptions(application.WebviewWindowOptions{Title: cfg.Name, Width: 1160, Height: 800, Frameless: true, URL: "/"})
 	}
 	return app.Run()
 }

@@ -118,16 +118,7 @@ func (s *azureSource) Deployments(ctx context.Context, foundry Foundry, report f
 			if deployment == nil || deployment.ID == nil || *deployment.ID == "" || deployment.Name == nil || *deployment.Name == "" || deployment.Properties == nil || deployment.Properties.Model == nil || deployment.Properties.Model.Name == nil || *deployment.Properties.Model.Name == "" {
 				return nil, fmt.Errorf("deployment response lacks ID, name, or model")
 			}
-			version := ""
-			if deployment.Properties.Model.Version != nil {
-				version = *deployment.Properties.Model.Version
-			}
-			deployments = append(deployments, Deployment{
-				ID:             *deployment.ID,
-				DeploymentName: *deployment.Name,
-				ModelName:      *deployment.Properties.Model.Name,
-				Version:        version,
-			})
+			deployments = append(deployments, deploymentFrom(deployment))
 		}
 		report(len(deployments))
 	}

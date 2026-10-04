@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 
@@ -32,7 +32,7 @@ const writeRecord = (dataDir: string) =>
     }),
   );
 
-test('テナントを変更し初回閲覧する', async ({ page, app }) => {
+test('テナントを変更し閲覧する', async ({ page, app }) => {
   const recordFile = join(app.dataDir, 'e2e-authentication-record.json');
   const contosoState = join(viewDirOf(app.dataDir, 'e2e-azure-tenant'), 'foundry-state.json');
   const fabrikamState = join(viewDirOf(app.dataDir, 'e2e-fabrikam-tenant'), 'foundry-state.json');
@@ -40,7 +40,7 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
   const tenantButton = header.getByRole('button', { name: 'テナント', exact: true });
   const modelRows = page.locator('table[aria-label="Deployments"] tbody tr');
   const selectedFoundry = page.locator('button[aria-label="Foundry"]');
-  const snapshots: { modelPhase: string }[] = [];
+  const snapshots: { foundryPhase: string; modelPhase: string }[] = [];
   let changeCalls = 0;
   page.on('websocket', (socket) => {
     socket.on('framereceived', ({ payload }) => {
@@ -97,7 +97,15 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
     await expect(selectedFoundry).toBeVisible();
     const saved = JSON.parse(readFileSync(fabrikamState, 'utf8'));
     expect(saved.foundries.length).toBeGreaterThan(0);
-    expect(saved.deployments).toHaveLength(3);
+    // The state file holds the Foundry list and selection only; deployments are never saved.
+    expect(Object.keys(saved).sort()).toEqual([
+      'foundries',
+      'foundriesFetchedAt',
+      'selectedFoundryId',
+    ]);
+    expect(existsSync(join(viewDirOf(app.dataDir, 'e2e-fabrikam-tenant'), 'foundry-models'))).toBe(
+      false,
+    );
     expect(readFileSync(contosoState, 'utf8')).toBe(contosoText);
   });
 
@@ -110,11 +118,46 @@ test('テナントを変更し初回閲覧する', async ({ page, app }) => {
     await expect(page.getByRole('option')).toHaveCount(0);
     expect(changeCalls).toBe(calls);
     expect(readFileSync(fabrikamState, 'utf8')).toBe(fabrikamText);
+    // 変更先に保存済みの Foundry 一覧・選択があれば、それを使い、デプロイ一覧だけを取得する。
+    const northwindState = join(
+      viewDirOf(app.dataDir, 'e2e-northwind-tenant'),
+      'foundry-state.json',
+    );
+    const northwindFoundries = ['a', 'b'].map((suffix) => ({
+      id: `/subscriptions/saved-northwind/resourceGroups/rg-northwind-${suffix}/providers/Microsoft.CognitiveServices/accounts/northwind-foundry-${suffix}`,
+      name: `northwind-foundry-${suffix}`,
+      subscriptionName: 'Northwind Subscription',
+      resourceGroupName: `rg-northwind-${suffix}`,
+    }));
+    const northwindSaved = {
+      foundries: northwindFoundries,
+      selectedFoundryId: northwindFoundries[1].id,
+      foundriesFetchedAt: '2001-02-03T13:05:06+09:00',
+    };
+    mkdirSync(join(northwindState, '..'), { recursive: true });
+    writeFileSync(northwindState, JSON.stringify(northwindSaved, null, 2));
+    const fabrikamAfter = readFileSync(fabrikamState, 'utf8');
+    const northwindBefore = snapshots.length;
+    await tenantButton.click();
+    await page.getByRole('option', { name: 'Northwind', exact: true }).click();
+    await expect(tenantButton).toHaveText('Northwind');
+    await expect(selectedFoundry).toHaveText(
+      'northwind-foundry-b (Northwind Subscription - rg-northwind-b)',
+    );
+    await expect(modelRows).toHaveCount(3);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const northwindSnapshots = snapshots.slice(northwindBefore);
+    expect(northwindSnapshots.length).toBeGreaterThan(0);
+    expect(northwindSnapshots.every((snapshot) => snapshot.foundryPhase === 'completed')).toBe(
+      true,
+    );
+    expect(JSON.parse(readFileSync(northwindState, 'utf8'))).toEqual(northwindSaved);
+    expect(readFileSync(fabrikamState, 'utf8')).toBe(fabrikamAfter);
     // 再起動後は、最後に選択したテナントを復元する。
     await app.restart();
     await page.goto(app.url);
-    await expect(tenantButton).toHaveText('Fabrikam');
-    expect(selectedTenantId()).toBe('e2e-fabrikam-tenant');
+    await expect(tenantButton).toHaveText('Northwind');
+    expect(selectedTenantId()).toBe('e2e-northwind-tenant');
   });
 });
 

@@ -14,7 +14,7 @@ const recordFile = (app: IsolatedApp) => join(app.dataDir, 'e2e-authentication-r
 function parts(page: Page) {
   const dialog = page
     .getByRole('dialog')
-    .filter({ has: page.getByRole('heading', { name: 'AzFoundryDeck' }) });
+    .filter({ has: page.getByRole('heading', { name: 'Azure Foundry Deck' }) });
   return {
     header: page.getByRole('banner'),
     dialog,
@@ -34,7 +34,7 @@ test('ブラウザーでサインインし、テナント名とアカウント�
   });
   await test.step('手順1', async () => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button')).toHaveCount(1);
     await expect(login).toBeVisible();
@@ -61,7 +61,7 @@ test('ブラウザーでサインインし、テナント名とアカウント�
   });
   await test.step('手順4', async () => {
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+    await expect(page.getByRole('banner').getByText('Azure Foundry Deck')).toBeVisible();
     await expect(header).toContainText(tenantName);
     await avatar.hover();
     await expect(page.getByRole('tooltip')).toHaveText(username);
