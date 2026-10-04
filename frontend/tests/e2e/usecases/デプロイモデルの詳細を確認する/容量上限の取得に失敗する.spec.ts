@@ -32,6 +32,16 @@ test.describe('容量上限の再試行成功', () => {
     const retry = details.getByRole('button', { name: 'Retry', exact: true });
     const release = join(app.dataDir, 'e2e-foundry-detail-release');
     const failure = join(app.dataDir, 'e2e-foundry-detail-fail');
+    const list = page.getByRole('region', { name: 'Deployments', exact: true });
+    const checkListCapacities = async (maximums: string[]) => {
+      await expect(rows.locator('td:nth-child(4)')).toHaveText(
+        ['50,000', '100,000', '20,000'].map(
+          (current, index) => `${current} / ${maximums[index]} TPM`,
+        ),
+      );
+      await expect(list.getByRole('alert')).toHaveCount(0);
+      await expect(list.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+    };
     let files: ReturnType<typeof seed>;
     let original: ReturnType<typeof identity>;
     let retries = 0;
@@ -65,6 +75,7 @@ test.describe('容量上限の再試行成功', () => {
       await page.goto(app.url);
       await failed;
       await expect(rows).toHaveCount(3);
+      await checkListCapacities(['Not set', 'Not set', 'Not set']);
       await expect(details).toHaveText('Details');
       original = identity(files.stateFile);
     });
@@ -91,10 +102,12 @@ test.describe('容量上限の再試行成功', () => {
     await test.step('手順3', async () => {
       await retry.click();
       await expect(capacity).toHaveText('100,000 / Loading... TPM');
+      await checkListCapacities(['Loading...', 'Loading...', 'Loading...']);
       await rows.nth(0).click();
       await expect(capacity).toHaveText('50,000 / Loading... TPM');
       writeFileSync(release, '');
       await expect(capacity).toHaveText('50,000 / 160,000 TPM');
+      await checkListCapacities(['160,000', '250,000', '80,000']);
     });
 
     await test.step('受け入れ条件', async () => {
@@ -107,6 +120,7 @@ test.describe('容量上限の再試行成功', () => {
       unlinkSync(release);
       await rows.nth(1).click();
       await expect(capacity).toHaveText('100,000 / 250,000 TPM');
+      await checkListCapacities(['160,000', '250,000', '80,000']);
       expect(retries).toBe(1);
     });
   });
@@ -167,7 +181,13 @@ test.describe('容量上限の取得失敗', () => {
     const checkRows = async () => {
       await expect(rows).toHaveCount(3);
       for (const [index, model] of models.entries())
-        await expect(rows.nth(index).locator('td')).toHaveText(model);
+        await expect(rows.nth(index).locator('td')).toHaveText([
+          ...model,
+          `${['50,000', '100,000', '20,000'][index]} / Not set TPM`,
+        ]);
+      const list = page.getByRole('region', { name: 'Deployments', exact: true });
+      await expect(list.getByRole('alert')).toHaveCount(0);
+      await expect(list.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
     };
     // The other fields stay; the maximum is replaced by Not set and the error row follows.
     const checkFailed = async () => {

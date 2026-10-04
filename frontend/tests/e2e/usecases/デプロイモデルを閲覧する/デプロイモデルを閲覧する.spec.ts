@@ -58,6 +58,10 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
   const dialog = page.getByRole('dialog', { name: 'Loading deployments' });
   const foundryStep = dialog.getByText('Foundries', { exact: true }).locator('..');
   const modelStep = dialog.getByText('Deployments', { exact: true }).locator('..');
+  const table = page.getByRole('table', { name: 'Deployments', exact: true });
+  const capacityCells = table.locator('tbody td:nth-child(4)');
+  const details = page.getByRole('region', { name: 'Details', exact: true });
+  const capacities = ['50,000 / 160,000 TPM', '100,000 / 250,000 TPM', '20,000 / 80,000 TPM'];
   const frames: string[] = [];
   let dialogSize: { width: number; height: number } | null = null;
   // Observe the real server event boundary, including save phases that may share a React render.
@@ -131,9 +135,49 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     const modelRows = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
     await expect(modelRows).toHaveCount(3);
     for (const [index, model] of models.entries()) {
-      await expect(modelRows.nth(index).locator('td')).toHaveText(model);
+      await expect(modelRows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
     }
     await expect(page.getByRole('button', { name: 'Foundry', exact: true })).toHaveText(labels[0]);
+    await expect(table.locator('thead th')).toHaveText([
+      'Deployment',
+      'Model',
+      'Version',
+      'Capacity',
+    ]);
+    await expect(capacityCells).toHaveText([
+      '50,000 / Loading... TPM',
+      '100,000 / Loading... TPM',
+      '20,000 / Loading... TPM',
+    ]);
+    await expect(table.getByRole('status')).toHaveCount(3);
+    const loadingGeometry = await capacityCells
+      .locator('.deployment-capacity')
+      .evaluateAll((values) =>
+        values.map((value) => {
+          const boxes = [...value.children].map((element) => element.getBoundingClientRect());
+          const status = value.querySelector('[role="status"]')!;
+          const centers = [
+            ...boxes.map((box) => box.y + box.height / 2),
+            ...[...status.children].map((element) => {
+              const box = element.getBoundingClientRect();
+              return box.y + box.height / 2;
+            }),
+          ];
+          return {
+            slash: boxes[1].x,
+            denominator: boxes[2].x,
+            unit: boxes[3].x,
+            centerDifference: Math.max(...centers) - Math.min(...centers),
+          };
+        }),
+      );
+    for (const slot of ['slash', 'denominator', 'unit'] as const)
+      expect(
+        Math.max(...loadingGeometry.map((row) => row[slot])) -
+          Math.min(...loadingGeometry.map((row) => row[slot])),
+      ).toBeLessThan(0.1);
+    for (const row of loadingGeometry) expect(row.centerDifference).toBeLessThan(0.1);
+    await expect(details).toHaveText('Details');
   });
 
   await test.step('手順4', async () => {
@@ -165,8 +209,74 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     });
     await label.hover();
     await expect(page.getByRole('tooltip')).toHaveText(labels[0]);
+    // Completing the external fetch updates every row without selecting a deployment.
+    release('detail');
+    await expect(capacityCells).toHaveText(capacities);
+    await expect(table.getByRole('status')).toHaveCount(0);
+    await expect(details).toHaveText('Details');
   });
   await test.step('受け入れ条件', async () => {
+    await capacityCells.first().click();
+    for (const width of [1100, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 720 });
+      const geometry = await capacityCells.locator('.deployment-capacity').evaluateAll((values) =>
+        values.map((value) => {
+          const boxes = [...value.children].map((element) => element.getBoundingClientRect());
+          const box = value.getBoundingClientRect();
+          const cell = value.closest('td')!.getBoundingClientRect();
+          const columns = getComputedStyle(value).gridTemplateColumns.split(' ');
+          return {
+            numeratorRight: boxes[0].right,
+            slash: boxes[1].x,
+            denominatorRight: boxes[2].right,
+            unit: boxes[3].x,
+            numeratorWidth: columns[0],
+            denominatorWidth: columns[2],
+            height: box.height,
+            right: box.right,
+            cellRight: cell.right,
+          };
+        }),
+      );
+      for (const slot of ['numeratorRight', 'slash', 'denominatorRight', 'unit'] as const)
+        expect(
+          Math.max(...geometry.map((row) => row[slot])) -
+            Math.min(...geometry.map((row) => row[slot])),
+        ).toBeLessThan(0.1);
+      expect(new Set(geometry.map((row) => row.numeratorWidth)).size).toBe(1);
+      expect(new Set(geometry.map((row) => row.denominatorWidth)).size).toBe(1);
+      for (const row of geometry) {
+        expect(row.right).toBeLessThanOrEqual(row.cellRight);
+        expect(row.height).toBeLessThan(21);
+      }
+      const listBox = await page
+        .getByRole('region', { name: 'Deployments', exact: true })
+        .boundingBox();
+      const detailBox = await details.boundingBox();
+      expect(listBox!.width / (listBox!.width + detailBox!.width)).toBeCloseTo(0.6, 3);
+      const tableBox = await table.boundingBox();
+      expect(tableBox!.x + tableBox!.width).toBeLessThanOrEqual(listBox!.x + listBox!.width);
+      const detailCapacity = await details.locator('.deployment-capacity').boundingBox();
+      expect(detailCapacity!.x + detailCapacity!.width).toBeLessThanOrEqual(
+        detailBox!.x + detailBox!.width,
+      );
+      for (const button of await details.getByRole('button').all()) {
+        const buttonBox = await button.boundingBox();
+        expect(buttonBox!.x).toBeGreaterThanOrEqual(detailBox!.x);
+        expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(
+          detailBox!.x + detailBox!.width,
+        );
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    for (const [index, capacity] of capacities.entries()) {
+      await capacityCells.nth(index).click();
+      await expect(
+        details.getByRole('heading', { name: models[index][0], exact: true }),
+      ).toBeVisible();
+      await expect(details.locator('dd').nth(3)).toHaveText(capacity);
+      await expect(details.getByRole('status')).toHaveCount(0);
+    }
     const snapshots = frames
       .filter((frame) => frame.includes('foundry:progress'))
       .map((frame) => JSON.parse(frame).data as FoundryProgress);
