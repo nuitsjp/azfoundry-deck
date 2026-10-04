@@ -20,12 +20,13 @@ type FoundryDeletionPlan struct {
 const FoundryDeleteProgressEvent = "foundry:delete-progress"
 
 type FoundryDeleteProgress struct {
-	FoundryName        string `json:"foundryName"`
-	ResourceGroupName  string `json:"resourceGroupName"`
-	FoundryPhase       string `json:"foundryPhase"`
-	PurgePhase         string `json:"purgePhase"`
-	ResourceGroupPhase string `json:"resourceGroupPhase"`
-	ViewPhase          string `json:"viewPhase"`
+	FoundryName         string `json:"foundryName"`
+	ResourceGroupName   string `json:"resourceGroupName"`
+	DeleteResourceGroup bool   `json:"deleteResourceGroup"`
+	FoundryPhase        string `json:"foundryPhase"`
+	PurgePhase          string `json:"purgePhase"`
+	ResourceGroupPhase  string `json:"resourceGroupPhase"`
+	ViewPhase           string `json:"viewPhase"`
 }
 
 // FoundryDeleteSource is the ARM boundary shared by the deletion UI and service.
@@ -107,10 +108,11 @@ func (s *Service) inspectFoundryDeletion(ctx context.Context) (FoundryDeletionPl
 	if err != nil {
 		return FoundryDeletionPlan{}, err
 	}
-	if !only {
-		return FoundryDeletionPlan{}, fault.New("FOUNDRY_DELETE_UNSUPPORTED", "The resource group also contains resources that are not related to Foundry. Deleting only the Foundry resources is not supported yet.")
-	}
-	return FoundryDeletionPlan{FoundryName: selected.Name, ResourceGroupName: selected.ResourceGroupName, DeleteResourceGroup: true}, nil
+	return FoundryDeletionPlan{
+		FoundryName:         selected.Name,
+		ResourceGroupName:   selected.ResourceGroupName,
+		DeleteResourceGroup: only,
+	}, nil
 }
 
 // DeleteFoundry deletes the selected Foundry's resource group, purges the Foundry
@@ -147,8 +149,13 @@ func (s *Service) deleteFoundry(ctx context.Context) (InitialFoundryView, error)
 		return InitialFoundryView{}, err
 	}
 	progress := FoundryDeleteProgress{
-		FoundryName: plan.FoundryName, ResourceGroupName: plan.ResourceGroupName,
-		FoundryPhase: "running", PurgePhase: "waiting", ResourceGroupPhase: "waiting", ViewPhase: "waiting",
+		FoundryName:         plan.FoundryName,
+		ResourceGroupName:   plan.ResourceGroupName,
+		DeleteResourceGroup: plan.DeleteResourceGroup,
+		FoundryPhase:        "running",
+		PurgePhase:          "waiting",
+		ResourceGroupPhase:  "waiting",
+		ViewPhase:           "waiting",
 	}
 	s.emit(FoundryDeleteProgressEvent, progress)
 	if err := source.DeleteFoundry(ctx, selected); err != nil {

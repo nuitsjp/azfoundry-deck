@@ -398,9 +398,9 @@ export function InitialDeployments() {
       >
         <Stack gap="md">
           <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-            Delete Foundry “{deletePlan?.foundryName}”? Resource group “
-            {deletePlan?.resourceGroupName}” contains only Foundry resources, so the whole resource
-            group will be deleted and the Foundry purged. This cannot be undone.
+            {deletePlan?.deleteResourceGroup
+              ? `Delete Foundry “${deletePlan?.foundryName}”? Resource group “${deletePlan?.resourceGroupName}” contains only Foundry resources, so the whole resource group will be deleted and the Foundry purged. This cannot be undone.`
+              : `Delete Foundry “${deletePlan?.foundryName}”? The Foundry will be deleted and purged. Other resources in resource group “${deletePlan?.resourceGroupName}” will be preserved. This cannot be undone.`}
           </Text>
           <Group justify="flex-end" gap="sm">
             <Button variant="default" onClick={() => setDeletePlan(null)}>
@@ -413,6 +413,7 @@ export function InitialDeployments() {
                 setDeleteFoundryProgress({
                   foundryName: deletePlan.foundryName,
                   resourceGroupName: deletePlan.resourceGroupName,
+                  deleteResourceGroup: deletePlan.deleteResourceGroup,
                   foundryPhase: 'waiting',
                   purgePhase: 'waiting',
                   resourceGroupPhase: 'waiting',
