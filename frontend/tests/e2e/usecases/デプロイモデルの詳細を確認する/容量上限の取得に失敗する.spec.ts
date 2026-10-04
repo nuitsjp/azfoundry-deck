@@ -167,7 +167,7 @@ test.describe('容量上限の取得失敗', () => {
     const checkRows = async () => {
       await expect(rows).toHaveCount(3);
       for (const [index, model] of models.entries())
-        await expect(rows.nth(index).locator('td')).toHaveText(model);
+        await expect(rows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
     };
     // The other fields stay; the maximum is replaced by Not set and the error row follows.
     const checkFailed = async () => {

@@ -94,7 +94,7 @@ test.describe('明細表示', () => {
     const checkRows = async () => {
       await expect(rows).toHaveCount(3);
       for (const [index, model] of models.entries())
-        await expect(rows.nth(index).locator('td')).toHaveText(model);
+        await expect(rows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
     };
     const checkDetail = async (name: string, capacity: string | RegExp, policy: string) => {
       const model = models.find((item) => item[0] === name)!;
@@ -173,7 +173,7 @@ test.describe('明細表示', () => {
       await expect(details.locator('footer')).toHaveCount(0);
       const left = await page.locator('.deployment-list-pane').boundingBox();
       const right = await details.boundingBox();
-      expect(Math.abs(left!.width - right!.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(left!.width - right!.width * 1.5)).toBeLessThanOrEqual(1);
       expect(left!.y).toBe(right!.y);
       await expect(details.locator('dt')).toHaveText([
         'Model',

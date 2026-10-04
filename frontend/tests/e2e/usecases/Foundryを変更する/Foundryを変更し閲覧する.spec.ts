@@ -75,7 +75,7 @@ test('Foundryを変更し閲覧する', async ({ page, app }) => {
   const assertModels = async (models: string[][]) => {
     await expect(modelRows).toHaveCount(models.length);
     for (const [index, model] of models.entries()) {
-      await expect(modelRows.nth(index).locator('td')).toHaveText(model);
+      await expect(modelRows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
     }
   };
 

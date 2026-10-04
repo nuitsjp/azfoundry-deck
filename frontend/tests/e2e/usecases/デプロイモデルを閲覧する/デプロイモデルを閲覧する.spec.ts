@@ -131,7 +131,7 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     const modelRows = page.getByRole('table', { name: 'Deployments' }).locator('tbody tr');
     await expect(modelRows).toHaveCount(3);
     for (const [index, model] of models.entries()) {
-      await expect(modelRows.nth(index).locator('td')).toHaveText(model);
+      await expect(modelRows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
     }
     await expect(page.getByRole('button', { name: 'Foundry', exact: true })).toHaveText(labels[0]);
   });

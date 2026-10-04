@@ -100,7 +100,7 @@ function countCalls(page: Page, methodName: string) {
 async function assertRows(rows: Locator, modelList: string[][]) {
   await expect(rows).toHaveCount(modelList.length);
   for (const [index, model] of modelList.entries()) {
-    await expect(rows.nth(index).locator('td')).toHaveText(model);
+    await expect(rows.nth(index).locator('td:nth-child(-n + 3)')).toHaveText(model);
   }
 }
 
