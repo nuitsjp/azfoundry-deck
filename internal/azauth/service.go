@@ -58,12 +58,13 @@ type Service struct {
 	store      RecordStore
 	logger     *slog.Logger
 	clearViews func() error
+	stopView   func(bool)
 	operations *sync.Mutex
 }
 
 // New returns a service whose GetStatus waits until the startup restore has finished.
-func New(store RecordStore, logger *slog.Logger, clearViews func() error, operations *sync.Mutex) *Service {
-	return &Service{status: Status{Phase: SigningIn}, restored: make(chan struct{}), store: store, logger: logger, clearViews: clearViews, operations: operations}
+func New(store RecordStore, logger *slog.Logger, clearViews func() error, operations *sync.Mutex, stopView func(bool)) *Service {
+	return &Service{status: Status{Phase: SigningIn}, restored: make(chan struct{}), store: store, logger: logger, clearViews: clearViews, operations: operations, stopView: stopView}
 }
 
 // ServiceStartup is called by Wails when the app starts and runs the restore in
@@ -272,6 +273,7 @@ func (s *Service) ChangeTenant(ctx context.Context, tenantID string) (Status, er
 	if err != nil {
 		return Status{}, fault.Public(err)
 	}
+	s.stopView(true)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status = Status{Phase: SignedIn, Account: &account}
@@ -291,6 +293,7 @@ func (s *Service) Logout() (Status, error) {
 	if s.status.Phase != SignedIn {
 		return Status{}, fault.New("NOT_SIGNED_IN", "ログインしていません。")
 	}
+	s.stopView(false)
 	err := deleteTokenCache(tokenCacheName)
 	if err == nil {
 		err = s.clearViews()
@@ -302,6 +305,7 @@ func (s *Service) Logout() (Status, error) {
 		s.logger.Error("operation_failed", "operation", "azauth.Logout", "cause", err)
 		return Status{}, fault.New("LOGOUT_FAILED", "Azureからログアウトできませんでした。もう一度ログアウトしてください。")
 	}
+	s.stopView(true)
 	s.status = Status{Phase: SignedOut}
 	return s.status, nil
 }

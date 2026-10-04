@@ -146,12 +146,21 @@ func fixedDetails(d Deployment) Deployment {
 
 type fixedLimits struct{}
 
-// CapacityLimits is the held first fetch of the limits; AZFOUNDRYDECK_E2E_FAIL=detail fails it.
+// CapacityLimits is the held first fetch of the limits. The detail failure flag
+// or e2e-foundry-detail-fail file injects failure; removing the file lets Retry recover.
 func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry) (CapacityLimits, error) {
+	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(4 * time.Second):
+		}
+	}
 	if err := waitForRelease(ctx, "detail"); err != nil {
 		return nil, err
 	}
-	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "detail" {
+	_, detailFailure := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-foundry-detail-fail"))
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "detail" || detailFailure == nil {
 		return nil, fmt.Errorf("simulated capacity limit retrieval failure")
 	}
 	return fixedLimits{}, ctx.Err()

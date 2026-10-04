@@ -52,6 +52,7 @@ type deploymentsCache struct {
 type limitsCache struct {
 	file, foundryID string
 	value           CapacityLimits
+	fetch           *limitsFetch
 }
 
 // readView reads the saved Foundry list and selection and adds the deployments held in memory.
@@ -71,7 +72,27 @@ func (s *Service) setDeployments(file, foundryID string, deployments []Deploymen
 }
 
 func (s *Service) clearDeployments() {
+	if s.limits.fetch != nil {
+		s.limits.fetch.cancel()
+	}
 	s.current, s.limits = deploymentsCache{}, limitsCache{}
+}
+
+// StopView is called with the shared operation lock held by the auth service.
+// Waiting for the cancelled fetch prevents it from writing a token cache after
+// logout has deleted that cache. This package function is not a Wails binding.
+func StopView(s *Service, discard bool) {
+	if s.limits.fetch != nil {
+		s.limits.fetch.cancel()
+		<-s.limits.fetch.done
+	}
+	if discard {
+		s.clearDeployments()
+	} else if s.limits.fetch != nil {
+		// A failed logout keeps the screen mounted. Let it observe the stopped
+		// fetch instead of retaining Loading indefinitely.
+		s.emit(CapacityReadyEvent, s.limits.foundryID)
+	}
 }
 
 func New(operations *sync.Mutex, source func() (Source, error), signedIn func(context.Context) error, file func() (string, error), logger *slog.Logger, emit func(string, any)) *Service {
@@ -177,6 +198,7 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 	if err != nil {
 		return InitialFoundryView{}, err
 	}
+	s.startCapacityLimits(ctx, file, selected, source)
 	models, err := source.Deployments(ctx, selected, func(count int) {
 		progress.ModelCount = count
 		s.emit(ProgressEvent, progress)
