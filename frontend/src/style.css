@@ -80,6 +80,10 @@ body {
   vertical-align: middle;
   white-space: nowrap;
 }
+.deployment-table-wrap .deployment-capacity {
+  justify-items: start;
+  font-variant-numeric: tabular-nums;
+}
 .deployment-row {
   cursor: pointer;
 }

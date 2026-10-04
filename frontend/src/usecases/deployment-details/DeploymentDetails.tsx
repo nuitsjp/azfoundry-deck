@@ -60,14 +60,23 @@ function CapacityDisplay({
   deployment,
   maximum,
   loading,
+  columns,
 }: {
   deployment: Deployment;
   maximum: number | null | undefined;
   loading: boolean;
+  columns?: string;
 }) {
   return (
-    <Group component="span" className="deployment-capacity" gap={4} align="center" wrap="nowrap">
-      <span>{capacityValue(deployment.capacity)} /</span>{' '}
+    <Group
+      component="span"
+      className="deployment-capacity"
+      gap={4}
+      align="center"
+      wrap="nowrap"
+      style={columns ? { display: 'inline-grid', gridTemplateColumns: columns } : undefined}
+    >
+      <span>{capacityValue(deployment.capacity)}</span> <span>/</span>{' '}
       {loading ? (
         <Group component="span" gap={6} role="status" align="center" wrap="nowrap">
           <Loader size="xs" />
@@ -121,6 +130,15 @@ export function DeploymentDetails({
   const loading = capacity.isPending || capacity.data?.loading === true;
   const maximum = detail ? capacity.data?.maximums?.[detail.id] : null;
   const error = retryCapacity.error ?? capacity.error ?? capacity.data?.error;
+  const numeratorWidth = Math.max(
+    ...deployments.map((deployment) => capacityValue(deployment.capacity).length),
+  );
+  const denominatorWidth = Math.max(
+    ...deployments.map(
+      (deployment) => capacityValue(capacity.data?.maximums?.[deployment.id]).length,
+    ),
+  );
+  const capacityColumns = `${numeratorWidth}ch auto ${loading ? 'calc(10ch + 24px)' : `${denominatorWidth}ch`} auto`;
 
   function selectDeployment(id: string) {
     if (busy) return;
@@ -172,6 +190,7 @@ export function DeploymentDetails({
                       deployment={deployment}
                       maximum={capacity.data?.maximums?.[deployment.id]}
                       loading={loading}
+                      columns={capacityColumns}
                     />
                   </Table.Td>
                 </Table.Tr>
