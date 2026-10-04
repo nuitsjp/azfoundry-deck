@@ -108,6 +108,20 @@ test.describe('容量上限の表示', () => {
         'Upgrade to new default',
       ]);
       await expect(details.getByRole('status')).toHaveText('Loading...');
+      const centers = await details.getByRole('status').evaluate((status) => {
+        const center = (element: Element) => {
+          const box = element.getBoundingClientRect();
+          return box.y + box.height / 2;
+        };
+        const value = status.parentElement!;
+        return [
+          center(value.firstElementChild!),
+          center(status.firstElementChild!),
+          center(status.lastElementChild!),
+          center(value.lastElementChild!),
+        ];
+      });
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(0.1);
       await expect(details).toHaveAttribute('aria-busy', 'true');
       await expect(rows.nth(0).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
       for (const button of await rows.getByRole('button').all()) await expect(button).toBeEnabled();
@@ -196,6 +210,68 @@ test.describe('容量上限の表示', () => {
         'selectedFoundryId',
       ]);
       expect(existsSync(join(files.viewDir, 'foundry-models'))).toBe(false);
+    });
+  });
+
+  test('選択前に取得済みの上限を即時表示する', async ({ page, app }) => {
+    const rows = page.locator('table[aria-label="Deployments"] tbody tr');
+    const details = page.getByRole('region', { name: 'Details', exact: true });
+    const release = join(app.dataDir, 'e2e-foundry-detail-release');
+    let original: ReturnType<typeof identity>;
+    let files: ReturnType<typeof seed>;
+
+    await test.step('分岐条件', async () => {
+      files = seed(app);
+      writeFileSync(release, '');
+      await app.restart();
+      const ready = page.waitForResponse(async (response) => {
+        if (response.request().method() !== 'POST' || !response.url().includes('/wails/runtime'))
+          return false;
+        const method = response.request().postDataJSON()?.args?.methodName;
+        if (method !== 'azfoundrydeck/internal/foundry.Service.GetCapacityState') return false;
+        const state = (await response.json()) as { loading: boolean; error: unknown };
+        return !state.loading && state.error === null;
+      });
+      await page.goto(app.url);
+      await ready;
+      await expect(rows).toHaveCount(3);
+      await expect(details).toHaveText('Details');
+      unlinkSync(release);
+      original = identity(files.stateFile);
+    });
+
+    await test.step('手順1', async () => {
+      await details.evaluate((element) => {
+        const observer = new MutationObserver(() => {
+          if (element.querySelector('[role="status"]'))
+            element.setAttribute('data-saw-loading', 'true');
+        });
+        observer.observe(element, { childList: true, subtree: true });
+      });
+      await rows.nth(0).click();
+      await expect(details.locator('dd').nth(3)).toHaveText('50,000 / 160,000 TPM');
+      await expect(details).not.toHaveAttribute('data-saw-loading', 'true');
+    });
+
+    await test.step('手順2', async () => {
+      await expect(details.getByRole('status')).toHaveCount(0);
+      await expect(details).toHaveAttribute('aria-busy', 'false');
+    });
+
+    await test.step('手順3', async () => {
+      await rows.nth(1).click();
+      await expect(details.locator('dd').nth(3)).toHaveText('100,000 / 250,000 TPM');
+      await expect(details).not.toHaveAttribute('data-saw-loading', 'true');
+    });
+
+    await test.step('受け入れ条件', async () => {
+      expect(identity(files.stateFile)).toEqual(original);
+      await page.reload();
+      await expect(rows).toHaveCount(3);
+      await rows.nth(0).click();
+      await expect(details.locator('dd').nth(3)).toHaveText('50,000 / Loading... TPM');
+      writeFileSync(release, '');
+      await expect(details.locator('dd').nth(3)).toHaveText('50,000 / 160,000 TPM');
     });
   });
 });

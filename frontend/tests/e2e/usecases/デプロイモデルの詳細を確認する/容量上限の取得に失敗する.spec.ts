@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, type IsolatedApp } from '../../fixtures';
 
@@ -20,6 +20,96 @@ const savedAt = '2001-02-03T13:05:06+09:00';
 const identity = (path: string) => ({
   text: readFileSync(path, 'utf8'),
   mtimeMs: statSync(path).mtimeMs,
+});
+
+test.describe('容量上限の再試行成功', () => {
+  test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_FOUNDRY: '1' } });
+
+  test('選択前の取得失敗から再試行で回復する', async ({ page, app }) => {
+    const rows = page.locator('table[aria-label="Deployments"] tbody tr');
+    const details = page.getByRole('region', { name: 'Details', exact: true });
+    const capacity = details.locator('dd').nth(3);
+    const retry = details.getByRole('button', { name: 'Retry', exact: true });
+    const release = join(app.dataDir, 'e2e-foundry-detail-release');
+    const failure = join(app.dataDir, 'e2e-foundry-detail-fail');
+    let files: ReturnType<typeof seed>;
+    let original: ReturnType<typeof identity>;
+    let retries = 0;
+    page.on('request', (request) => {
+      if (request.method() !== 'POST' || !request.url().includes('/wails/runtime')) return;
+      const body = request.postDataJSON();
+      if (
+        body.args?.methodName === 'azfoundrydeck/internal/foundry.Service.GetCapacityState' &&
+        body.args?.args?.[0] === true
+      )
+        retries += 1;
+    });
+
+    await test.step('分岐条件', async () => {
+      files = seed(app);
+      writeFileSync(join(app.dataDir, 'e2e-foundry-models-release'), '');
+      writeFileSync(failure, '');
+      writeFileSync(release, '');
+      await app.restart();
+      const failed = page.waitForResponse(async (response) => {
+        if (response.request().method() !== 'POST' || !response.url().includes('/wails/runtime'))
+          return false;
+        if (
+          response.request().postDataJSON()?.args?.methodName !==
+          'azfoundrydeck/internal/foundry.Service.GetCapacityState'
+        )
+          return false;
+        const state = (await response.json()) as { error: { code: string } | null };
+        return state.error?.code === 'DEPLOYMENT_DETAIL_FAILED';
+      });
+      await page.goto(app.url);
+      await failed;
+      await expect(rows).toHaveCount(3);
+      await expect(details).toHaveText('Details');
+      original = identity(files.stateFile);
+    });
+
+    await test.step('手順1', async () => {
+      await rows.nth(0).click();
+      await expect(details.getByRole('heading', { name: 'chat-production' })).toBeVisible();
+      await expect(capacity).toHaveText('50,000 / Not set TPM');
+      await expect(details.getByRole('status')).toHaveCount(0);
+    });
+
+    await test.step('手順2', async () => {
+      await expect(details).toContainText('DEPLOYMENT_DETAIL_FAILED');
+      await expect(retry).toBeEnabled();
+      expect(retries).toBe(0);
+      unlinkSync(failure);
+      unlinkSync(release);
+      await rows.nth(1).click();
+      await expect(capacity).toHaveText('100,000 / Not set TPM');
+      await expect(retry).toBeEnabled();
+      expect(retries).toBe(0);
+    });
+
+    await test.step('手順3', async () => {
+      await retry.click();
+      await expect(capacity).toHaveText('100,000 / Loading... TPM');
+      await rows.nth(0).click();
+      await expect(capacity).toHaveText('50,000 / Loading... TPM');
+      writeFileSync(release, '');
+      await expect(capacity).toHaveText('50,000 / 160,000 TPM');
+    });
+
+    await test.step('受け入れ条件', async () => {
+      await expect(details.getByRole('alert')).toHaveCount(0);
+      await expect(retry).toHaveCount(0);
+      await expect(details.getByRole('status')).toHaveCount(0);
+      expect(retries).toBe(1);
+      expect(identity(files.stateFile)).toEqual(original);
+      await expect(rows).toHaveCount(3);
+      unlinkSync(release);
+      await rows.nth(1).click();
+      await expect(capacity).toHaveText('100,000 / 250,000 TPM');
+      expect(retries).toBe(1);
+    });
+  });
 });
 
 function seed(app: IsolatedApp) {
