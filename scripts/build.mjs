@@ -118,6 +118,18 @@ try {
     }
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(deploymentDetailReview ? { WAILS_SERVER_PORT: deploymentUpdateReview ? '34126' : deploymentAddReview ? '34125' : deploymentDeleteReview ? '34124' : '34123' } : {}), ...(foundryChangeReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryAddReview ? { WAILS_SERVER_PORT: '34127', AZFOUNDRYDECK_E2E_FOUNDRY_ADD_REVIEW: '1', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryDeleteReview ? { WAILS_SERVER_PORT: '34128', AZFOUNDRYDECK_E2E_FOUNDRY_DELETE_REVIEW: '1' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: tenantRevisitReview ? '34122' : '34119' } : {}), ...(noFoundryReview ? { WAILS_SERVER_PORT: '34120', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryEmptyReview ? { WAILS_SERVER_PORT: '34121', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), } });
+  } else if (['run-server-review-update', 'run-server-review-update-untrusted'].includes(command)) {
+    // Screen review only: signed in from a fixed record, with a signed v0.2.0 in a local
+    // folder as the latest release. The installer is never executed.
+    const untrusted = command === 'run-server-review-update-untrusted';
+    const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-update-review-`));
+    writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
+      authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
+      tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
+      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
+    }));
+    console.log(`review data directory: ${dataDir}`);
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: untrusted ? '34130' : '34129', AZFOUNDRYDECK_E2E_UPDATE: untrusted ? 'untrusted' : 'ready' } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

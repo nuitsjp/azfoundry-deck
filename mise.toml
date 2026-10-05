@@ -101,6 +101,14 @@ run = "node scripts/run.mjs server:review:deployment-add"
 description = "デプロイモデル設定変更の画面確認用：固定の外部応答で起動する"
 run = "node scripts/run.mjs server:review:deployment-update"
 
+[tasks."server:review:update"]
+description = "新版の更新の画面確認用：署名付きのv0.2.0を置いたローカルのフォルダーを更新元にして起動する（本番経路ではない）"
+run = "node scripts/run.mjs server:review:update"
+
+[tasks."server:review:update-untrusted"]
+description = "新版の更新の画面確認用：適用前の再検証が失敗する状態で起動する（本番経路ではない）"
+run = "node scripts/run.mjs server:review:update-untrusted"
+
 [tasks.verify]
 description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
 run = "node scripts/run.mjs verify"

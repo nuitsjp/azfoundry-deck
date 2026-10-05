@@ -86,6 +86,14 @@ tasks:
     cmds:
       - task: build:server:e2e
       - node scripts/build.mjs run-server-review-deployment-update
+  server:review:update:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-update
+  server:review:update-untrusted:
+    cmds:
+      - task: build:server:e2e
+      - node scripts/build.mjs run-server-review-update-untrusted
   server:review:tenant-revisit:
     cmds:
       - task: build:server:e2e

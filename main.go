@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -21,6 +22,7 @@ import (
 	"azfoundrydeck/internal/diagnostics"
 	"azfoundrydeck/internal/fault"
 	"azfoundrydeck/internal/foundry"
+	"azfoundrydeck/internal/updates"
 )
 
 //go:embed all:frontend/dist
@@ -34,6 +36,18 @@ type appConfig struct {
 	Name       string `json:"name"`
 	Executable string `json:"executable"`
 	Version    string `json:"version"`
+	// The GitHub Releases URL of update.json and the base64 Ed25519 key that verifies it.
+	UpdateSource    string `json:"updateSource"`
+	UpdatePublicKey string `json:"updatePublicKey"`
+}
+
+// updateBoundary is what main hands to the update service besides build/app.json:
+// how to start the installer, and, for screen review only, a delay before the
+// check and an action after staging.
+type updateBoundary struct {
+	launch func(string) error
+	delay  time.Duration
+	staged func() error
 }
 
 func init() {
@@ -41,6 +55,7 @@ func init() {
 	application.RegisterEvent[string](foundry.CapacityReadyEvent)
 	application.RegisterEvent[foundry.FoundryCreateProgress](foundry.FoundryCreateProgressEvent)
 	application.RegisterEvent[foundry.FoundryDeleteProgress](foundry.FoundryDeleteProgressEvent)
+	application.RegisterEvent[updates.Status](updates.ProgressEvent)
 }
 
 func main() {
@@ -137,10 +152,16 @@ func run() error {
 	}, logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, logger)
+	updateConfig := updates.Config{AppID: cfg.ID, Version: cfg.Version, Arch: runtime.GOARCH, Source: cfg.UpdateSource, PublicKey: cfg.UpdatePublicKey, CacheDir: filepath.Join(dir, "updates")}
+	boundary, err := updateSource(dir, &updateConfig, logger)
+	if err != nil {
+		return err
+	}
+	updateService := updates.New(updateConfig, logger, emit, boundary.launch, func() { app.Quit() })
 	options := application.Options{
 		Name: cfg.Name, Description: "Azure Foundry 管理用デスクトップアプリ", Logger: logger,
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
-		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService)},
+		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService), application.NewService(updateService)},
 		MarshalError: fault.Marshal,
 		// ARM creation can outlast Wails' default 30-second response deadline.
 		Server:  application.ServerOptions{Host: "127.0.0.1", Port: port, WriteTimeout: -1},
@@ -160,6 +181,18 @@ func run() error {
 	app = application.New(options)
 	if !serverMode {
 		window = app.Window.NewWithOptions(application.WebviewWindowOptions{Title: cfg.Name, Width: 1160, Height: 800, Frameless: true, URL: "/"})
+	}
+	if updateConfig.Enabled {
+		// Apart from startup, so neither a slow network nor a failure delays the window.
+		go func() {
+			time.Sleep(boundary.delay)
+			updates.Run(context.Background(), updateService)
+			if boundary.staged != nil {
+				if err := boundary.staged(); err != nil {
+					logger.Warn("update_review_staged_failed", "cause", err)
+				}
+			}
+		}()
 	}
 	return app.Run()
 }

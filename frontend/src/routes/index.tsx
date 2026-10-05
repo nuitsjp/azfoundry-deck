@@ -5,6 +5,7 @@ import { Phase } from '@bindings/azfoundrydeck/internal/azauth/models';
 import { authStatus, changeTenantKey } from '../features/auth/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { InitialDeployments } from '../usecases/initial-deployments/InitialDeployments';
+import { UpdateApp } from '../usecases/update-app/UpdateApp';
 
 function Home() {
   const status = useQuery(authStatus());
@@ -17,6 +18,7 @@ function Home() {
   const failure = latest?.status === 'error' && latest.submittedAt !== closed;
   return (
     <>
+      <UpdateApp />
       {failure && (
         <ErrorNotice error={latest.error} onClose={() => setClosed(latest.submittedAt)} />
       )}
