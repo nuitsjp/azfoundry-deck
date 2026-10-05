@@ -144,8 +144,8 @@ func fixedDetails(d Deployment) Deployment {
 	return d
 }
 
-// Connection is the fixed endpoint and key of the Foundry. Screen review of the
-// capacity delays it like the limits so that Loading can be observed.
+// Connection is the fixed endpoint and key of the Foundry, held by the connection
+// gate. Screen review of the capacity delays it like the limits so that Loading can be observed.
 func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection, error) {
 	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
 		select {
@@ -153,6 +153,9 @@ func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection,
 			return Connection{}, ctx.Err()
 		case <-time.After(4 * time.Second):
 		}
+	}
+	if err := waitForRelease(ctx, "connection"); err != nil {
+		return Connection{}, err
 	}
 	suffix := "prd1"
 	switch foundry.Name {

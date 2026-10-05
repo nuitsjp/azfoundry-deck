@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect } from '../../fixtures';
 import type { FoundryProgress } from '../../../../src/features/foundry/progress';
@@ -34,6 +34,8 @@ const models = [
   ['chat-mini', 'gpt-4.1-mini', '2025-04-14'],
   ['embeddings', 'text-embedding-3-large', '1'],
 ];
+const endpoint = 'https://contoso-foundry-production-japaneast.openai.azure.com/openai/v1';
+const apiKey = '0123456789abcdef0123456789abprd1';
 const labels = foundries.map(
   (foundry) => `${foundry.name} (${foundry.subscriptionName} - ${foundry.resourceGroupName})`,
 );
@@ -62,6 +64,12 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
   const capacityCells = table.locator('tbody td:nth-child(4)');
   const details = page.getByRole('region', { name: 'Details', exact: true });
   const capacities = ['50,000 / 160,000 TPM', '100,000 / 250,000 TPM', '20,000 / 80,000 TPM'];
+  const connection = page.getByRole('region', { name: 'Connection', exact: true });
+  const endpointValue = connection.getByLabel('Azure OpenAI Endpoint', { exact: true });
+  const keyValue = connection.getByLabel('API key', { exact: true });
+  const copyEndpoint = connection.getByRole('button', { name: 'Copy Azure OpenAI Endpoint' });
+  const copyKey = connection.getByRole('button', { name: 'Copy API key' });
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   const frames: string[] = [];
   let dialogSize: { width: number; height: number } | null = null;
   // Observe the real server event boundary, including save phases that may share a React render.
@@ -178,6 +186,12 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
       ).toBeLessThan(0.1);
     for (const row of loadingGeometry) expect(row.centerDifference).toBeLessThan(0.1);
     await expect(details).toHaveText('Details');
+    await expect(connection.getByText('Azure OpenAI Endpoint', { exact: true })).toBeVisible();
+    await expect(connection.getByText('API key', { exact: true })).toBeVisible();
+    await expect(connection.getByRole('status')).toHaveCount(2);
+    await expect(connection.getByRole('status')).toHaveText(['Loading...', 'Loading...']);
+    await expect(copyEndpoint).toBeDisabled();
+    await expect(copyKey).toBeDisabled();
   });
 
   await test.step('手順4', async () => {
@@ -214,8 +228,55 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     await expect(capacityCells).toHaveText(capacities);
     await expect(table.getByRole('status')).toHaveCount(0);
     await expect(details).toHaveText('Details');
+    // The connection completes on its own, like the capacity limits.
+    release('connection');
+    await expect(connection.getByRole('status')).toHaveCount(0);
+    await expect(endpointValue).toHaveText(endpoint);
+    await expect(keyValue).toHaveText('••••••••••••prd1');
+    await copyEndpoint.click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(endpoint);
+    await expect(connection.getByRole('button', { name: 'Copied' })).toHaveCount(1);
+    await copyKey.click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiKey);
+    await expect(keyValue).toHaveText('••••••••••••prd1');
+    await expect(connection.getByRole('button', { name: 'Copied' })).toHaveCount(2);
+    await expect(connection.getByRole('button', { name: 'Copied' })).toHaveCount(0);
+    await expect(copyEndpoint).toBeEnabled();
+    await expect(copyKey).toBeEnabled();
   });
   await test.step('受け入れ条件', async () => {
+    // The narrow width from step 5 truncates the endpoint; its tooltip and copy keep the full value.
+    const truncated = await endpointValue.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    );
+    expect(truncated).toBe(true);
+    await endpointValue.hover();
+    await expect(page.getByRole('tooltip', { name: endpoint, exact: true })).toHaveText(endpoint);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const endpointBox = (await endpointValue.boundingBox())!;
+    const keyBox = (await keyValue.boundingBox())!;
+    expect(Math.abs(endpointBox.y - keyBox.y)).toBeLessThan(1);
+    expect(keyBox.x).toBeGreaterThan(endpointBox.x + endpointBox.width);
+    // The row has comparable space above and below it.
+    const selectBox = (await page
+      .getByRole('button', { name: 'Foundry', exact: true })
+      .boundingBox())!;
+    const labelBox = (await connection
+      .getByText('Azure OpenAI Endpoint', { exact: true })
+      .boundingBox())!;
+    const titleBox = (await page.getByText('Deployed Models', { exact: true }).boundingBox())!;
+    const above = labelBox.y - (selectBox.y + selectBox.height);
+    const below = titleBox.y - (labelBox.y + labelBox.height);
+    expect(Math.abs(above - below)).toBeLessThanOrEqual(6);
+    // The full key is never rendered nor written to the data folder, including logs.
+    expect(await page.content()).not.toContain(apiKey);
+    const files = readdirSync(app.dataDir, { recursive: true, withFileTypes: true }).filter(
+      (entry) => entry.isFile(),
+    );
+    for (const file of files) {
+      expect(readFileSync(join(file.parentPath, file.name), 'utf8')).not.toContain(apiKey);
+    }
+
     await capacityCells.first().click();
     for (const width of [1100, 1280, 1440]) {
       await page.setViewportSize({ width, height: 720 });
