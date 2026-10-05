@@ -9,6 +9,9 @@ process.chdir(root);
 const windows = process.platform === 'win32';
 const cli = resolve('.tools', windows ? 'wails3.exe' : 'wails3');
 const app = JSON.parse(readFileSync('build/app.json', 'utf8'));
+// Only for checking the update locally: an older version or a local update source.
+const overrides = [['buildVersion', process.env.BUILD_APP_VERSION], ['buildUpdateSource', process.env.BUILD_UPDATE_SOURCE], ['buildUpdatePublicKey', process.env.BUILD_UPDATE_PUBLIC_KEY]].filter(([, value]) => value);
+if (process.env.BUILD_APP_VERSION) app.version = process.env.BUILD_APP_VERSION;
 const arch = process.env.GOARCH || (process.arch === 'arm64' ? 'arm64' : 'amd64');
 const target = resolve('bin', app.executable);
 const server = resolve('bin', app.executable.slice(0, -4) + '-server' + (windows ? '.exe' : ''));
@@ -38,7 +41,8 @@ try {
     const manifest = readFileSync('build/windows/app.manifest', 'utf8').replaceAll('__APP_ID__', app.id).replaceAll('__APP_VERSION__', app.version);
     writeFileSync('bin/app.manifest', manifest);
     run(cli, ['generate', 'syso', '-manifest', 'bin/app.manifest', '-icon', 'build/windows/app.ico', '-arch', arch, '-out', `rsrc_windows_${arch}.syso`]);
-    run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', '-H windowsgui', '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
+    const ldflags = ['-H windowsgui', ...overrides.map(([name, value]) => `-X 'main.${name}=${value}'`)].join(' ');
+    run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', ldflags, '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
   } else if (command === 'server') {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {

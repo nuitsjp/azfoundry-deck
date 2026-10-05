@@ -31,6 +31,10 @@ var webAssets embed.FS
 //go:embed build/app.json
 var configJSON []byte
 
+// Set only through -ldflags -X (see scripts/build.mjs) to build an older version or a
+// local update source for checking the update. Empty keeps build/app.json.
+var buildVersion, buildUpdateSource, buildUpdatePublicKey string
+
 type appConfig struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
@@ -69,6 +73,11 @@ func run() error {
 	var cfg appConfig
 	if err := json.Unmarshal(configJSON, &cfg); err != nil {
 		return err
+	}
+	for target, value := range map[*string]string{&cfg.Version: buildVersion, &cfg.UpdateSource: buildUpdateSource, &cfg.UpdatePublicKey: buildUpdatePublicKey} {
+		if value != "" {
+			*target = value
+		}
 	}
 	if cfg.ID == "" || cfg.Name == "" {
 		return fmt.Errorf("build/app.json: id and name are required")

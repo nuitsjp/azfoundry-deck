@@ -4,14 +4,14 @@
 
 ## 責務と境界
 
-| 役割 | 責務 | 実装パス（実装フェーズ完了時に記入） |
+| 役割 | 責務 | 実装パス |
 | --- | --- | --- |
-| 更新区画 | 取得・検証済みの新版があるときだけ、版番号と適用ボタンを Home画面の先頭に表示する。再検証の失敗を表示する | |
-| 機能アクセス | 更新サービスから状態を取得し、状態変化の通知を画面の状態へ反映する。適用を呼び出す | |
-| 更新サービス | 起動時に1回、更新情報を取得して署名・対象・版を検証し、新版ならインストーラーを取得してサイズとハッシュを検証して置く。取得済みになったら画面へ通知する。適用時に再検証し、インストーラーを起動してアプリを終了する | |
-| 更新元 | GitHub Releases の最新リリースから、`update.json` と同じリリースのインストーラーを HTTPS で読み出す。URL と公開鍵は `build/app.json` の `updateSource`・`updatePublicKey` に置く | |
+| 更新区画 | 取得・検証済みの新版があるときだけ、版番号と適用ボタンを Home画面の先頭に表示する。再検証の失敗を表示する || `frontend/src/usecases/update-app/UpdateApp.tsx`、`frontend/src/routes/index.tsx` |
+| 機能アクセス | 更新サービスから状態を取得し、状態変化の通知を画面の状態へ反映する。適用を呼び出す || `frontend/src/features/updates/queries.ts` |
+| 更新サービス | 起動時に1回、更新情報を取得して署名・対象・版を検証し、新版ならインストーラーを取得してサイズとハッシュを検証して置く。取得済みになったら画面へ通知する。適用時に再検証し、インストーラーを起動してアプリを終了する || `internal/updates/service.go`、`internal/updates/manifest.go`、`internal/updates/install_windows.go`、`main.go`、`update_source.go` |
+| 更新元 | GitHub Releases の最新リリースから、`update.json` と同じリリースのインストーラーを HTTPS で読み出す。URL と公開鍵は `build/app.json` の `updateSource`・`updatePublicKey` に置く || `internal/updates/source.go`、`build/app.json` |
 | 更新インストーラー | 旧プロセスの終了を待ってから、ファイルとアンインストール情報を更新し、サイレント実行時も新版を起動する | `build/windows/nsis/project.nsi` |
-| リリース準備 | インストーラーの版・サイズ・ハッシュを入れた更新情報を、リポジトリ外の Ed25519 秘密鍵（CI では Secrets の `UPDATE_SIGNING_KEY`）で署名して `update.json` を作り、インストーラーと同じ Release に添付する | |
+| リリース準備 | インストーラーの版・サイズ・ハッシュを入れた更新情報を、リポジトリ外の Ed25519 秘密鍵（CI では Secrets の `UPDATE_SIGNING_KEY`）で署名して `update.json` を作り、インストーラーと同じ Release に添付する || `cmd/release/main.go`、`.github/workflows/windows.yml` |
 
 ```mermaid
 sequenceDiagram

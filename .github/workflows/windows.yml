@@ -199,10 +199,29 @@ jobs:
       GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ github.ref_name }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
       - uses: actions/download-artifact@v4
         with:
           name: windows-build-project
           path: bin
+      - name: Sign update information
+        shell: bash
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then
+            echo "The UPDATE_SIGNING_KEY secret is not set" >&2
+            exit 1
+          fi
+          key="$RUNNER_TEMP/update-signing.key"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$UPDATE_SIGNING_KEY" > "$key"
+          go run ./cmd/release manifest -key "$key" -installer "bin/azfoundrydeck-${RELEASE_TAG#v}-amd64-setup.exe"             -app-id "$(jq -r .id build/app.json)" -version "${RELEASE_TAG#v}" -out bin
       - name: Publish installer
         shell: bash
         run: |
@@ -214,7 +233,7 @@ jobs:
             echo "Release $RELEASE_TAG already exists; refusing to overwrite it" >&2
             exit 1
           fi
-          gh release create "$RELEASE_TAG" "$installer" --verify-tag --draft --title "$RELEASE_TAG" --notes "Windows x64 installer for ${RELEASE_TAG#v}."
+          gh release create "$RELEASE_TAG" "$installer" bin/update.json --verify-tag --draft --title "$RELEASE_TAG" --notes "Windows x64 installer for ${RELEASE_TAG#v}."
           gh release edit "$RELEASE_TAG" --draft=false
           release_url=$(gh release view "$RELEASE_TAG" --json url --jq '.url')
           echo "Published release: $release_url"
