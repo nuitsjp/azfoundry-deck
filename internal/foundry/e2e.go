@@ -144,6 +144,29 @@ func fixedDetails(d Deployment) Deployment {
 	return d
 }
 
+// Connection is the fixed endpoint and key of the Foundry, held by the connection
+// gate. Screen review of the capacity delays it like the limits so that Loading can be observed.
+func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection, error) {
+	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
+		select {
+		case <-ctx.Done():
+			return Connection{}, ctx.Err()
+		case <-time.After(4 * time.Second):
+		}
+	}
+	if err := waitForRelease(ctx, "connection"); err != nil {
+		return Connection{}, err
+	}
+	suffix := "prd1"
+	switch foundry.Name {
+	case "contoso-foundry-development":
+		suffix = "dev1"
+	case "contoso-foundry-research":
+		suffix = "rsc1"
+	}
+	return Connection{Endpoint: "https://" + foundry.Name + ".openai.azure.com/openai/v1", Key: "0123456789abcdef0123456789ab" + suffix}, ctx.Err()
+}
+
 type fixedLimits struct{}
 
 // CapacityLimits is the held first fetch of the limits. The detail failure flag

@@ -57,6 +57,7 @@ type updateBoundary struct {
 func init() {
 	application.RegisterEvent[foundry.Progress](foundry.ProgressEvent)
 	application.RegisterEvent[string](foundry.CapacityReadyEvent)
+	application.RegisterEvent[string](foundry.ConnectionReadyEvent)
 	application.RegisterEvent[foundry.FoundryCreateProgress](foundry.FoundryCreateProgressEvent)
 	application.RegisterEvent[foundry.FoundryDeleteProgress](foundry.FoundryDeleteProgressEvent)
 	application.RegisterEvent[updates.Status](updates.ProgressEvent)
