@@ -44,8 +44,8 @@ function ConnectionItem({
     return () => clearTimeout(timer);
   }, [copied]);
   return (
-    <Group gap="sm" align="center" wrap="nowrap" style={{ minHeight: 28 }}>
-      <Text size="sm" fw={500} w={140} style={{ flexShrink: 0 }}>
+    <Group gap="sm" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
+      <Text size="sm" fw={500} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
         {name}
       </Text>
       {loading ? (
@@ -112,9 +112,16 @@ export function FoundryConnection({
   const loading = state.isPending || state.data?.loading === true;
   const connection = state.data?.connection ?? null;
   return (
-    <section aria-label="Connection">
+    <Group
+      component="section"
+      aria-label="Connection"
+      gap="xl"
+      align="center"
+      wrap="nowrap"
+      style={{ minHeight: 28, marginTop: 10, marginBottom: -14 }}
+    >
       <ConnectionItem
-        name="Endpoint"
+        name="Azure OpenAI Endpoint"
         shown={connection?.endpoint ?? ''}
         value={connection?.endpoint}
         loading={loading}
@@ -126,6 +133,6 @@ export function FoundryConnection({
         value={connection?.key}
         loading={loading}
       />
-    </section>
+    </Group>
   );
 }
