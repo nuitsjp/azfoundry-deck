@@ -105,8 +105,8 @@ test('新規リソースグループとFoundryを作成する', async ({ page, a
     );
     await expect(region).toHaveValue('East US 2');
     await expect(keyword).toHaveValue('sample');
-    await expect(resourceGroup).toHaveValue('rg-sample-eastus2');
-    await expect(foundryName).toHaveValue('foundry-sample-eastus2');
+    await expect(resourceGroup).toHaveValue('rg-foundry-sample-eastus2');
+    await expect(foundryName).toHaveValue('aif-foundry-sample-eastus2');
   });
 
   await test.step('手順2', async () => {
@@ -128,14 +128,14 @@ test('新規リソースグループとFoundryを作成する', async ({ page, a
     await foundryName.fill('foundry-before-region');
     await region.click();
     await page.getByRole('option', { name: 'Japan East', exact: true }).click();
-    await expect(resourceGroup).toHaveValue('rg-sample-japaneast');
-    await expect(foundryName).toHaveValue('foundry-sample-japaneast');
+    await expect(resourceGroup).toHaveValue('rg-foundry-sample-japaneast');
+    await expect(foundryName).toHaveValue('aif-foundry-sample-japaneast');
     await expect(modal.getByText('Edited', { exact: true })).toHaveCount(0);
     await resourceGroup.fill('rg-before-keyword');
     await foundryName.fill('foundry-before-keyword');
     await keyword.fill('  Team__AI--  ');
-    await expect(resourceGroup).toHaveValue('rg-team-ai-japaneast');
-    await expect(foundryName).toHaveValue('foundry-team-ai-japaneast');
+    await expect(resourceGroup).toHaveValue('rg-foundry-team-ai-japaneast');
+    await expect(foundryName).toHaveValue('aif-foundry-team-ai-japaneast');
     await expect(modal.getByText('Edited', { exact: true })).toHaveCount(0);
     await keyword.fill('');
     await expect(create).toBeDisabled();

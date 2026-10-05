@@ -57,8 +57,9 @@ export function AddFoundryModal({
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
   const resourceGroupName =
-    resourceGroupOverride ?? (key && regionName ? `rg-${key}-${regionName}` : '');
-  const foundryName = foundryOverride ?? (key && regionName ? `foundry-${key}-${regionName}` : '');
+    resourceGroupOverride ?? (key && regionName ? `rg-foundry-${key}-${regionName}` : '');
+  const foundryName =
+    foundryOverride ?? (key && regionName ? `aif-foundry-${key}-${regionName}` : '');
   const valid =
     !!subscriptionID && !!regionName && !!key && !!resourceGroupName.trim() && !!foundryName.trim();
   function regenerate() {

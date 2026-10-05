@@ -84,8 +84,8 @@
           <div class="field"><label for="keyword">Keyword</label><input id="keyword" value="sample" autocomplete="off" spellcheck="false" aria-describedby="keyword-help"><span class="help" id="keyword-help">サービス名や用途を英数字・ハイフンで指定します。</span></div>
         </div>
         <div class="names">
-          <div class="field"><label for="resource-group">Resource group name<span class="badge" id="rg-mode">自動生成</span></label><input id="resource-group" value="rg-sample-eastus2" autocomplete="off" spellcheck="false"></div>
-          <div class="field"><label for="foundry">Foundry name<span class="badge" id="foundry-mode">自動生成</span></label><input id="foundry" value="foundry-sample-eastus2" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="resource-group">Resource group name<span class="badge" id="rg-mode">自動生成</span></label><input id="resource-group" value="rg-foundry-sample-eastus2" autocomplete="off" spellcheck="false"></div>
+          <div class="field"><label for="foundry">Foundry name<span class="badge" id="foundry-mode">自動生成</span></label><input id="foundry" value="aif-foundry-sample-eastus2" autocomplete="off" spellcheck="false"></div>
           <p class="help">名前は直接編集できます。キーワードまたはリージョンを変更すると、両方の名前を再生成します。</p>
         </div>
       </div>
@@ -125,8 +125,8 @@
     }
     function generateNames() {
       const key = keyword.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      resourceGroup.value = key ? `rg-${key}-${region.value}` : '';
-      foundry.value = key ? `foundry-${key}-${region.value}` : '';
+      resourceGroup.value = key ? `rg-foundry-${key}-${region.value}` : '';
+      foundry.value = key ? `aif-foundry-${key}-${region.value}` : '';
       document.getElementById('rg-mode').textContent = '自動生成';
       document.getElementById('foundry-mode').textContent = '自動生成';
       updateCreate();
