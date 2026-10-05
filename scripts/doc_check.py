@@ -19,8 +19,8 @@ LINE_LIMITS = {"docs/project.md": 300, "docs/architecture.md": 200,
 PLACEHOLDER_HASH = "sha256:" + "0" * 64
 # 配布元が `--print-hashes` の出力で更新する。
 EXPECTED_HASHES = {
-    "docs/standards/design-and-documentation.md": "sha256:ee9c3044c4076302c6e8584c7cc48adfa0a6c79a2121fd71232e1d85a0451bc8",
-    "docs/standards/mock-driven-development.md": "sha256:16f83994ff5fe2407e366468b1328778ff263802cc61c0624f589cf3471762cc",
+    "docs/standards/design-and-documentation.md": "sha256:9137bbf8c5f8faad9ecd1d0f5e9cb059389724c54e264fdf97611b71fd4e0bcd",
+    "docs/standards/mock-driven-development.md": "sha256:bf5c64d2950841d9dc0f17e22bdf6fb357c8f637c09d2a09c2e80cf565996479",
 }
 
 DESIGN_UCP_HEAD_RE = re.compile(r"^#\s+UCP-(\d+)\.")
@@ -171,7 +171,7 @@ def check_abs_paths(root, docs):
 OLD_RECORD_LABEL_RE = re.compile(
     r"^(?:設計判断|決定(?:経緯|履歴|記録)|全体設計の合意|"
     r"(?:[^:：|/]+の)?(?:改訂合意(?:記録)?|合意記録|完成系監査記録)|"
-    r"完成系監査(?:記録|中の[^:：|/]*)|段階\s*3(?:の[^:：|/]*)?|進捗|現在地|"
+    r"完成系監査(?:記録|中の[^:：|/]*)|(?:段階\s*3|モック確認フェーズ)(?:の[^:：|/]*)?|進捗|現在地|"
     r"検証(?:結果|状況|状態)|承認(?:原文|の原文)|応答(?:の)?原文|利用者の(?:応答|承認)原文|提示コミット|"
     r"論点(?:と|への)回答)"
     r"(?:\s*(?:ID|番号))?(?:\s*[（(][^）)]*[）)])?\s*(?:[:：]|$)",
@@ -179,7 +179,7 @@ OLD_RECORD_LABEL_RE = re.compile(
 OLD_RECORD_HEADING_RE = re.compile(
     r"^(?:設計判断|決定(?:経緯|履歴|記録)|全体設計の合意|"
     r"(?:[^:：|/]+の)?(?:改訂合意(?:記録)?|合意記録|完成系監査記録)|"
-    r"完成系監査(?:記録|中の)|段階\s*3(?:の|[：:])(?:変更|差分|修正|保留|確認|記録|等)|"
+    r"完成系監査(?:記録|中の)|(?:段階\s*3|モック確認フェーズ)(?:の|[：:])(?:変更|差分|修正|保留|確認|記録|等)|"
     r"現在地|承認(?:原文|の原文)|応答(?:の)?原文|利用者の(?:応答|承認)原文|提示コミット|"
     r"論点(?:と|への)回答)(?=$|[\s：:（(])"
 )
@@ -236,7 +236,7 @@ def is_old_record_heading(line):
     base = re.split(r"[：:（(]", title, maxsplit=1)[0].strip()
     if OLD_RECORD_HEADING_RE.match(title):
         return True
-    if re.match(r"^(?:完成系監査中の.+|段階\s*[1-6]の(?:.*案採用|変更|表示調整|修正).*)", title):
+    if re.match(r"^(?:完成系監査中の.+|(?:段階\s*[1-6]|(?:仕様検討|モック確認|テーブル設計|実装|仕様固定)フェーズ)の(?:.*案採用|変更|表示調整|修正).*)", title):
         return True
     if base in {"検証結果", "検証状況", "検証状態"}:
         return True
