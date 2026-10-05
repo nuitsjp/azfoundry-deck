@@ -12,7 +12,7 @@
 | 今回の対象外 | サブスクリプションの変更操作、Foundry の新規作成以外の変更操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
-配布は、バージョンタグに対応するWindows x64用インストーラーのGitHub Releasesへの公開を対象とします。
+配布は、バージョンタグに対応するWindows x64用インストーラーのGitHub Releasesへの公開を対象とします。アプリは起動時に GitHub Releases の新版を確認・取得・検証し、利用者の操作で更新して再起動します。
 
 Foundry の追加は、新規リソースグループと Foundry をセットで作成する操作を対象とします。
 
@@ -49,6 +49,7 @@ Foundry の追加は、新規リソースグループと Foundry をセットで
 | [アプリをインストールする](usecases/アプリをインストールする/README.md) | Windowsでアプリを利用する人 | アプリをインストールし、起動方法を用意する | 13 | [UCP-2](design/UCP-2.md) | 対象 |
 | [Foundryを追加する](usecases/Foundryを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | 新規リソースグループと Foundry を作成し、Home画面で選択する | 14 | [UCP-1](design/UCP-1.md#新規リソースグループとfoundryを作成する) | 対象 |
 | [Foundryを削除する](usecases/Foundryを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry を削除する。リソースグループに Foundry 関連しかなければ、リソースグループごと削除する | 15 | [UCP-1](design/UCP-1.md) | 対象 |
+| [新版を確認してアプリを更新する](usecases/新版を確認してアプリを更新する/README.md) | Windowsでアプリを利用する人 | 起動時にバックグラウンドで GitHub Releases の新版を取得・検証し、利用者の操作で更新して再起動する | 16 | [UCP-3](design/UCP-3.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
