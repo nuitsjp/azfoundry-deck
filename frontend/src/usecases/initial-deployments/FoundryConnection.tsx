@@ -118,7 +118,7 @@ export function FoundryConnection({
       gap="xl"
       align="center"
       wrap="nowrap"
-      style={{ minHeight: 28, marginTop: 10, marginBottom: -14 }}
+      style={{ minHeight: 28, marginTop: 16, marginBottom: -6, paddingLeft: 13 }}
     >
       <ConnectionItem
         name="Azure OpenAI Endpoint"
