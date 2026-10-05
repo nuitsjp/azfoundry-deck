@@ -117,6 +117,10 @@ run = "node scripts/run.mjs verify"
 description = "Goの機能検証を実行する"
 run = "node scripts/run.mjs test:core"
 
+[tasks."test:desktop"]
+description = "「起動時に取得した新版で更新して再起動する」のE2E：v0.1.0とv0.2.0を作り、インストール・更新・アンインストールまで実行する（アプリを終了・アンインストールし、ログインしてから実行）"
+run = "node scripts/run.mjs test:desktop"
+
 [tasks."test:installer"]
 description = "NSIS完了画面の選択・起動・ショートカットとアンインストールを検証して後片付けする"
 run = 'pwsh -NoProfile -File "tests/e2e/usecases/アプリをインストールする/インストールを完了して起動方法を選ぶ.ps1"'
