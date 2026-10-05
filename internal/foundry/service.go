@@ -37,10 +37,11 @@ type Service struct {
 	emit       func(string, any)
 	operations *sync.Mutex
 	// Held in memory only and guarded by operations. The deployments are those of
-	// the selected Foundry as last fetched; the limits are discarded whenever the
-	// view is loaded or the Foundry changes.
-	current deploymentsCache
-	limits  limitsCache
+	// the selected Foundry as last fetched; the limits and the connection are
+	// discarded whenever the view is loaded or the Foundry changes.
+	current    deploymentsCache
+	limits     limitsCache
+	connection connectionCache
 }
 
 type deploymentsCache struct {
@@ -75,7 +76,10 @@ func (s *Service) clearDeployments() {
 	if s.limits.fetch != nil {
 		s.limits.fetch.cancel()
 	}
-	s.current, s.limits = deploymentsCache{}, limitsCache{}
+	if s.connection.fetch != nil {
+		s.connection.fetch.cancel()
+	}
+	s.current, s.limits, s.connection = deploymentsCache{}, limitsCache{}, connectionCache{}
 }
 
 // StopView is called with the shared operation lock held by the auth service.
@@ -86,12 +90,19 @@ func StopView(s *Service, discard bool) {
 		s.limits.fetch.cancel()
 		<-s.limits.fetch.done
 	}
+	if s.connection.fetch != nil {
+		s.connection.fetch.cancel()
+		<-s.connection.fetch.done
+	}
 	if discard {
 		s.clearDeployments()
 	} else if s.limits.fetch != nil {
 		// A failed logout keeps the screen mounted. Let it observe the stopped
 		// fetch instead of retaining Loading indefinitely.
 		s.emit(CapacityReadyEvent, s.limits.foundryID)
+	}
+	if !discard && s.connection.fetch != nil {
+		s.emit(ConnectionReadyEvent, s.connection.foundryID)
 	}
 }
 
@@ -199,6 +210,7 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 		return InitialFoundryView{}, err
 	}
 	s.startCapacityLimits(ctx, file, selected, source)
+	s.startConnection(ctx, file, selected, source)
 	models, err := source.Deployments(ctx, selected, func(count int) {
 		progress.ModelCount = count
 		s.emit(ProgressEvent, progress)

@@ -45,6 +45,7 @@ import { AddFoundryModal } from './AddFoundryModal';
 import { CreateFoundryProgressModal } from './CreateFoundryProgressModal';
 import { DeleteFoundryProgressModal } from './DeleteFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
+import { FoundryConnection } from './FoundryConnection';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -551,6 +552,10 @@ export function InitialDeployments() {
             </Combobox.Options>
           </Combobox.Dropdown>
         </Combobox>
+        <FoundryConnection
+          foundryID={view.selectedFoundryId}
+          fetchedAt={view.deploymentsFetchedAt}
+        />
       </Stack>
       <section aria-label="Deployments and details">
         <Group
