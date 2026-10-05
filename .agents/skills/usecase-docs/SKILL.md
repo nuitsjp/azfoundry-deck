@@ -3,7 +3,7 @@ name: usecase-docs
 description: このプロジェクトのユースケース・シナリオ文書を新規作成、変更、分離、改名するときに使う。名称ベースの配置と雛形を使い、文書構造と参照を検査する。
 ---
 
-案の確認と保存は [モック標準](../../../docs/standards/mock-driven-development.md#discussion) に従う。既存仕様の移設では内容を保持する。
+案の記載と確認は [モック標準](../../../docs/standards/mock-driven-development.md#discussion) に従う。既存仕様の移設では内容を保持する。
 
 ## 文書構造
 
