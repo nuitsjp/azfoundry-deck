@@ -2,5 +2,7 @@
   "id": "AzFoundryDeck",
   "name": "Azure Foundry Deck",
   "executable": "azfoundrydeck.exe",
-  "version": "0.1.3"
+  "version": "0.1.3",
+  "updateSource": "https://github.com/nuitsjp/azfoundry-deck/releases/latest/download/update.json",
+  "updatePublicKey": "xDpopohgGnE2vyYfonXB8EB4GGTB3eFoguHyQp8d9Wo="
 }

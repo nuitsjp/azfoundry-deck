@@ -9,6 +9,9 @@ process.chdir(root);
 const windows = process.platform === 'win32';
 const cli = resolve('.tools', windows ? 'wails3.exe' : 'wails3');
 const app = JSON.parse(readFileSync('build/app.json', 'utf8'));
+// Only for checking the update locally: an older version or a local update source.
+const overrides = [['buildVersion', process.env.BUILD_APP_VERSION], ['buildUpdateSource', process.env.BUILD_UPDATE_SOURCE], ['buildUpdatePublicKey', process.env.BUILD_UPDATE_PUBLIC_KEY]].filter(([, value]) => value);
+if (process.env.BUILD_APP_VERSION) app.version = process.env.BUILD_APP_VERSION;
 const arch = process.env.GOARCH || (process.arch === 'arm64' ? 'arm64' : 'amd64');
 const target = resolve('bin', app.executable);
 const server = resolve('bin', app.executable.slice(0, -4) + '-server' + (windows ? '.exe' : ''));
@@ -38,7 +41,8 @@ try {
     const manifest = readFileSync('build/windows/app.manifest', 'utf8').replaceAll('__APP_ID__', app.id).replaceAll('__APP_VERSION__', app.version);
     writeFileSync('bin/app.manifest', manifest);
     run(cli, ['generate', 'syso', '-manifest', 'bin/app.manifest', '-icon', 'build/windows/app.ico', '-arch', arch, '-out', `rsrc_windows_${arch}.syso`]);
-    run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', '-H windowsgui', '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
+    const ldflags = ['-H windowsgui', ...overrides.map(([name, value]) => `-X 'main.${name}=${value}'`)].join(' ');
+    run('go', ['build', '-trimpath', ...(production ? ['-tags', 'production'] : []), '-ldflags', ldflags, '-o', target, '.'], { env: { ...process.env, GOOS: 'windows', GOARCH: arch, CGO_ENABLED: '0' } });
   } else if (command === 'server') {
     run('go', ['build', '-trimpath', '-tags', 'server,production', '-o', server, '.'], { env: { ...process.env, CGO_ENABLED: '0' } });
   } else if (command === 'server-e2e') {
@@ -118,6 +122,18 @@ try {
     }
     console.log(`review data directory: ${dataDir}`);
     run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, ...(deploymentDetailReview ? { WAILS_SERVER_PORT: deploymentUpdateReview ? '34126' : deploymentAddReview ? '34125' : deploymentDeleteReview ? '34124' : '34123' } : {}), ...(foundryChangeReview || foundryRefreshReview ? { WAILS_SERVER_PORT: '34116' } : {}), ...(foundryAddReview ? { WAILS_SERVER_PORT: '34127', AZFOUNDRYDECK_E2E_FOUNDRY_ADD_REVIEW: '1', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryDeleteReview ? { WAILS_SERVER_PORT: '34128', AZFOUNDRYDECK_E2E_FOUNDRY_DELETE_REVIEW: '1' } : {}), ...(tenantChangeReview ? { WAILS_SERVER_PORT: tenantRevisitReview ? '34122' : '34119' } : {}), ...(noFoundryReview ? { WAILS_SERVER_PORT: '34120', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), ...(foundryEmptyReview ? { WAILS_SERVER_PORT: '34121', AZFOUNDRYDECK_E2E_FOUNDRIES: 'none' } : {}), } });
+  } else if (['run-server-review-update', 'run-server-review-update-untrusted'].includes(command)) {
+    // Screen review only: signed in from a fixed record, with a signed v0.2.0 in a local
+    // folder as the latest release. The installer is never executed.
+    const untrusted = command === 'run-server-review-update-untrusted';
+    const dataDir = mkdtempSync(join(tmpdir(), `${app.id}-update-review-`));
+    writeFileSync(join(dataDir, 'e2e-authentication-record.json'), JSON.stringify({
+      authority: 'login.microsoftonline.com', clientId: 'e2e-client', homeAccountId: 'e2e-object.e2e-tenant',
+      tenantId: 'e2e-tenant', username: 'operator@contoso.onmicrosoft.com', version: '1.0',
+      tenants: [{ id: 'e2e-azure-tenant', displayName: 'Contoso' }], selectedTenantId: 'e2e-azure-tenant',
+    }));
+    console.log(`review data directory: ${dataDir}`);
+    run(serverE2E, [], { env: { ...process.env, WAILS_DATA_DIR: dataDir, WAILS_SERVER_PORT: untrusted ? '34130' : '34129', AZFOUNDRYDECK_E2E_UPDATE: untrusted ? 'untrusted' : 'ready' } });
   } else if (command === 'run' || command === 'run-server') {
     run({ run: target, 'run-server': server }[command], []);
   } else if (command === 'package') {

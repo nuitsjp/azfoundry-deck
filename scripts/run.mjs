@@ -59,14 +59,18 @@ try {
     }
     if (command === 'setup') run(cli, ['task', 'generate']);
   } else if (command === 'help') {
-    console.log('node scripts/run.mjs setup | dev | build | package | package:prepared | ci | server | server:review | server:review:login | server:review:login-multiple | server:review:foundry-change | server:review:foundry-refresh | server:review:foundry-add | server:review:foundry-delete | server:review:deployment-refresh | server:review:deployment-detail | server:review:deployment-delete | server:review:deployment-add | server:review:deployment-update | server:review:tenant-change | server:review:no-foundry | server:review:foundry-empty | server:review:tenant-revisit | verify | test:core');
+    console.log('node scripts/run.mjs setup | dev | build | package | package:prepared | ci | server | server:review | server:review:login | server:review:login-multiple | server:review:foundry-change | server:review:foundry-refresh | server:review:foundry-add | server:review:foundry-delete | server:review:deployment-refresh | server:review:deployment-detail | server:review:deployment-delete | server:review:deployment-add | server:review:deployment-update | server:review:update | server:review:update-untrusted | server:review:tenant-change | server:review:no-foundry | server:review:foundry-empty | server:review:tenant-revisit | verify | test:core | test:desktop');
   } else {
     if (!existsSync(cli)) throw new Error('先に node scripts/run.mjs setup を実行してください。');
     if (command === 'dev') {
       if (!windows) throw new Error('Desktop development is Windows-only. Use server for browser verification.');
       // Wails の既定 9245 は他プロダクトの開発サーバーと競合するため、専用ポートを使う。
       run(cli, ['dev'], root, { WAILS_VITE_PORT: '9301' });
-    } else if (['build', 'package', 'package:prepared', 'ci', 'server', 'server:review', 'server:review:login', 'server:review:login-multiple', 'server:review:foundry-change', 'server:review:foundry-refresh', 'server:review:foundry-add', 'server:review:foundry-delete', 'server:review:deployment-refresh', 'server:review:deployment-detail', 'server:review:deployment-delete', 'server:review:deployment-add', 'server:review:deployment-update', 'server:review:tenant-change', 'server:review:no-foundry', 'server:review:foundry-empty', 'server:review:tenant-revisit', 'verify', 'test:core', 'generate'].includes(command)) {
+    } else if (command === 'test:desktop') {
+      // Installs, updates and uninstalls the desktop app; never part of verify.
+      if (!windows) throw new Error('The desktop E2E is Windows-only.');
+      run('npm', ['--prefix', 'frontend', 'run', 'test:e2e', '--', '--grep', '@desktop'], root, { DESKTOP_E2E: '1' });
+    } else if (['build', 'package', 'package:prepared', 'ci', 'server', 'server:review', 'server:review:login', 'server:review:login-multiple', 'server:review:foundry-change', 'server:review:foundry-refresh', 'server:review:foundry-add', 'server:review:foundry-delete', 'server:review:deployment-refresh', 'server:review:deployment-detail', 'server:review:deployment-delete', 'server:review:deployment-add', 'server:review:deployment-update', 'server:review:update', 'server:review:update-untrusted', 'server:review:tenant-change', 'server:review:no-foundry', 'server:review:foundry-empty', 'server:review:tenant-revisit', 'verify', 'test:core', 'generate'].includes(command)) {
       run(cli, ['task', command]);
 
     } else throw new Error(`Unknown command: ${command}`);

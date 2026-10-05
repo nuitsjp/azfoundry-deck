@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | タグ付与タスク | 入力・Gitの状態の検証、バージョン更新とコミット、タグ作成とpush | `mise.toml`、`scripts/release-tag.mjs` |
 | Windows CI | タグとバージョンの一致確認、既存の検証・ビルド・NSIS生成 | `.github/workflows/windows.yml`、`scripts/run.mjs`、`scripts/build.mjs` |
-| Release公開 | 成功したビルドのインストーラーを取得し、GitHub Releasesへ公開 | `.github/workflows/windows.yml` |
+| Release公開 | 成功したビルドのインストーラーを取得し、署名した `update.json`（[UCP-3](UCP-3.md)）と一緒にGitHub Releasesへ公開 | `.github/workflows/windows.yml`、`cmd/release/main.go` |
 | インストーラー | アプリの配置、ショートカットの作成と削除、完了画面で選択されたアプリ起動 | `build/windows/nsis/project.nsi` |
 | 画面確認用の生成 | 一時フォルダーで製品定義と配置する実行ファイルを確認用に差し替えてインストーラーを生成・起動 | `scripts/preview-installer.ps1` |
 

@@ -12,7 +12,7 @@
 | 今回の対象外 | サブスクリプションの変更操作、Foundry の新規作成以外の変更操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
-配布は、バージョンタグに対応するWindows x64用インストーラーのGitHub Releasesへの公開を対象とします。
+配布は、バージョンタグに対応するWindows x64用インストーラーのGitHub Releasesへの公開を対象とします。アプリは起動時に GitHub Releases の新版を確認・取得・検証し、利用者の操作で更新して再起動します。
 
 Foundry の追加は、新規リソースグループと Foundry をセットで作成する操作を対象とします。
 
@@ -49,6 +49,7 @@ Foundry の追加は、新規リソースグループと Foundry をセットで
 | [アプリをインストールする](usecases/アプリをインストールする/README.md) | Windowsでアプリを利用する人 | アプリをインストールし、起動方法を用意する | 13 | [UCP-2](design/UCP-2.md) | 対象 |
 | [Foundryを追加する](usecases/Foundryを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | 新規リソースグループと Foundry を作成し、Home画面で選択する | 14 | [UCP-1](design/UCP-1.md#新規リソースグループとfoundryを作成する) | 対象 |
 | [Foundryを削除する](usecases/Foundryを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry を削除する。リソースグループに Foundry 関連しかなければ、リソースグループごと削除する | 15 | [UCP-1](design/UCP-1.md) | 対象 |
+| [新版を確認してアプリを更新する](usecases/新版を確認してアプリを更新する/README.md) | Windowsでアプリを利用する人 | 起動時にバックグラウンドで GitHub Releases の新版を取得・検証し、利用者の操作で更新して再起動する | 16 | [UCP-3](design/UCP-3.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -107,6 +108,8 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | デプロイモデル設定変更の画面確認用起動 | `mise run server:review:deployment-update` | `http://127.0.0.1:34126/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。モデル一覧は `chat-production`・`chat-mini`・`embeddings` の3件。認証と外部取得だけが固定応答で、設定の取得・変更と変更後の再取得は通常と同じ処理を通す。実 Azure には触れない |
 | デプロイモデル設定変更の確認 | 起動後、`chat-production` 行を選んで明細を表示し、明細見出しの Edit deployment を押す。Version を `2024-11-20`、Capacity を `80,000`、Upgrade policy を `Upgrade on retirement` に変えて Update を押す | 設定モーダル Edit deployment が開き、Deployment name・Model・SKU は変更できない。初期値は Version `2025-04-14`、Capacity `50,000 / 160,000 TPM`、Upgrade policy `Upgrade to new default` で、値が変わるまで Update は無効。Update 後は進捗モーダル Updating deployment（Step: Update）が閉じ、一覧の Version が `2024-11-20` になり、同じ行の明細が Capacity `80,000 / 160,000 TPM` と Upgrade policy `Upgrade on retirement` になる。件数は3件のまま、デプロイ一覧の最終取得日時が更新される |
 | デプロイモデル設定変更の失敗確認 | 起動前に `$env:AZFOUNDRYDECK_E2E_FAIL='update'` を設定し、`mise run server:review:deployment-update` を起動する。同じ手順で Update を押す | 進捗モーダルだけが閉じ、設定モーダルは入力値を保持したまま開いている。モーダル内に `DEPLOYMENT_UPDATE_FAILED` と理由が表示され、Update を再度押せる。一覧は変更前のまま。編集モーダルの共有クォータの取り直しの失敗は `$env:AZFOUNDRYDECK_E2E_FAIL='update-settings'` で、変更を開始せず同じエラーコードと Retry をモーダル内に表示する。終了後に `Remove-Item Env:AZFOUNDRYDECK_E2E_FAIL` で失敗注入を解除する |
+| 新版の更新の画面確認用起動 | `mise run server:review:update` | `http://127.0.0.1:34129/` が固定アカウントでログイン済みとなる。起動ごとに空の一時フォルダーを作り、パスを端末に表示する。データフォルダーの `e2e-release` に起動ごとの鍵で署名した v0.2.0 の `update.json` とインストーラーを作り、GitHub Releases の代わりに更新元とする。起動の約5秒後に新版を確認し、Home画面の先頭に更新の区画を表示する。確認・取得・検証・適用前の再検証は通常と同じ処理を通し、インストーラーは実行せずにログに記録してサーバーを終了する |
+| 新版の再検証の失敗確認 | `mise run server:review:update-untrusted` | `http://127.0.0.1:34130/` で同じく更新の区画を表示する。取得後に置いたインストーラーを書き換えてあるため、`更新して再起動` を押すとサーバーは終了せず、区画に `更新を検証できませんでした。次回の起動時に確認し直します。` を表示する |
 | デプロイモデル設定変更の確認用構成の終了と通常構成への切り替え | 起動端末で `Ctrl+C`。通常構成は `mise run dev` | 通常ビルドは固定応答を含まない。実 Azure への設定変更は `DeploymentsClient.BeginCreateOrUpdate` で実行され、完了後に選択中 Foundry のデプロイ一覧を Azure から再取得し、同じデプロイの明細を新しい一覧から表示する |
 | 通常構成でのデプロイモデルの設定変更 | `mise run dev` で Home画面を開き、明細見出しの Edit deployment から Version、Capacity、Upgrade policy を変えて Update を押す | 実 Azure 上のデプロイが変わり、デプロイ一覧と明細が更新される（未検証。実装フェーズで利用者が確認） |
 
@@ -166,7 +169,7 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 
 - **E2E 用ビルド**: `node scripts/build.mjs server-e2e`（`build:server:e2e` タスク）が `-tags server,production,e2e` でビルドします。`e2e` タグでは、サインインの外部境界が固定の認証記録（アカウント名 `operator@contoso.onmicrosoft.com`、認証テナント ID `e2e-tenant`）を返し、一覧取得の外部境界が唯一の候補（ID `e2e-azure-tenant`、表示名 `Contoso`）を返します。唯一の候補の自動選択と認証記録・一覧・選択の保存は通常と同じサービス処理を通し、資格情報マネージャーの代わりにデータディレクトリの `e2e-authentication-record.json` へ保存します。環境変数 `AZFOUNDRYDECK_E2E_FAIL=signin`、`save`、`restore`、`logout` で失敗を注入します。ログアウトでは記録ファイルと全アカウント・テナントの閲覧保存データを削除します。起動前にデータディレクトリへ `e2e-authentication-record.json` を置くと、起動時の復元がその記録で成功します。サインインが呼ばれるとデータディレクトリに `e2e-signin-called` を作り、`AZFOUNDRYDECK_E2E_HOLD_RESTORE=1` のときは復元が `e2e-restore-release` の作成まで応答を保留します。
 - **画面確認用の起動と実処理への切り替え**: `server:review` は E2E 用ビルド（`bin\azfoundrydeck-server-e2e.exe`）を、一時フォルダーの固定データディレクトリ `AzFoundryDeck-review` に認証記録・テナント一覧・選択を含む `e2e-authentication-record.json` を置いて起動します。認証と Foundry・デプロイ取得の外部境界は固定応答を返しますが、初期選択・進捗の合成と通知・Foundry 一覧と選択のファイル保存・保存済みファイルの読み込み・結果表示は本番と同じ処理です。保存済みファイルがあれば Foundry 一覧を取得せずに復元し、選択中の Foundry のデプロイだけを固定応答から取得します。固定応答の内容と進捗の接続は [UCP-1](design/UCP-1.md#デプロイモデルを閲覧する) を参照します。Azure・資格情報マネージャー・永続キャッシュには触れません。終了は起動した端末で `Ctrl+C` です。実 Azure の取得へ切り替える場合は終了後に `mise run server` で通常ビルドを起動します。読み込み・接続・保存に失敗した場合は固定応答に切り替わらず、Home画面にエラーが表示されることを確認します。本番のログアウトで削除する対象は [データ設計](design/data.md#ログアウト時の削除範囲) に従います。閲覧保存データの削除も同じ実処理を通しますが、本番の永続キャッシュと資格情報マネージャーを含む実機動作は未検証です。
-- **本番に含まれないこと**: `internal/azauth/e2e.go`、`record_store_e2e.go`、`internal/foundry/e2e.go`、`foundry_source_e2e.go` は `e2e` タグのときだけコンパイルされ、`server`、`build`、`package`、`dev` のビルドには含まれません。`go list -tags server,production -f '{{.GoFiles}}' ./internal/azauth ./internal/foundry .` にこれらのファイルが現れないことで確認できます。実 Azure へのサインイン・Foundry 一覧とモデルの取得、実ブラウザーでの認証、実資格情報マネージャーへの保存は E2E の対象外です。
+- **本番に含まれないこと**: `internal/azauth/e2e.go`、`record_store_e2e.go`、`internal/foundry/e2e.go`、`foundry_source_e2e.go`、`update_source_e2e.go` は `e2e` タグのときだけコンパイルされ、`server`、`build`、`package`、`dev` のビルドには含まれません。`go list -tags server,production -f '{{.GoFiles}}' ./internal/azauth ./internal/foundry .` にこれらのファイルが現れないことで確認できます。実 Azure へのサインイン・Foundry 一覧とモデルの取得、実ブラウザーでの認証、実資格情報マネージャーへの保存は E2E の対象外です。
 
 - **保存するもの**: アカウント識別情報・テナント一覧・選択を Windows 資格情報マネージャーの汎用資格情報 `AzFoundryDeck:AuthenticationRecord`（ユーザー名 `AuthenticationRecord`）に、トークンを `azidentity/cache` の永続キャッシュ（名前 `azfoundrydeck`）に保存します。通常起動時とテナント変更時は保存した一覧を使い、ブラウザーでの再サインイン時だけ ARM の一覧を取得し直します。保存形式・アカウントとテナントごとの閲覧保存先・ログアウトの削除範囲は [データ設計](design/data.md) を参照します。
 - **自動ログインの実機確認**: ブラウザーでのサインイン成功後にアプリを終了し、同じデータフォルダーで通常ビルドを再起動します。ブラウザーを開かずに保存済みの一覧・選択からヘッダーを復元し、ARM のテナント一覧を取得し直さないこと、同じアカウント・テナントの閲覧結果を復元することを確認します。
@@ -185,6 +188,9 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | インストーラーのローカル生成 | `mise run package` | `bin/azfoundrydeck-X.Y.Z-amd64-setup.exe` を生成する |
 | インストーラーのE2E検証 | `mise run test:installer` | 完了画面の4組み合わせ・起動・リンク・アンインストールを検証し、確認用の登録とファイルを削除する |
 | 文書の検査 | `python scripts/doc_check.py .` | `NG 0 件` |
+| 更新用の署名鍵の作成（初回のみ） | `go run ./cmd/release keygen -out <リポジトリ外のパス>` | 秘密鍵をファイルに書き、公開鍵を表示する。公開鍵を `build/app.json` の `updatePublicKey` に、秘密鍵ファイルの内容を GitHub の Secrets の `UPDATE_SIGNING_KEY` に登録する（`gh secret set UPDATE_SIGNING_KEY < <パス>`）。秘密鍵はリポジトリに置かない。現在の鍵は開発者の `%USERPROFILE%\.azfoundrydeck\update-signing.key` にある |
+| 新版の更新の実機確認 | `go run ./cmd/release keygen` で確認用の鍵を作る。環境変数 `BUILD_UPDATE_SOURCE` に手元のフォルダー、`BUILD_UPDATE_PUBLIC_KEY` に確認用の公開鍵、`BUILD_APP_VERSION` に古い版（例 `0.1.90`）と新しい版（例 `0.1.91`）を順に指定して `node scripts/run.mjs package` を実行する。新しい版のインストーラーをそのフォルダーに置き、`go run ./cmd/release manifest -key <鍵> -installer <インストーラー> -app-id AzFoundryDeck -version 0.1.91 -out <フォルダー>` で `update.json` を作る。古い版を `/S` でインストールして起動する | Home画面の先頭に `バージョン 0.1.91 の準備ができました。` が表示され、`更新して再起動` でアプリが終了し、0.1.91 が画面なしでインストールされて起動する。ログイン状態と閲覧の保存は残り、更新の区画は表示しない。確認後は GitHub Releases の正式なインストーラーで入れ直す |
+| 新版の更新の E2E | `mise run test:desktop` | 「起動時に取得した新版で更新して再起動する」の E2E が合格する。v0.1.0 と v0.2.0 のインストーラーを確認用の鍵と手元の更新元で作り、v0.1.0 をインストールして更新し、署名の不一致と適用前の再検証の失敗も確かめてから、最後にアンインストールする。実際にインストールし、資格情報マネージャーのログインを使うため、Azure Foundry Deck を終了・アンインストールし、ログイン済みの状態で手元で実行する。NSIS がない場合は `NSIS_EXE` に `makensis.exe` を指定する。`verify` と CI には含めない（`verify` ではスキップと表示される） |
 | Foundry追加の画面確認用起動 | `mise run server:review:foundry-add` | `http://127.0.0.1:34127/` が固定アカウントでログイン済み、Foundry 0件で起動する。起動ごとに空の一時フォルダーを作り、パスを表示する。Add Foundry で候補とデフォルト名を表示し、Create でリソースグループ作成・Foundry作成・Home更新の進捗を表示して新しい Foundry を選択する。候補取得と作成・デプロイ取得だけが固定応答で、サービスの進捗通知・選択・保存・表示は通常の処理を通す。実 Azure と本番保存先には触れない |
 | Foundry追加の画面確認用構成の終了 | 起動端末で `Ctrl+C` | 確認用サーバーを停止する。通常起動は `mise run server` または `mise run dev`。通常構成は実 Azure から候補を取得してリソースを作成し、固定応答へフォールバックしない |
 | Foundry追加の実処理確認 | 通常構成のHomeで Add Foundry を開き、作成先のサブスクリプション、eastus2、検証用キーワードを指定して Create を押す | 作成中の3段階の進捗表示後、新規 Foundry が選択される。Azure に新規リソースグループと AIServices アカウントが存在し、通常構成の画面再読み込みでも選択が復元され、デプロイ0件を取得する。作成済みリソースは自動削除しない |
@@ -193,7 +199,7 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 | Foundry削除の実処理確認（実装フェーズ） | 通常構成（`mise run server` または `mise run dev`）のHomeで削除対象の Foundry を選び、ゴミ箱アイコンから Delete を押す | 進捗モーダル（Delete Foundry、Delete resource group。リソースグループ保持時は Delete Foundry のみ）が表示され、Azure 上の AIServices アカウント（および対象時はリソースグループ）が実際に削除・完全消去される。Home画面のFoundry一覧から削除対象が消え、次のFoundryが選択される |
 | CIの静的検査 | `actionlint -shellcheck= .github/workflows/windows.yml` | エラー出力なしで終了する。ShellCheckの検査は省略する |
 
-公開用タグのpushはWindows CIを起動します。GitHub Actionsの `Windows checks` でビルド・検証と `release` ジョブの成功を確認し、ジョブが表示するURLからインストーラーを取得します。Git操作が失敗した場合は出力とローカルのバージョン・コミット・タグを確認し、自動再試行は行いません。
+公開用タグのpushはWindows CIを起動します。`release` ジョブはインストーラーの版・サイズ・ハッシュを Secrets の `UPDATE_SIGNING_KEY` で署名した `update.json` を作り、インストーラーと同じ Release に添付します。Secrets が未登録なら公開せずに失敗します。各PCのアプリは次の起動時に `https://github.com/nuitsjp/azfoundry-deck/releases/latest/download/update.json` から新版を取得します。GitHub Actionsの `Windows checks` でビルド・検証と `release` ジョブの成功を確認し、ジョブが表示するURLからインストーラーを取得します。Git操作が失敗した場合は出力とローカルのバージョン・コミット・タグを確認し、自動再試行は行いません。
 
 タグ付与の手動検証では、一時フォルダーに `scripts/release-tag.mjs`、`build/app.json` と `release:tag` タスクを配置し、Gitリポジトリを初期化してローカルのbareリポジトリをoriginに設定します。バージョン指定と未指定を別々のリポジトリで実行し、バージョン、変更コミットの対象ファイル、originのブランチとタグが一致することを確認します。不正値、同じ版・古い版、範囲超過、作業ツリーの変更、ローカルとoriginのタグ重複では、ファイル・コミット・タグが変わらず失敗することを確認します。この確認はGitHub CIとRelease公開の検証を代替しません。
 
