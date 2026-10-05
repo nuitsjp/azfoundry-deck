@@ -5,13 +5,15 @@ package foundry
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices/v3"
 )
 
-// openAIEndpoint names the Azure OpenAI entry of the account's endpoints.
+// openAIEndpoint names the Azure OpenAI entry of the account's endpoints. The
+// screen shows the v1 API base URL under it.
 const openAIEndpoint = "OpenAI Language Model Instance API"
 
 // Connection reads the Foundry's Azure OpenAI endpoint and, in parallel, its key 1.
@@ -39,7 +41,7 @@ func (s *azureSource) Connection(ctx context.Context, foundry Foundry) (Connecti
 			endpointErr = fmt.Errorf("Foundry response lacks the Azure OpenAI endpoint")
 			return
 		}
-		connection.Endpoint = *account.Properties.Endpoints[openAIEndpoint]
+		connection.Endpoint = strings.TrimSuffix(*account.Properties.Endpoints[openAIEndpoint], "/") + "/openai/v1"
 	}()
 	go func() {
 		defer wg.Done()

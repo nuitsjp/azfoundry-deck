@@ -161,7 +161,7 @@ func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection,
 	case "contoso-foundry-research":
 		suffix = "rsc1"
 	}
-	return Connection{Endpoint: "https://" + foundry.Name + ".openai.azure.com/", Key: "0123456789abcdef0123456789ab" + suffix}, ctx.Err()
+	return Connection{Endpoint: "https://" + foundry.Name + ".openai.azure.com/openai/v1", Key: "0123456789abcdef0123456789ab" + suffix}, ctx.Err()
 }
 
 type fixedLimits struct{}
