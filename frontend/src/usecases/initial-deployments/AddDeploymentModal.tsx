@@ -117,18 +117,11 @@ export function AddDeploymentModal({
     return (existingDeploymentNames ?? []).some((name) => name.toLowerCase() === trimmed);
   }, [deploymentName, existingDeploymentNames]);
 
-  const availableSKUs = useMemo(() => {
-    if (!selectedModel?.skus || selectedModel.skus.length === 0) {
-      return selectedModel?.option === 'Pay-as-you-go'
-        ? [{ name: 'GlobalProvisioned', maxCapacity: null }]
-        : [{ name: 'GlobalStandard', maxCapacity: selectedModel?.maxCapacity ?? null }];
-    }
-    return selectedModel.skus;
-  }, [selectedModel]);
+  const availableSKUs = selectedModel?.skus ?? [];
+  const availableVersions = selectedModel?.versions ?? [];
+  const deploymentOptionsUnavailable = availableSKUs.length === 0 || availableVersions.length === 0;
 
-  const currentSKU = useMemo(() => {
-    return availableSKUs.find((s) => s.name === selectedSKU) ?? availableSKUs[0];
-  }, [availableSKUs, selectedSKU]);
+  const currentSKU = availableSKUs.find((s) => s.name === selectedSKU);
 
   const currentMaxCapacity = useMemo(() => {
     if (catalogView?.quotaStatus !== 'ready') return null;
@@ -160,14 +153,11 @@ export function AddDeploymentModal({
       const initial = catalog[0];
       setSelectedModelName(initial.name);
       setDeploymentName(initial.name);
-      setSelectedVersion(initial.versions?.[0] ?? '1');
-      const skus =
-        initial.skus && initial.skus.length > 0
-          ? initial.skus
-          : [{ name: 'GlobalStandard', maxCapacity: initial.maxCapacity }];
+      setSelectedVersion(initial.versions?.[0] ?? '');
+      const skus = initial.skus ?? [];
       const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
-      setSelectedSKU(defSku.name);
-      const skuCap = defSku.maxCapacity ?? initial.maxCapacity;
+      setSelectedSKU(defSku?.name ?? '');
+      const skuCap = defSku?.maxCapacity;
       if (skuCap) {
         const half = Math.floor(skuCap / 2000) * 1000;
         setCapacity(half);
@@ -181,14 +171,11 @@ export function AddDeploymentModal({
     setSelectedModelName(model.name);
     setCapacityEntered(false);
     setDeploymentName(model.name);
-    setSelectedVersion(model.versions?.[0] ?? '1');
-    const skus =
-      model.skus && model.skus.length > 0
-        ? model.skus
-        : [{ name: 'GlobalStandard', maxCapacity: model.maxCapacity }];
+    setSelectedVersion(model.versions?.[0] ?? '');
+    const skus = model.skus ?? [];
     const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
-    setSelectedSKU(defSku.name);
-    const skuCap = defSku.maxCapacity ?? model.maxCapacity;
+    setSelectedSKU(defSku?.name ?? '');
+    const skuCap = defSku?.maxCapacity;
     if (skuCap) {
       const half = Math.floor(skuCap / 2000) * 1000;
       setCapacity(half);
@@ -256,17 +243,21 @@ export function AddDeploymentModal({
   };
 
   const handleDeploy = () => {
-    if (!selectedModel || !deploymentName.trim() || capacityInvalid || catalogError) return;
-
-    const skuToUse =
-      selectedSKU ||
-      (selectedModel.option === 'Pay-as-you-go' ? 'GlobalProvisioned' : 'GlobalStandard');
+    if (
+      !selectedModel ||
+      !deploymentName.trim() ||
+      !selectedVersion ||
+      !selectedSKU ||
+      capacityInvalid ||
+      catalogError
+    )
+      return;
 
     const spec: DeploymentCreateSpec = {
       deploymentName: deploymentName.trim(),
       modelName: selectedModel.name,
       version: selectedVersion,
-      sku: skuToUse,
+      sku: selectedSKU,
       capacity: selectedModel.option === 'Pay-as-you-go' ? null : capacity,
       upgradePolicy: upgradePolicy,
     };
@@ -513,6 +504,12 @@ export function AddDeploymentModal({
                     </Group>
                   </Box>
 
+                  {deploymentOptionsUnavailable && (
+                    <Alert color="red" title="Deployment unavailable">
+                      No deployment options available for this model.
+                    </Alert>
+                  )}
+
                   <TextInput
                     label="Deployment name"
                     required
@@ -530,7 +527,7 @@ export function AddDeploymentModal({
 
                   <Select
                     label="Model version"
-                    data={(selectedModel.versions ?? ['1']).map((v) => ({
+                    data={availableVersions.map((v) => ({
                       value: v,
                       label: v,
                     }))}
@@ -549,7 +546,7 @@ export function AddDeploymentModal({
                         value: s.name,
                         label: s.name,
                       }))}
-                      value={selectedSKU || availableSKUs[0]?.name || 'GlobalStandard'}
+                      value={selectedSKU}
                       onChange={(val) => {
                         if (val) handleSelectSKU(val);
                       }}
@@ -692,6 +689,8 @@ export function AddDeploymentModal({
             busy ||
             !selectedModel ||
             !deploymentName.trim() ||
+            !selectedVersion ||
+            !selectedSKU ||
             isDuplicateName ||
             capacityInvalid ||
             !!catalogError

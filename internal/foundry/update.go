@@ -39,42 +39,46 @@ type DeploymentUpdateSource interface {
 // GetDeploymentSettings returns the current settings and the choices for one deployment.
 func (s *Service) GetDeploymentSettings(ctx context.Context, deploymentID string) (DeploymentSettings, error) {
 	s.operations.Lock()
-	defer s.operations.Unlock()
 	if err := s.signedIn(ctx); err != nil {
+		s.operations.Unlock()
 		return DeploymentSettings{}, err
 	}
 	file, err := s.file()
-	var settings DeploymentSettings
+	var foundry Foundry
+	var deployment Deployment
+	var source Source
 	if err == nil {
-		settings, err = s.deploymentSettings(ctx, file, deploymentID)
+		foundry, deployment, source, err = s.selectedDeployment(file, deploymentID)
 	}
 	if err != nil {
-		s.logger.Error("operation_failed", "operation", "foundry.GetDeploymentSettings", "cause", err)
-		if ctx.Err() != nil {
-			return DeploymentSettings{}, fault.Public(ctx.Err())
-		}
+		s.operations.Unlock()
 		return DeploymentSettings{}, fault.New("DEPLOYMENT_UPDATE_FAILED", "Could not load the deployment settings.")
 	}
-	return settings, nil
+	s.startCapacityLimits(ctx, file, foundry, source)
+	limits, loading, _ := s.readLimits()
+	if !loading && limits != nil {
+		s.startQuotaRefresh(ctx)
+	}
+	fetch := s.limits.fetch
+	s.operations.Unlock()
+	if err := waitLimits(ctx, fetch, false); err != nil {
+		return DeploymentSettings{}, fault.Public(err)
+	}
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	if !s.sameLimits(file, foundry.ID, fetch) {
+		return DeploymentSettings{}, fault.New("DEPLOYMENT_UPDATE_FAILED", "The selected Foundry changed.")
+	}
+	limits, _, err = s.readLimits()
+	if err != nil || limits == nil {
+		return DeploymentSettings{}, fault.New("DEPLOYMENT_UPDATE_FAILED", "Could not load the deployment settings.")
+	}
+	return deploymentSettings(deployment, limits), nil
 }
 
 // deploymentSettings builds the settings from the listed deployment and the
 // capacity limits. The shared quota is fetched again so the maximum is current.
-func (s *Service) deploymentSettings(ctx context.Context, file, deploymentID string) (DeploymentSettings, error) {
-	foundry, deployment, source, err := s.selectedDeployment(file, deploymentID)
-	if err != nil {
-		return DeploymentSettings{}, err
-	}
-	limits, fetched, err := s.capacityLimits(ctx, file, foundry, source)
-	if err != nil {
-		return DeploymentSettings{}, err
-	}
-	if !fetched {
-		if limits, err = limits.RefreshQuota(ctx); err != nil {
-			return DeploymentSettings{}, err
-		}
-		s.limits.value = limits
-	}
+func deploymentSettings(deployment Deployment, limits CapacityLimits) DeploymentSettings {
 	settings := DeploymentSettings{
 		DeploymentID: deployment.ID, DeploymentName: deployment.DeploymentName, ModelName: deployment.ModelName,
 		Option: "Pay-as-you-go", Version: deployment.Version, Versions: limits.Versions(deployment),
@@ -90,7 +94,7 @@ func (s *Service) deploymentSettings(ctx context.Context, file, deploymentID str
 		settings.Capacity, settings.CapacityUnit = deployment.Capacity, deployment.CapacityUnit
 		settings.CapacityMaximum = limits.Maximum(deployment)
 	}
-	return settings, nil
+	return settings
 }
 
 // UpdateDeployment changes one deployment of the selected Foundry, then re-fetches
@@ -127,6 +131,10 @@ func (s *Service) updateDeployment(ctx context.Context, file string, spec Deploy
 	}
 	if err := updateSource.UpdateDeployment(ctx, foundry, deployment, spec); err != nil {
 		return InitialFoundryView{}, err
+	}
+	if spec.Capacity != nil && (deployment.Capacity == nil || float64(*spec.Capacity) != *deployment.Capacity) &&
+		s.limits.file == file && s.limits.foundryID == foundry.ID {
+		s.startQuotaRefresh(ctx)
 	}
 	view, err := read(file)
 	if err != nil {

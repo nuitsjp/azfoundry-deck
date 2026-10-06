@@ -60,6 +60,8 @@ func deploymentFrom(deployment *armcognitiveservices.Deployment) Deployment {
 }
 
 type azureLimits struct {
+	accounts *armcognitiveservices.AccountsClient
+	foundry  Foundry
 	usages   *armcognitiveservices.UsagesClient
 	location string
 	models   []*armcognitiveservices.AccountModel
@@ -68,7 +70,7 @@ type azureLimits struct {
 
 // CapacityLimits fetches the Foundry's model definitions, and in parallel its
 // region and that region's shared quota.
-func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry) (CapacityLimits, error) {
+func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry, publishModels func(CapacityLimits)) (CapacityLimits, error) {
 	id, err := arm.ParseResourceID(foundry.ID)
 	if err != nil {
 		return nil, err
@@ -81,7 +83,9 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry) (Capa
 	if err != nil {
 		return nil, err
 	}
-	limits := &azureLimits{usages: usages}
+	base := azureLimits{accounts: accounts, foundry: foundry, usages: usages}
+	var models []*armcognitiveservices.AccountModel
+	var quotaLimits CapacityLimits
 	var wg sync.WaitGroup
 	var modelsErr, quotaErr error
 	wg.Add(2)
@@ -94,31 +98,23 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry) (Capa
 				modelsErr = fmt.Errorf("get model capacity definition: %w", err)
 				return
 			}
-			limits.models = append(limits.models, page.Value...)
+			models = append(models, page.Value...)
 		}
+		published := base
+		published.models = models
+		publishModels(&published)
 	}()
 	go func() {
 		defer wg.Done()
-		account, err := accounts.Get(ctx, foundry.ResourceGroupName, foundry.Name, nil)
-		if err != nil {
-			quotaErr = fmt.Errorf("get Foundry location: %w", err)
-			return
-		}
-		if account.Location == nil {
-			quotaErr = fmt.Errorf("Foundry response lacks location")
-			return
-		}
-		limits.location = *account.Location
-		limits.quota, quotaErr = listQuota(ctx, usages, limits.location)
+		quotaLimits, quotaErr = base.RefreshQuota(ctx)
 	}()
 	wg.Wait()
 	if modelsErr != nil {
 		return nil, modelsErr
 	}
-	if quotaErr != nil {
-		return nil, quotaErr
-	}
-	return limits, nil
+	limits := *quotaLimits.(*azureLimits)
+	limits.models = models
+	return &limits, quotaErr
 }
 
 func listQuota(ctx context.Context, usages *armcognitiveservices.UsagesClient, location string) ([]*armcognitiveservices.Usage, error) {
@@ -135,11 +131,21 @@ func listQuota(ctx context.Context, usages *armcognitiveservices.UsagesClient, l
 }
 
 func (l *azureLimits) RefreshQuota(ctx context.Context) (CapacityLimits, error) {
-	quota, err := listQuota(ctx, l.usages, l.location)
-	if err != nil {
-		return nil, err
+	refreshed := *l
+	refreshed.quota = nil
+	if refreshed.location == "" {
+		account, err := refreshed.accounts.Get(ctx, refreshed.foundry.ResourceGroupName, refreshed.foundry.Name, nil)
+		if err != nil {
+			return &refreshed, fmt.Errorf("get Foundry location: %w", err)
+		}
+		if account.Location == nil {
+			return &refreshed, fmt.Errorf("Foundry response lacks location")
+		}
+		refreshed.location = *account.Location
 	}
-	return &azureLimits{usages: l.usages, location: l.location, models: l.models, quota: quota}, nil
+	var err error
+	refreshed.quota, err = listQuota(ctx, refreshed.usages, refreshed.location)
+	return &refreshed, err
 }
 
 func (l *azureLimits) Maximum(d Deployment) *float64 {

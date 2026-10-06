@@ -23,9 +23,20 @@ type controlledCreateSource struct {
 	createDeployment func(context.Context, Foundry, DeploymentCreateSpec) error
 }
 
-func (s controlledCreateSource) ListModels(ctx context.Context, f Foundry) ([]ModelCatalogItem, error) {
+type controlledCatalogLimits struct {
+	fakeLimits
+	items []ModelCatalogItem
+}
+
+func (l controlledCatalogLimits) Catalog() []ModelCatalogItem { return l.items }
+
+func (s controlledCreateSource) CapacityLimits(ctx context.Context, f Foundry, _ func(CapacityLimits)) (CapacityLimits, error) {
 	if s.listModels != nil {
-		return s.listModels(ctx, f)
+		items, err := s.listModels(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		return controlledCatalogLimits{items: items}, nil
 	}
 	return nil, errors.New("listModels not implemented")
 }
@@ -67,8 +78,8 @@ func TestGetModelCatalogSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(items, expectedItems) {
-		t.Fatalf("items = %#v, want %#v", items, expectedItems)
+	if !reflect.DeepEqual(items.Models, expectedItems) {
+		t.Fatalf("items = %#v, want %#v", items.Models, expectedItems)
 	}
 }
 

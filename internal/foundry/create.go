@@ -36,8 +36,11 @@ type DeploymentCreateSpec struct {
 	UpgradePolicy  string `json:"upgradePolicy"`
 }
 
-type ModelCatalogSource interface {
-	ListModels(context.Context, Foundry) ([]ModelCatalogItem, error)
+type ModelCatalogView struct {
+	FoundryID   string             `json:"foundryId"`
+	Models      []ModelCatalogItem `json:"models"`
+	QuotaStatus string             `json:"quotaStatus"`
+	QuotaError  *string            `json:"quotaError"`
 }
 
 type DeploymentCreateSource interface {
@@ -45,41 +48,69 @@ type DeploymentCreateSource interface {
 }
 
 // GetModelCatalog returns the catalog of available models for the selected Foundry.
-func (s *Service) GetModelCatalog(ctx context.Context) ([]ModelCatalogItem, error) {
+func (s *Service) GetModelCatalog(ctx context.Context) (ModelCatalogView, error) {
 	s.operations.Lock()
-	defer s.operations.Unlock()
 	if err := s.signedIn(ctx); err != nil {
-		return nil, err
+		s.operations.Unlock()
+		return ModelCatalogView{}, err
 	}
 	file, err := s.file()
 	if err != nil {
-		return nil, err
+		s.operations.Unlock()
+		return ModelCatalogView{}, err
 	}
 	view, err := read(file)
 	if err != nil {
-		return nil, err
+		s.operations.Unlock()
+		return ModelCatalogView{}, err
 	}
 	foundryIndex := slices.IndexFunc(view.Foundries, func(f Foundry) bool { return f.ID == view.SelectedFoundryID })
 	if foundryIndex < 0 {
-		return nil, fmt.Errorf("selected Foundry is not in the saved list")
+		s.operations.Unlock()
+		return ModelCatalogView{}, fmt.Errorf("selected Foundry is not in the saved list")
 	}
-	source, err := s.source()
-	if err != nil {
-		return nil, err
-	}
-	catalogSource, ok := source.(ModelCatalogSource)
-	if !ok {
-		return nil, fmt.Errorf("model catalog is not connected to Azure yet")
-	}
-	items, err := catalogSource.ListModels(ctx, view.Foundries[foundryIndex])
-	if err != nil {
-		s.logger.Error("operation_failed", "operation", "foundry.GetModelCatalog", "cause", err)
-		if ctx.Err() != nil {
-			return nil, fault.Public(ctx.Err())
+	foundry := view.Foundries[foundryIndex]
+	if s.limits.file != file || s.limits.foundryID != foundry.ID || s.limits.fetch == nil {
+		source, sourceErr := s.source()
+		if sourceErr != nil {
+			s.operations.Unlock()
+			return ModelCatalogView{}, sourceErr
 		}
-		return nil, fault.New("MODEL_CATALOG_FAILED", "Could not load the available model catalog.")
+		s.startCapacityLimits(ctx, file, foundry, source)
 	}
-	return items, nil
+	fetch := s.limits.fetch
+	s.operations.Unlock()
+	if err := waitLimits(ctx, fetch, true); err != nil {
+		return ModelCatalogView{}, fault.Public(err)
+	}
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	if s.limits.file != file || s.limits.foundryID != foundry.ID {
+		return ModelCatalogView{}, fault.New("MODEL_CATALOG_FAILED", "The selected Foundry changed.")
+	}
+	limits, loading, quotaErr := s.readLimits()
+	if limits == nil {
+		return ModelCatalogView{}, fault.New("MODEL_CATALOG_FAILED", "Could not load the available model catalog.")
+	}
+	result := ModelCatalogView{FoundryID: foundry.ID, Models: limits.Catalog(), QuotaStatus: "ready"}
+	if loading {
+		result.QuotaStatus = "loading"
+	}
+	if quotaErr != nil {
+		result.QuotaStatus = "error"
+		message := "Could not retrieve the shared quota."
+		result.QuotaError = &message
+	}
+	if result.QuotaStatus != "ready" {
+		for i := range result.Models {
+			result.Models[i].MaxCapacity = nil
+			// Catalog returns a fresh projection; invalidation never mutates kept definitions.
+			for j := range result.Models[i].SKUs {
+				result.Models[i].SKUs[j].MaxCapacity = nil
+			}
+		}
+	}
+	return result, nil
 }
 
 // CreateDeployment deploys a new model to the selected Foundry in Azure, then
@@ -145,6 +176,9 @@ func (s *Service) createDeployment(ctx context.Context, file string, spec Deploy
 	selected := view.Foundries[foundryIndex]
 	if err := createSource.CreateDeployment(ctx, selected, spec); err != nil {
 		return InitialFoundryView{}, err
+	}
+	if s.limits.file == file && s.limits.foundryID == selected.ID {
+		s.startQuotaRefresh(ctx)
 	}
 	return s.acquireModels(ctx, file, view, selected)
 }
