@@ -383,7 +383,15 @@ test.describe('設定の取得に失敗する', () => {
       await expect(dialog.getByRole('alert')).toContainText('DEPLOYMENT_UPDATE_FAILED');
       await expect(dialog.getByRole('button', { name: 'Retry' })).toBeEnabled();
       await assertRows(rows, models);
-      await assertDetail(details, '2025-04-14', '50,000 / 160,000 TPM', 'Upgrade to new default');
+      await expect(details.locator('dd')).toHaveText([
+        'gpt-4.1',
+        '2025-04-14',
+        'GlobalStandard',
+        '50,000 / Not set TPM',
+        'DEPLOYMENT_DETAIL_FAILEDCould not retrieve the capacity maximum.Retry',
+        'Succeeded',
+        'Upgrade to new default',
+      ]);
     });
 
     await test.step('受け入れ条件', async () => {

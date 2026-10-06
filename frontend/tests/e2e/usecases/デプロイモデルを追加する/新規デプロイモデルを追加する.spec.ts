@@ -56,6 +56,15 @@ function seed(app: IsolatedApp) {
   return { viewDir, stateFile };
 }
 
+function releaseCatalog(app: IsolatedApp, stage: string) {
+  writeFileSync(join(app.dataDir, `e2e-catalog-${stage}-release`), '');
+}
+
+function catalogCalls(app: IsolatedApp) {
+  const path = join(app.dataDir, 'e2e-catalog-calls');
+  return existsSync(path) ? readFileSync(path, 'utf8').trim().split(/\r?\n/) : [];
+}
+
 test.describe('デプロイモデルを追加する', () => {
   test('新規デプロイモデルを追加する', async ({ page, app }) => {
     let files: ReturnType<typeof seed>;
@@ -171,6 +180,251 @@ test.describe('デプロイモデルを追加する', () => {
       await page.reload();
       await expect(rows).toHaveCount(4);
       await expect(rows.filter({ hasText: 'gpt-4o-new' })).toHaveCount(1);
+    });
+  });
+});
+
+test.describe('モデル定義と共有クォータの保持', () => {
+  test.use({ serverEnv: { AZFOUNDRYDECK_E2E_HOLD_CATALOG: '1' } });
+
+  test('初回の取得を共有し、モデル定義だけで選択を開始できる', async ({ page, app }) => {
+    const modal = page.getByRole('dialog', { name: 'Add deployment', exact: true });
+    const add = page.getByRole('button', { name: 'Add deployment', exact: true });
+
+    await test.step('開始条件', async () => {
+      seed(app);
+      await app.restart();
+      await page.goto(app.url);
+      await expect(page.locator('table[aria-label="Deployments"] tbody tr')).toHaveCount(3);
+      await expect.poll(() => catalogCalls(app)).toEqual(['definitions']);
+    });
+
+    await test.step('手順1', async () => {
+      await add.click();
+      await expect(modal.getByText('Loading model catalog...', { exact: true })).toBeVisible();
+      await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(modal).not.toBeVisible();
+      await add.click();
+      await expect(modal.getByText('Loading model catalog...', { exact: true })).toBeVisible();
+      expect(catalogCalls(app)).toEqual(['definitions']);
+
+      releaseCatalog(app, 'definitions');
+      await expect(modal.getByPlaceholder('Search models...')).toBeVisible();
+      await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o');
+      await expect(modal.getByRole('status')).toHaveText('Loading...');
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toBeDisabled();
+      await expect(modal.getByRole('button', { name: 'Deploy', exact: true })).toBeDisabled();
+      await modal.getByText('gpt-4o-mini', { exact: true }).click();
+      await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o-mini');
+      await expect(modal.getByRole('status')).toHaveText('Loading...');
+
+      releaseCatalog(app, 'quota');
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toHaveValue(
+        '125000',
+      );
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toBeEnabled();
+      await expect(modal.getByRole('button', { name: 'Deploy', exact: true })).toBeEnabled();
+    });
+
+    await test.step('受け入れ条件', async () => {
+      await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(modal).not.toBeVisible();
+      // Allow the dialog animation, but keep the previous 700 ms loading timer unexpired.
+      await page.clock.install();
+      await page.clock.pauseAt(new Date());
+      const catalogResponse = page.waitForResponse(
+        (response) =>
+          response.request().postData()?.includes('foundry.Service.GetModelCatalog') === true,
+      );
+      await add.click();
+      await page.clock.runFor(200);
+      await catalogResponse;
+      await page.clock.runFor(200);
+      await expect(modal.getByPlaceholder('Search models...')).toBeVisible();
+      await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o-mini');
+      expect(catalogCalls(app)).toEqual(['definitions', 'quota']);
+      await page.clock.resume();
+      await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(page.locator('table[aria-label="Deployments"] tbody tr')).toHaveCount(3);
+    });
+  });
+
+  for (const result of ['reduced', 'failed'] as const) {
+    test(`作成成功後にクォータを非同期更新する（${result === 'reduced' ? '上限縮小' : '取得失敗'}）`, async ({
+      page,
+      app,
+    }) => {
+      const modal = page.getByRole('dialog', { name: 'Add deployment', exact: true });
+      const rows = page.locator('table[aria-label="Deployments"] tbody tr');
+      const capacity = modal.getByRole('textbox', { name: 'Capacity', exact: true });
+      const deploy = modal.getByRole('button', { name: 'Deploy', exact: true });
+
+      await test.step('開始条件', async () => {
+        seed(app);
+        releaseCatalog(app, 'definitions');
+        releaseCatalog(app, 'quota');
+        await app.restart();
+        await page.goto(app.url);
+        await expect(rows).toHaveCount(3);
+      });
+
+      await test.step('手順1', async () => {
+        await page.getByRole('button', { name: 'Add deployment', exact: true }).click();
+        await expect(capacity).toBeEnabled();
+        await expect(capacity).toHaveValue('80000');
+      });
+
+      await test.step('手順2', async () => {
+        await modal.getByLabel('Deployment name').fill('quota-refresh-created');
+        await capacity.fill('120000');
+        await expect(deploy).toBeEnabled();
+        await deploy.click();
+      });
+
+      await test.step('手順3', async () => {
+        // The new quota response remains held while creation completes and the list updates.
+        await expect(rows).toHaveCount(4);
+        await expect(rows.filter({ hasText: 'quota-refresh-created' })).toHaveCount(1);
+        await expect(modal).not.toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Deploying model' })).not.toBeVisible();
+        await expect
+          .poll(() => catalogCalls(app))
+          .toEqual(['definitions', 'quota', 'quota-refresh']);
+      });
+
+      await test.step('受け入れ条件', async () => {
+        await page.getByRole('button', { name: 'Add deployment', exact: true }).click();
+        await expect(modal.getByPlaceholder('Search models...')).toBeVisible();
+        await modal.getByLabel('Deployment name').fill('next-deployment');
+        await expect(modal.getByRole('status')).toHaveText('Loading...');
+        await expect(capacity).toBeDisabled();
+        await expect(deploy).toBeDisabled();
+        await expect(capacity).toHaveValue('120000');
+
+        writeFileSync(
+          join(app.dataDir, `e2e-catalog-quota-${result === 'reduced' ? 'reduced' : 'fail'}`),
+          '',
+        );
+        releaseCatalog(app, 'quota-refresh');
+        await expect(modal.getByRole('status')).toHaveCount(0);
+        await expect(capacity).toHaveValue('120000');
+        await expect(modal.getByLabel('Deployment name')).toHaveValue('next-deployment');
+        await expect(deploy).toBeDisabled();
+        if (result === 'reduced') {
+          await expect(capacity).toBeEnabled();
+          await expect(modal.getByText('20,000', { exact: true })).toBeVisible();
+          await expect(
+            modal.getByText('Enter a capacity within the available quota, in steps of 1,000.'),
+          ).toBeVisible();
+          await capacity.fill('20000');
+          await expect(deploy).toBeEnabled();
+        } else {
+          await expect(modal.getByText('Quota unavailable', { exact: true })).toBeVisible();
+          await expect(modal.getByText('Could not retrieve the shared quota.')).toBeVisible();
+          await expect(capacity).toBeDisabled();
+          await expect(modal.getByText('160,000', { exact: true })).toHaveCount(0);
+          await expect(modal.getByText('Deployment failed', { exact: true })).toHaveCount(0);
+          // Quota failure does not remove the catalog or prevent model selection.
+          await modal.getByText('gpt-4o-mini', { exact: true }).click();
+          await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o-mini');
+          await expect(deploy).toBeDisabled();
+          await modal.getByText('claude-3-5-sonnet', { exact: true }).click();
+          await expect(modal.getByText('Serverless API (Pay-as-you-go)')).toBeVisible();
+          await expect(capacity).toHaveCount(0);
+          await expect(deploy).toBeEnabled();
+        }
+        expect(catalogCalls(app)).toEqual(['definitions', 'quota', 'quota-refresh']);
+        await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(rows.filter({ hasText: 'quota-refresh-created' })).toHaveCount(1);
+      });
+    });
+  }
+
+  test('Foundryとテナントの変更時に前のカタログとフォームを破棄する', async ({ page, app }) => {
+    const modal = page.getByRole('dialog', { name: 'Add deployment', exact: true });
+    const add = page.getByRole('button', { name: 'Add deployment', exact: true });
+    const foundryButton = page.getByRole('button', { name: 'Foundry', exact: true });
+
+    await test.step('開始条件', async () => {
+      seed(app);
+      releaseCatalog(app, 'definitions');
+      releaseCatalog(app, 'quota');
+      await app.restart();
+      await page.goto(app.url);
+      await expect(page.locator('table[aria-label="Deployments"] tbody tr')).toHaveCount(3);
+    });
+
+    await test.step('手順1', async () => {
+      await add.click();
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toBeEnabled();
+      await modal.getByPlaceholder('Search models...').fill('gpt');
+      await modal.locator('input[value="All publishers"]').click();
+      await page.getByRole('option', { name: 'OpenAI', exact: true }).click();
+      await modal.locator('input[value="All options"]').click();
+      await page.getByRole('option', { name: 'Standard', exact: true }).click();
+      await modal.getByRole('checkbox', { name: 'Multimodal', exact: true }).check();
+      await modal.getByLabel('Deployment name').fill('previous-foundry-name');
+      await modal.getByLabel('Model version').click();
+      await page.getByRole('option', { name: '2024-08-06', exact: true }).click();
+      await modal.getByLabel('Deployment type (SKU)').click();
+      await page.getByRole('option', { name: 'DataZoneStandard', exact: true }).click();
+      await modal.getByRole('textbox', { name: 'Capacity', exact: true }).fill('10000');
+      await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+    });
+
+    await test.step('受け入れ条件', async () => {
+      await foundryButton.click();
+      const development = foundries[1];
+      await page
+        .getByRole('option', {
+          name: `${development.name} (${development.subscriptionName} - ${development.resourceGroupName})`,
+          exact: true,
+        })
+        .click();
+      await expect(foundryButton).toContainText(development.name);
+      await add.click();
+      await expect(modal.locator('ul li')).toHaveCount(1);
+      await expect(modal.getByPlaceholder('Search models...')).toHaveValue('');
+      await expect(modal.locator('input[value="All publishers"]')).toBeVisible();
+      await expect(modal.locator('input[value="All options"]')).toBeVisible();
+      await expect(
+        modal.getByRole('checkbox', { name: 'Multimodal', exact: true }),
+      ).not.toBeChecked();
+      await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o-mini');
+      await expect(modal.getByLabel('Model version')).toHaveValue('2024-07-18 (Default)');
+      await expect(modal.getByLabel('Deployment type (SKU)')).toHaveValue('GlobalStandard');
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toHaveValue(
+        '125000',
+      );
+
+      await modal.getByPlaceholder('Search models...').fill('mini');
+      await modal.getByRole('checkbox', { name: 'Chat', exact: true }).check();
+      await modal.getByLabel('Deployment name').fill('previous-tenant-name');
+      await modal.getByRole('textbox', { name: 'Capacity', exact: true }).fill('10000');
+      await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await page.getByRole('banner').getByRole('button', { name: 'テナント', exact: true }).click();
+      await page.getByRole('option', { name: 'Fabrikam', exact: true }).click();
+      await expect(foundryButton).toContainText(foundries[0].name);
+      await add.click();
+      await expect(modal.locator('ul li')).toHaveCount(10);
+      await expect(modal.getByPlaceholder('Search models...')).toHaveValue('');
+      await expect(modal.locator('input[value="All publishers"]')).toBeVisible();
+      await expect(modal.locator('input[value="All options"]')).toBeVisible();
+      await expect(modal.getByRole('checkbox', { name: 'Chat', exact: true })).not.toBeChecked();
+      await expect(modal.getByLabel('Deployment name')).toHaveValue('gpt-4o');
+      await expect(modal.getByLabel('Model version')).toHaveValue('2024-11-20 (Default)');
+      await expect(modal.getByLabel('Deployment type (SKU)')).toHaveValue('GlobalStandard');
+      await expect(modal.getByRole('textbox', { name: 'Capacity', exact: true })).toHaveValue(
+        '80000',
+      );
+      expect(catalogCalls(app)).toEqual([
+        'definitions',
+        'quota',
+        'definitions',
+        'quota',
+        'definitions',
+        'quota',
+      ]);
     });
   });
 });

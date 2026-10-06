@@ -1,7 +1,12 @@
 import { GetModelCatalog } from '@bindings/azfoundrydeck/internal/foundry/service';
-import type { ModelCatalogItem } from './models';
+import type { ModelCatalogView } from '@bindings/azfoundrydeck/internal/foundry/models';
 
-export async function getModelCatalog(): Promise<ModelCatalogItem[]> {
+export type { ModelCatalogView };
+
+export async function getModelCatalog(foundryID: string): Promise<ModelCatalogView> {
   const result = await GetModelCatalog();
-  return result ?? [];
+  if (result.foundryId !== foundryID) {
+    throw new Error('The selected Foundry changed while loading the model catalog.');
+  }
+  return result;
 }

@@ -60,5 +60,8 @@ func (s *Service) deleteDeployment(ctx context.Context, file, deploymentID strin
 	if err := deleteSource.DeleteDeployment(ctx, selected, view.Deployments[deploymentIndex]); err != nil {
 		return InitialFoundryView{}, err
 	}
+	if s.limits.file == file && s.limits.foundryID == selected.ID {
+		s.startQuotaRefresh(ctx)
+	}
 	return s.acquireModels(ctx, file, view, selected)
 }

@@ -15,8 +15,8 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
-import { getModelCatalog } from '../../features/foundry/model-catalog';
+import { Events } from '@wailsio/runtime';
+import { getModelCatalog, type ModelCatalogView } from '../../features/foundry/model-catalog';
 import type { DeploymentCreateSpec, ModelCatalogItem } from '../../features/foundry/models';
 
 function SearchIcon() {
@@ -39,6 +39,7 @@ function SearchIcon() {
 }
 
 interface AddDeploymentModalProps {
+  foundryID: string;
   opened: boolean;
   onClose: () => void;
   onDeploy: (spec: DeploymentCreateSpec) => void;
@@ -51,6 +52,7 @@ interface AddDeploymentModalProps {
 const EMPTY_CATALOG: ModelCatalogItem[] = [];
 
 export function AddDeploymentModal({
+  foundryID,
   opened,
   onClose,
   onDeploy,
@@ -59,15 +61,38 @@ export function AddDeploymentModal({
   onClearError,
   existingDeploymentNames,
 }: AddDeploymentModalProps) {
-  // Query catalog when modal is opened
-  const catalogQuery = useQuery({
-    queryKey: ['foundry', 'model-catalog'],
-    queryFn: getModelCatalog,
-    enabled: opened,
-    staleTime: 60 * 1000,
-  });
-
-  const catalog = catalogQuery.data ?? EMPTY_CATALOG;
+  const [catalogView, setCatalogView] = useState<ModelCatalogView | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const catalog = catalogView?.models ?? EMPTY_CATALOG;
+  useEffect(() => {
+    if (!opened) return;
+    let active = true;
+    let request = 0;
+    const load = async () => {
+      const currentRequest = ++request;
+      try {
+        const result = await getModelCatalog(foundryID);
+        if (active && currentRequest === request) {
+          setCatalogView(result);
+          setCatalogError(null);
+        }
+      } catch (cause) {
+        if (active && currentRequest === request) {
+          setCatalogError(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+    };
+    setCatalogView(null);
+    setCatalogError(null);
+    const unsubscribe = Events.On('foundry:capacity-ready', (event) => {
+      if (event.data === foundryID) void load();
+    });
+    void load();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [opened, foundryID]);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,13 +101,14 @@ export function AddDeploymentModal({
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
 
   // Form state
-  const [loadingMask, setLoadingMask] = useState(true);
-  const [selectedModel, setSelectedModel] = useState<ModelCatalogItem | null>(null);
+  const [selectedModelName, setSelectedModelName] = useState<string | null>(null);
+  const selectedModel = catalog.find((model) => model.name === selectedModelName) ?? null;
   const [deploymentName, setDeploymentName] = useState('');
   const [selectedVersion, setSelectedVersion] = useState('');
   const [selectedSKU, setSelectedSKU] = useState('');
   const [capacity, setCapacity] = useState<number>(80000);
   const [capacityInputText, setCapacityInputText] = useState('80000');
+  const [capacityEntered, setCapacityEntered] = useState(false);
   const [upgradePolicy, setUpgradePolicy] = useState('OnceNewDefaultVersionAvailable');
 
   const isDuplicateName = useMemo(() => {
@@ -91,68 +117,65 @@ export function AddDeploymentModal({
     return (existingDeploymentNames ?? []).some((name) => name.toLowerCase() === trimmed);
   }, [deploymentName, existingDeploymentNames]);
 
-  const availableSKUs = useMemo(() => {
-    if (!selectedModel?.skus || selectedModel.skus.length === 0) {
-      return selectedModel?.option === 'Pay-as-you-go'
-        ? [{ name: 'GlobalProvisioned', maxCapacity: null }]
-        : [{ name: 'GlobalStandard', maxCapacity: selectedModel?.maxCapacity ?? 160000 }];
-    }
-    return selectedModel.skus;
-  }, [selectedModel]);
+  const availableSKUs = selectedModel?.skus ?? [];
+  const availableVersions = selectedModel?.versions ?? [];
+  const deploymentOptionsUnavailable = availableSKUs.length === 0 || availableVersions.length === 0;
 
-  const currentSKU = useMemo(() => {
-    return availableSKUs.find((s) => s.name === selectedSKU) ?? availableSKUs[0];
-  }, [availableSKUs, selectedSKU]);
+  const currentSKU = availableSKUs.find((s) => s.name === selectedSKU);
 
   const currentMaxCapacity = useMemo(() => {
-    return currentSKU?.maxCapacity ?? selectedModel?.maxCapacity ?? 160000;
-  }, [currentSKU, selectedModel]);
+    if (catalogView?.quotaStatus !== 'ready') return null;
+    return currentSKU?.maxCapacity ?? null;
+  }, [catalogView?.quotaStatus, currentSKU]);
+  const quotaLoading = catalogView?.quotaStatus === 'loading';
+  const quotaError = catalogView?.quotaStatus === 'error' ? catalogView.quotaError : null;
+  const capacityUnavailable = currentMaxCapacity === null || currentMaxCapacity < 1000;
+  const parsedCapacity = Number(capacityInputText);
+  const capacityInvalid =
+    selectedModel?.option === 'Standard' &&
+    (capacityUnavailable ||
+      !Number.isInteger(parsedCapacity) ||
+      parsedCapacity < 1000 ||
+      parsedCapacity % 1000 !== 0 ||
+      parsedCapacity > currentMaxCapacity!);
 
-  // Trigger loading mask animation every time modal opens
   useEffect(() => {
-    if (opened) {
-      setLoadingMask(true);
-      const timer = setTimeout(() => {
-        setLoadingMask(false);
-      }, 700);
-      return () => clearTimeout(timer);
+    if (!capacityEntered && currentMaxCapacity !== null) {
+      const half = Math.floor(currentMaxCapacity / 2000) * 1000;
+      setCapacity(half);
+      setCapacityInputText(String(half));
     }
-  }, [opened]);
+  }, [capacityEntered, currentMaxCapacity]);
 
   // Automatically select first model when catalog loads
   useEffect(() => {
-    if (catalog.length > 0 && !selectedModel) {
+    if (catalog.length > 0 && !selectedModelName) {
       const initial = catalog[0];
-      setSelectedModel(initial);
+      setSelectedModelName(initial.name);
       setDeploymentName(initial.name);
-      setSelectedVersion(initial.versions?.[0] ?? '1');
-      const skus =
-        initial.skus && initial.skus.length > 0
-          ? initial.skus
-          : [{ name: 'GlobalStandard', maxCapacity: initial.maxCapacity ?? 160000 }];
+      setSelectedVersion(initial.versions?.[0] ?? '');
+      const skus = initial.skus ?? [];
       const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
-      setSelectedSKU(defSku.name);
-      const skuCap = defSku.maxCapacity ?? initial.maxCapacity;
+      setSelectedSKU(defSku?.name ?? '');
+      const skuCap = defSku?.maxCapacity;
       if (skuCap) {
         const half = Math.floor(skuCap / 2000) * 1000;
         setCapacity(half);
         setCapacityInputText(String(half));
       }
     }
-  }, [catalog, selectedModel]);
+  }, [catalog, selectedModelName]);
 
   // When model is changed, sync deployment name and defaults
   const handleSelectModel = (model: ModelCatalogItem) => {
-    setSelectedModel(model);
+    setSelectedModelName(model.name);
+    setCapacityEntered(false);
     setDeploymentName(model.name);
-    setSelectedVersion(model.versions?.[0] ?? '1');
-    const skus =
-      model.skus && model.skus.length > 0
-        ? model.skus
-        : [{ name: 'GlobalStandard', maxCapacity: model.maxCapacity ?? 160000 }];
+    setSelectedVersion(model.versions?.[0] ?? '');
+    const skus = model.skus ?? [];
     const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
-    setSelectedSKU(defSku.name);
-    const skuCap = defSku.maxCapacity ?? model.maxCapacity;
+    setSelectedSKU(defSku?.name ?? '');
+    const skuCap = defSku?.maxCapacity;
     if (skuCap) {
       const half = Math.floor(skuCap / 2000) * 1000;
       setCapacity(half);
@@ -207,31 +230,34 @@ export function AddDeploymentModal({
 
   // Handle capacity direct input
   const handleCapacityTextChange = (val: string) => {
+    setCapacityEntered(true);
     setCapacityInputText(val);
-    const parsed = parseInt(val, 10);
-    if (!isNaN(parsed) && currentMaxCapacity) {
-      const clamped = Math.max(1000, Math.min(parsed, currentMaxCapacity));
-      setCapacity(clamped);
-    }
+    const parsed = Number(val);
+    if (Number.isFinite(parsed)) setCapacity(parsed);
   };
 
   const handleSliderChange = (val: number) => {
+    setCapacityEntered(true);
     setCapacity(val);
     setCapacityInputText(String(val));
   };
 
   const handleDeploy = () => {
-    if (!selectedModel || !deploymentName.trim()) return;
-
-    const skuToUse =
-      selectedSKU ||
-      (selectedModel.option === 'Pay-as-you-go' ? 'GlobalProvisioned' : 'GlobalStandard');
+    if (
+      !selectedModel ||
+      !deploymentName.trim() ||
+      !selectedVersion ||
+      !selectedSKU ||
+      capacityInvalid ||
+      catalogError
+    )
+      return;
 
     const spec: DeploymentCreateSpec = {
       deploymentName: deploymentName.trim(),
       modelName: selectedModel.name,
       version: selectedVersion,
-      sku: skuToUse,
+      sku: selectedSKU,
       capacity: selectedModel.option === 'Pay-as-you-go' ? null : capacity,
       upgradePolicy: upgradePolicy,
     };
@@ -278,7 +304,11 @@ export function AddDeploymentModal({
           overflow: 'hidden',
         }}
       >
-        {catalogQuery.isPending || loadingMask ? (
+        {catalogError ? (
+          <Alert color="red" title="Model catalog unavailable" m="md">
+            {catalogError}
+          </Alert>
+        ) : !catalogView ? (
           <Box
             style={{
               flex: 1,
@@ -449,6 +479,11 @@ export function AddDeploymentModal({
                       {error}
                     </Alert>
                   )}
+                  {quotaError && selectedModel.option === 'Standard' && (
+                    <Alert color="red" title="Quota unavailable">
+                      {quotaError}
+                    </Alert>
+                  )}
                   <Box pb="xs" style={{ borderBottom: '1px solid var(--mantine-color-border)' }}>
                     <Group justify="space-between" align="flex-start">
                       <Box>
@@ -469,6 +504,12 @@ export function AddDeploymentModal({
                     </Group>
                   </Box>
 
+                  {deploymentOptionsUnavailable && (
+                    <Alert color="red" title="Deployment unavailable">
+                      No deployment options available for this model.
+                    </Alert>
+                  )}
+
                   <TextInput
                     label="Deployment name"
                     required
@@ -486,7 +527,7 @@ export function AddDeploymentModal({
 
                   <Select
                     label="Model version"
-                    data={(selectedModel.versions ?? ['1']).map((v) => ({
+                    data={availableVersions.map((v) => ({
                       value: v,
                       label: v,
                     }))}
@@ -505,7 +546,7 @@ export function AddDeploymentModal({
                         value: s.name,
                         label: s.name,
                       }))}
-                      value={selectedSKU || availableSKUs[0]?.name || 'GlobalStandard'}
+                      value={selectedSKU}
                       onChange={(val) => {
                         if (val) handleSelectSKU(val);
                       }}
@@ -513,7 +554,7 @@ export function AddDeploymentModal({
                     />
                   )}
 
-                  {selectedModel.option === 'Standard' && currentMaxCapacity > 0 && (
+                  {selectedModel.option === 'Standard' && (
                     <Stack gap={6}>
                       <Group justify="space-between" align="flex-end">
                         <Text size="sm" fw={500}>
@@ -521,16 +562,27 @@ export function AddDeploymentModal({
                         </Text>
                         <Text size="xs" c="dimmed">
                           <Text span fw={600} c="white">
-                            {capacity.toLocaleString()}
+                            {quotaLoading && !capacityEntered ? '—' : capacity.toLocaleString()}
                           </Text>{' '}
                           /{' '}
                           <Text span fw={600} c="white">
-                            {currentMaxCapacity.toLocaleString()}
+                            {quotaLoading ? (
+                              <span role="status">Loading...</span>
+                            ) : (
+                              (currentMaxCapacity?.toLocaleString() ?? 'Not available')
+                            )}
                           </Text>{' '}
                           TPM (Available)
                         </Text>
                       </Group>
                       <TextInput
+                        aria-label="Capacity"
+                        disabled={capacityUnavailable}
+                        error={
+                          !capacityUnavailable && capacityInvalid
+                            ? 'Enter a capacity within the available quota, in steps of 1,000.'
+                            : undefined
+                        }
                         value={capacityInputText}
                         onChange={(e) => {
                           onClearError?.();
@@ -541,7 +593,8 @@ export function AddDeploymentModal({
                       <Box pt="xs" pb="xs">
                         <Slider
                           min={1000}
-                          max={currentMaxCapacity}
+                          max={Math.max(1000, currentMaxCapacity ?? 1000)}
+                          disabled={capacityUnavailable}
                           step={1000}
                           value={capacity}
                           onChange={handleSliderChange}
@@ -632,7 +685,16 @@ export function AddDeploymentModal({
         </Button>
         <Button
           onClick={handleDeploy}
-          disabled={busy || !selectedModel || !deploymentName.trim() || isDuplicateName}
+          disabled={
+            busy ||
+            !selectedModel ||
+            !deploymentName.trim() ||
+            !selectedVersion ||
+            !selectedSKU ||
+            isDuplicateName ||
+            capacityInvalid ||
+            !!catalogError
+          }
         >
           Deploy
         </Button>

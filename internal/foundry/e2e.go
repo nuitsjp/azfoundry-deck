@@ -167,11 +167,56 @@ func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection,
 	return Connection{Endpoint: "https://" + foundry.Name + ".openai.azure.com/openai/v1", Key: "0123456789abcdef0123456789ab" + suffix}, ctx.Err()
 }
 
-type fixedLimits struct{}
+type fixedLimits struct {
+	catalog            []ModelCatalogItem
+	initialQuotaFailed bool
+}
+
+// Catalog tests release individual external responses and count their requests.
+func waitCatalogRelease(ctx context.Context, stage string) error {
+	if os.Getenv("AZFOUNDRYDECK_E2E_HOLD_CATALOG") != "1" {
+		return ctx.Err()
+	}
+	file, err := os.OpenFile(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-calls"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(file, stage)
+	file.Close()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-"+stage+"-release")
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
 
 // CapacityLimits is the held first fetch of the limits. The detail failure flag
 // or e2e-foundry-detail-fail file injects failure; removing the file lets Retry recover.
-func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry) (CapacityLimits, error) {
+func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry, publishModels func(CapacityLimits)) (CapacityLimits, error) {
+	if err := waitCatalogRelease(ctx, "definitions"); err != nil {
+		return nil, err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "catalog" {
+		return nil, fmt.Errorf("simulated model catalog retrieval failure")
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_CATALOG_REVIEW") == "1" {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	limits := fixedLimits{catalog: fixedCatalog(foundry)}
+	publishModels(limits)
 	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
 		select {
 		case <-ctx.Done():
@@ -180,13 +225,43 @@ func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry) (Capacit
 		}
 	}
 	if err := waitForRelease(ctx, "detail"); err != nil {
-		return nil, err
+		return limits, err
 	}
 	_, detailFailure := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-foundry-detail-fail"))
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "detail" || detailFailure == nil {
-		return nil, fmt.Errorf("simulated capacity limit retrieval failure")
+		limits.initialQuotaFailed = true
+		return limits, fmt.Errorf("simulated capacity limit retrieval failure")
 	}
-	return fixedLimits{}, ctx.Err()
+	if err := fixedQuotaDelay(ctx, "quota"); err != nil {
+		return limits, err
+	}
+	return limits, ctx.Err()
+}
+
+func fixedQuotaDelay(ctx context.Context, stage string) error {
+	if err := waitCatalogRelease(ctx, stage); err != nil {
+		return err
+	}
+	if os.Getenv("AZFOUNDRYDECK_E2E_QUOTA_REVIEW") == "1" {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(4 * time.Second):
+		}
+	}
+	_, quotaFailure := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-quota-fail"))
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "quota" || quotaFailure == nil {
+		return fmt.Errorf("simulated shared quota retrieval failure")
+	}
+	return ctx.Err()
+}
+
+func (l fixedLimits) Catalog() []ModelCatalogItem {
+	items := slices.Clone(l.catalog)
+	for i := range items {
+		items[i].SKUs = slices.Clone(items[i].SKUs)
+	}
+	return items
 }
 
 func (fixedLimits) Maximum(d Deployment) *float64 {
@@ -216,11 +291,41 @@ func (fixedLimits) Versions(d Deployment) []string {
 
 // RefreshQuota is the held quota fetch of the edit dialog; AZFOUNDRYDECK_E2E_FAIL=update-settings fails it.
 func (l fixedLimits) RefreshQuota(ctx context.Context) (CapacityLimits, error) {
+	if l.initialQuotaFailed {
+		if err := waitForRelease(ctx, "detail"); err != nil {
+			return l, err
+		}
+		_, detailFailure := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-foundry-detail-fail"))
+		if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "detail" || detailFailure == nil {
+			return l, fmt.Errorf("simulated capacity limit retrieval failure")
+		}
+		l.initialQuotaFailed = false
+		if err := fixedQuotaDelay(ctx, "quota-refresh"); err != nil {
+			return l, err
+		}
+		return l, ctx.Err()
+	}
+
 	if err := waitForRelease(ctx, "update-settings"); err != nil {
-		return nil, err
+		return l, err
 	}
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "update-settings" {
-		return nil, fmt.Errorf("simulated deployment settings retrieval failure")
+		return l, fmt.Errorf("simulated deployment settings retrieval failure")
+	}
+	if err := fixedQuotaDelay(ctx, "quota-refresh"); err != nil {
+		return l, err
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-quota-reduced")); err == nil {
+		l.catalog = l.Catalog()
+		maximum := int64(20000)
+		for i := range l.catalog {
+			if l.catalog[i].Option == "Standard" {
+				l.catalog[i].MaxCapacity = &maximum
+				for j := range l.catalog[i].SKUs {
+					l.catalog[i].SKUs[j].MaxCapacity = &maximum
+				}
+			}
+		}
 	}
 	return l, ctx.Err()
 }
@@ -252,14 +357,7 @@ func (c *createdStore) add(d Deployment) {
 	c.deployments = append(c.deployments, d)
 }
 
-func (fixedSource) ListModels(ctx context.Context, foundry Foundry) ([]ModelCatalogItem, error) {
-	if err := waitForRelease(ctx, "catalog"); err != nil {
-		return nil, err
-	}
-	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "catalog" {
-		return nil, fmt.Errorf("simulated model catalog retrieval failure")
-	}
-
+func fixedCatalog(foundry Foundry) []ModelCatalogItem {
 	cap160 := int64(160000)
 	cap250 := int64(250000)
 	cap100 := int64(100000)
@@ -276,7 +374,7 @@ func (fixedSource) ListModels(ctx context.Context, foundry Foundry) ([]ModelCata
 
 	cap66 := int64(66700)
 
-	return []ModelCatalogItem{
+	items := []ModelCatalogItem{
 		{
 			Name:        "gpt-4o",
 			Publisher:   "OpenAI",
@@ -384,7 +482,11 @@ func (fixedSource) ListModels(ctx context.Context, foundry Foundry) ([]ModelCata
 			MaxCapacity: &cap80,
 			Versions:    []string{"1 (Default)"},
 		},
-	}, ctx.Err()
+	}
+	if foundry.Name == "contoso-foundry-development" {
+		return []ModelCatalogItem{items[1]}
+	}
+	return items
 }
 
 func (fixedSource) CreateDeployment(ctx context.Context, foundry Foundry, spec DeploymentCreateSpec) error {

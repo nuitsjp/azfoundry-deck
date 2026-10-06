@@ -13,6 +13,7 @@ type fakeLimits struct{ quota float64 }
 
 func (l fakeLimits) Maximum(d Deployment) *float64  { value := l.quota; return &value }
 func (l fakeLimits) Versions(d Deployment) []string { return []string{d.Version} }
+func (l fakeLimits) Catalog() []ModelCatalogItem    { return []ModelCatalogItem{} }
 func (l fakeLimits) RefreshQuota(context.Context) (CapacityLimits, error) {
 	return fakeLimits{quota: l.quota + 1}, nil
 }
@@ -22,7 +23,7 @@ type limitsSource struct {
 	fetches *int
 }
 
-func (s limitsSource) CapacityLimits(context.Context, Foundry) (CapacityLimits, error) {
+func (s limitsSource) CapacityLimits(context.Context, Foundry, func(CapacityLimits)) (CapacityLimits, error) {
 	*s.fetches++
 	return fakeLimits{quota: 100}, nil
 }

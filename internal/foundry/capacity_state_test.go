@@ -14,7 +14,7 @@ type capacityStateSource struct {
 	limits func(context.Context, Foundry) (CapacityLimits, error)
 }
 
-func (s capacityStateSource) CapacityLimits(ctx context.Context, foundry Foundry) (CapacityLimits, error) {
+func (s capacityStateSource) CapacityLimits(ctx context.Context, foundry Foundry, _ func(CapacityLimits)) (CapacityLimits, error) {
 	return s.limits(ctx, foundry)
 }
 
