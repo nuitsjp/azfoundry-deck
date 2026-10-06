@@ -172,9 +172,39 @@ type fixedLimits struct {
 	initialQuotaFailed bool
 }
 
+// Catalog tests release individual external responses and count their requests.
+func waitCatalogRelease(ctx context.Context, stage string) error {
+	if os.Getenv("AZFOUNDRYDECK_E2E_HOLD_CATALOG") != "1" {
+		return ctx.Err()
+	}
+	file, err := os.OpenFile(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-calls"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(file, stage)
+	file.Close()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-"+stage+"-release")
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
 // CapacityLimits is the held first fetch of the limits. The detail failure flag
 // or e2e-foundry-detail-fail file injects failure; removing the file lets Retry recover.
 func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry, publishModels func(CapacityLimits)) (CapacityLimits, error) {
+	if err := waitCatalogRelease(ctx, "definitions"); err != nil {
+		return nil, err
+	}
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "catalog" {
 		return nil, fmt.Errorf("simulated model catalog retrieval failure")
 	}
@@ -202,13 +232,16 @@ func (fixedSource) CapacityLimits(ctx context.Context, foundry Foundry, publishM
 		limits.initialQuotaFailed = true
 		return limits, fmt.Errorf("simulated capacity limit retrieval failure")
 	}
-	if err := fixedQuotaDelay(ctx); err != nil {
+	if err := fixedQuotaDelay(ctx, "quota"); err != nil {
 		return limits, err
 	}
 	return limits, ctx.Err()
 }
 
-func fixedQuotaDelay(ctx context.Context) error {
+func fixedQuotaDelay(ctx context.Context, stage string) error {
+	if err := waitCatalogRelease(ctx, stage); err != nil {
+		return err
+	}
 	if os.Getenv("AZFOUNDRYDECK_E2E_QUOTA_REVIEW") == "1" {
 		select {
 		case <-ctx.Done():
@@ -216,7 +249,8 @@ func fixedQuotaDelay(ctx context.Context) error {
 		case <-time.After(4 * time.Second):
 		}
 	}
-	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "quota" {
+	_, quotaFailure := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-quota-fail"))
+	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "quota" || quotaFailure == nil {
 		return fmt.Errorf("simulated shared quota retrieval failure")
 	}
 	return ctx.Err()
@@ -266,7 +300,7 @@ func (l fixedLimits) RefreshQuota(ctx context.Context) (CapacityLimits, error) {
 			return l, fmt.Errorf("simulated capacity limit retrieval failure")
 		}
 		l.initialQuotaFailed = false
-		if err := fixedQuotaDelay(ctx); err != nil {
+		if err := fixedQuotaDelay(ctx, "quota-refresh"); err != nil {
 			return l, err
 		}
 		return l, ctx.Err()
@@ -278,8 +312,20 @@ func (l fixedLimits) RefreshQuota(ctx context.Context) (CapacityLimits, error) {
 	if os.Getenv("AZFOUNDRYDECK_E2E_FAIL") == "update-settings" {
 		return l, fmt.Errorf("simulated deployment settings retrieval failure")
 	}
-	if err := fixedQuotaDelay(ctx); err != nil {
+	if err := fixedQuotaDelay(ctx, "quota-refresh"); err != nil {
 		return l, err
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("WAILS_DATA_DIR"), "e2e-catalog-quota-reduced")); err == nil {
+		l.catalog = l.Catalog()
+		maximum := int64(20000)
+		for i := range l.catalog {
+			if l.catalog[i].Option == "Standard" {
+				l.catalog[i].MaxCapacity = &maximum
+				for j := range l.catalog[i].SKUs {
+					l.catalog[i].SKUs[j].MaxCapacity = &maximum
+				}
+			}
+		}
 	}
 	return l, ctx.Err()
 }
