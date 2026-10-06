@@ -333,6 +333,8 @@ export function InitialDeployments() {
         }}
       />
       <AddDeploymentModal
+        key={view.selectedFoundryId}
+        foundryID={view.selectedFoundryId}
         opened={addOpened}
         onClose={() => {
           setAddOpened(false);
