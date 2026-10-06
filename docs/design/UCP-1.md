@@ -200,7 +200,7 @@ Home画面のモデル領域は、[明細シナリオ](../usecases/デプロイ�
 
 明細の項目（`Model`、`Version`、`SKU`、`Capacity` の現在値と単位、`Provisioning state`、`Upgrade policy`）は、選択した行の `Deployment`（一覧の取得結果）から即時表示する。明細に取得日時は表示しない。画面は `Service.GetCapacityState(ctx, retry)` で選択中 Foundry の容量上限の取得状態と各デプロイの上限を、取得完了を待たずに参照する。サービスは現在のアカウント・テナントの閲覧保存先と保持中の閲覧保存先が一致する場合だけ状態を返し、不一致なら保持状態を破棄して空の状態を返す。通常は `retry=false` とし、`retry=true` は失敗済みの取得だけを再開始する。取得済みなら選択時に上限も即時表示し、取得中なら分母だけを `Loading...` にする。
 
-Go サービス（`internal/foundry/detail.go`）は、起動時の `GetInitialView`、Foundry の変更、テナント変更後の閲覧で対象 Foundry が確定したら、デプロイ一覧の取得と並行して `CapacitySource.CapacityLimits` を開始する。モデル定義一覧と共有クォータ一覧を並列に取得し、取得状態と結果を `Service` のメモリに保持する。一覧取得と保存の完了は容量上限の取得を待たない。画面からの状態参照や行選択では取得を重複して開始しない。完了時に `foundry:capacity-ready` を通知し、画面が状態を参照し直す。`GetCapacityMaximum` は既存の上限取得の用途で保持結果を使う。保持状態は `GetInitialView`（画面の読み込み、テナントの変更、ログアウト後の再ログインを含む）と Foundry の変更で破棄し、破棄前の取得が後から完了しても現在の保持状態・画面へ反映しない。更新ボタンと追加・変更・削除の成功後には取り直さない。取得の失敗は `DEPLOYMENT_DETAIL_FAILED` と英語の理由として保持し、一覧表示を止めない。ファイルへの保存は行わない。
+Go サービス（`internal/foundry/detail.go`）は、起動時の `GetInitialView`、Foundry の変更、テナント変更後の閲覧で対象 Foundry が確定したら、デプロイ一覧の取得と並行して `CapacitySource.CapacityLimits` を開始する。モデル定義一覧と共有クォータ一覧を並列に取得し、取得状態と結果を `Service` のメモリに保持する。一覧取得と保存の完了は容量上限の取得を待たない。画面からの状態参照や行選択では取得を重複して開始しない。完了時に `foundry:capacity-ready` を通知し、画面が状態を参照し直す。`GetCapacityMaximum` は既存の上限取得の用途で保持結果を使う。保持状態の識別・破棄と操作成功後の更新は [モデルカタログと共有クォータの保持](#モデルカタログと共有クォータの保持) に従う。取得の失敗は `DEPLOYMENT_DETAIL_FAILED` と英語の理由として保持し、一覧表示を止めない。ファイルへの保存は行わない。
 
 画面は行全体のクリックまたはデプロイ名のキーボード操作で選択し、一覧の取得結果と容量上限の保持状態から明細を表示する。容量上限の取得中も一覧表示・モデル選択・Foundry 切替を受け付け、編集と削除は無効にする。完了通知で選択中の明細を更新する。Foundry が変わるか、デプロイ一覧の更新が成功すると選択と表示を破棄する。破棄後のリクエストの結果は表示しない。失敗時は上限の位置に `Not set` と、エラーと `Retry` を表示し、上限以外の項目と左の一覧は維持する。選択前に取得が失敗した場合も、行を選んだ時点で同じ失敗表示を行う。`Retry` は上限の取得だけをやり直す。
 
@@ -232,13 +232,31 @@ sequenceDiagram
 
 画面確認用起動 `server:review:deployment-detail` は `AZFOUNDRYDECK_E2E_CAPACITY_REVIEW=1` を設定し、`fixedSource.CapacityLimits` が固定結果を返す前に4秒待機する。取得中に行を選んで自動更新を確認し、取得開始から4秒以上待って選んで即時表示を確認できる。遅延は外部取得境界にだけ置き、画面に固定タイムラインは置かない。
 
-容量の契約は設定済み容量 `capacity`、割り当て可能上限（`GetCapacityMaximum` の戻り値）、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限し、許可値または設定の刻みに切り下げる。Standard 系の単位はデプロイの token レートなら TPM、request のみなら RPM とし、秒単位のレートを毎分へ変換して設定容量あたりの倍率を求める。Provisioned 系は PTU とする。モデル定義・容量換算・クォータが不明な項目は補完せず、取得できた値だけを返す（上限を求められない場合の戻り値は `null`）。必要なモデル定義と共有クォータは Foundry ごとにメモリへ保持し、保持している間は Azure を呼ばない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
+容量の契約は設定済み容量 `capacity`、割り当て可能上限（`GetCapacityMaximum` の戻り値）、単位 `capacityUnit` とする。設定済み容量と上限は同一単位で返し、クォータ残量と現在の割り当てから求める上限はモデル・SKUの設定上限で制限し、許可値または設定の刻みに切り下げる。Standard 系の単位はデプロイの token レートなら TPM、request のみなら RPM とし、秒単位のレートを毎分へ変換して設定容量あたりの倍率を求める。Provisioned 系は PTU とする。モデル定義・容量換算・クォータが不明な項目は補完せず、取得できた値だけを返す（上限を求められない場合の戻り値は `null`）。必要なモデル定義と共有クォータは Foundry ごとにメモリへ保持し、行選択では Azure を呼ばない。Upgrade policy の内部値は契約で維持し、表示名への変換は画面で行う。
+
+## モデルカタログと共有クォータの保持
+
+Go サービスは、現在のアカウント・テナントの閲覧保存先と Foundry のリソース ID を組にして、モデル定義、リージョン、共有クォータとその取得状態をメモリに保持する。保持情報は Home の容量上限、明細、モデル追加と設定変更で共有し、ファイルに保存しない。`GetInitialView`（画面の読み込み、テナント変更、ログアウト後の再ログインを含む）、Foundry の変更とログアウトで破棄する。破棄前の取得結果は現在の保持状態へ反映しない。
+
+初回は、Home で開始するモデル定義の取得とリージョン・共有クォータの並列取得を利用する。取得中の情報を要求された場合も同じ取得を共有し、別の取得を開始しない。同じ Foundry を利用中は、モデル定義とリージョンを追加画面の開閉や操作成功後に取得し直さず、新モデル・新バージョンのための定期取得も行わない。
+
+共有クォータは初回取得後に保持し、デプロイの追加・削除・容量変更が Azure 上で成功した時点で古いクォータを利用不可にし、クォータだけをバックグラウンドで取得し直す。モデル定義とリージョンは再利用する。Version または Upgrade policy だけの変更と、デプロイ一覧の更新ボタンでは、この更新を開始しない。設定変更画面を開く際のクォータ取得は [設定変更](#一覧からデプロイモデルの設定を変更する) の契約に従う。追加画面の開閉ではクォータを取得し直さず、利用中の外部操作による変更を調べる定期取得も行わない。
+
+クォータの更新はデプロイ操作の成否と分け、更新完了をデプロイ一覧の表示や成功モーダルの終了条件にしない。更新中・失敗時は更新前のクォータで容量上限を返さず、取得状態と原因を返す。モデル定義を保持した状態でクォータ更新に失敗した場合の容量上限の再試行は、モデル定義を保持したままクォータだけを取り直す。完了時には `foundry:capacity-ready` で画面へ通知する。外部取得中は共有の操作ロックを保持せず、結果の確定時に対象が引き続き有効な場合だけ保持状態を更新する。
+
+## 新規デプロイモデルを追加する
+
+`frontend/src/usecases/initial-deployments/AddDeploymentModal.tsx` は、開くたびに `frontend/src/features/foundry/model-catalog.ts` から `Service.GetModelCatalog` を呼ぶ。画面側の60秒キャッシュと固定700ミリ秒の待機は設けない。サービスは [保持規則](#モデルカタログと共有クォータの保持) に従って対象を照合し、保持したモデル定義からカタログを作る。初回取得中は同じ取得を待つ。モデル名、版、SKU はモデル定義から構成し、容量上限はモデル定義と有効な共有クォータから求める。保持済みの場合は Azure を呼ばない。
+
+カタログの表示とクォータの状態は分ける。取得済みモデル定義がある場合は、クォータ更新中も一覧とモデル選択を表示する。入力初期値、クォータ更新中・失敗時の Capacity と Deploy の扱いは [追加シナリオ](../usecases/デプロイモデルを追加する/scenarios/新規デプロイモデルを追加する.md) に従う。画面は対象のアカウント・テナント・Foundry が変わると取得結果とフォーム状態を破棄し、前の対象の結果を表示・送信しない。
+
+デプロイ作成は `internal/foundry/create.go` の既存のサービスから Azure SDK 境界へ依頼し、Azure 上で作成が完了した後にデプロイ一覧を取得し直す。成功後のクォータ更新は保持規則に従う。作成失敗時の入力保持と再試行は [作成失敗シナリオ](../usecases/デプロイモデルを追加する/scenarios/デプロイ作成に失敗した場合は設定画面へ戻る.md) に従い、クォータ更新の失敗を作成失敗として扱わない。
 
 ## 一覧からデプロイモデルを削除する
 
 明細（右側）の下部右端に置く Delete アイコンボタンは、確認ダイアログで選択中の Foundry 名とデプロイ名を示し、利用者が「Delete」を押したときだけ `frontend/src/features/foundry/delete-deployment.ts` から Go サービスの `DeleteDeployment` を呼ぶ。キャンセルでは何も呼ばない。実行中は `AcquisitionProgressModal` の `mode="delete"`（「Deleting deployment」、「Delete」の1行に削除対象のデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。デプロイ名と同じ高さの右端の Edit deployment は [設定変更](#一覧からデプロイモデルの設定を変更する) で使う。
 
-Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内でログイン済みの確認、状態ファイルの選択とメモリの一覧からの選択中の Foundry と指定デプロイの識別を行い、`DeploymentDeleteSource.DeleteDeployment` で Azure 上の削除を完了させる。成功後は既存の `acquireModels` で選択中の Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存して返す。保持した容量上限は取り直さない。削除が失敗した場合はメモリの一覧を変えず、`DEPLOYMENT_DELETE_FAILED` を返す。画面は成功後に明細を破棄し、失敗時は一覧を変えずにエラーを表示する。
+Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内でログイン済みの確認、状態ファイルの選択とメモリの一覧からの選択中の Foundry と指定デプロイの識別を行い、`DeploymentDeleteSource.DeleteDeployment` で Azure 上の削除を完了させる。成功後は既存の `acquireModels` で選択中の Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存して返す。共有クォータの更新は [保持規則](#モデルカタログと共有クォータの保持) に従う。削除が失敗した場合はメモリの一覧を変えず、`DEPLOYMENT_DELETE_FAILED` を返す。画面は成功後に明細を破棄し、失敗時は一覧を変えずにエラーを表示する。
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource.DeleteDeployment` が削除の固定応答を返し、削除したデプロイの ID をプロセス内に記憶して以降のデプロイ取得から除く。`AZFOUNDRYDECK_E2E_FAIL=delete` で削除を失敗させ、`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-delete-release` で解放するまで削除を保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_delete.go` の `azureSource.DeleteDeployment` が Azure SDK の `armcognitiveservices.DeploymentsClient.BeginDelete` を呼び、削除完了まで待機する。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
 
@@ -246,7 +264,7 @@ Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内�
 
 明細見出しの Edit deployment は、`frontend/src/usecases/initial-deployments/EditDeploymentModal.tsx` を開く。モーダルは `frontend/src/features/foundry/deployment-settings.ts` から `Service.GetDeploymentSettings` を呼び、取得中はモーダル内にプログレスを表示する。サービスは設定を、メモリの一覧のデプロイと保持した容量上限の情報から作り、開くたびに共有クォータ一覧だけを取り直す（モデル定義は保持分を使う。その Foundry の上限情報が未保持の場合は、モデル定義と共有クォータの両方を取得する）。取得結果は `internal/foundry/update.go` の `DeploymentSettings` で、Deployment name、Model、SKU は変更できない表示とし、Version、Capacity、Upgrade policy に現在値を入れる。Cancel と × は Azure を呼ばず、変更前の一覧と明細を残して閉じる。
 
-Update は確認ダイアログを出さず、`frontend/src/features/foundry/update-deployment.ts` から `Service.UpdateDeployment` へ `DeploymentUpdateSpec` を渡す。実行中は設定モーダルの前面に `AcquisitionProgressModal` の `mode="update"`（「Updating deployment」、「Update」の1行にデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。Go サービスは既存の操作ロック内でログイン済みの確認と、メモリの一覧からの選択中の Foundry・指定デプロイの識別を行い、`DeploymentUpdateSource.UpdateDeployment` の完了後に既存の `acquireModels` で選択中 Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存する。保持した容量上限は取り直さない。失敗時はメモリの一覧を変えず、`DEPLOYMENT_UPDATE_FAILED` を返す。画面は成功後に両方のモーダルを閉じ、同じデプロイを選択したまま、置き換えた一覧から明細を即時表示する。失敗時は進捗モーダルだけを閉じ、設定モーダルの入力値を保持して同じエラーをモーダル内に表示する。設定取得の失敗も同じエラーコードで、変更は開始しない。
+Update は確認ダイアログを出さず、`frontend/src/features/foundry/update-deployment.ts` から `Service.UpdateDeployment` へ `DeploymentUpdateSpec` を渡す。実行中は設定モーダルの前面に `AcquisitionProgressModal` の `mode="update"`（「Updating deployment」、「Update」の1行にデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。Go サービスは既存の操作ロック内でログイン済みの確認と、メモリの一覧からの選択中の Foundry・指定デプロイの識別を行い、`DeploymentUpdateSource.UpdateDeployment` の完了後に既存の `acquireModels` で選択中 Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存する。容量を変更した場合の共有クォータの更新は [保持規則](#モデルカタログと共有クォータの保持) に従う。失敗時はメモリの一覧を変えず、`DEPLOYMENT_UPDATE_FAILED` を返す。画面は成功後に両方のモーダルを閉じ、同じデプロイを選択したまま、置き換えた一覧から明細を即時表示する。失敗時は進捗モーダルだけを閉じ、設定モーダルの入力値を保持して同じエラーをモーダル内に表示する。設定取得の失敗も同じエラーコードで、変更は開始しない。
 
 画面確認用の E2E ビルドだけで `internal/foundry/e2e.go` の `fixedSource` が設定取得と変更の固定応答を返す。変更した Version、Capacity、Upgrade policy をプロセス内に記憶し、以降のデプロイ取得・設定取得へ反映する。ゲート `update-settings` は編集モーダルの共有クォータの取り直しを保留する。`AZFOUNDRYDECK_E2E_FAIL=update-settings` でその取り直しを失敗させ、`AZFOUNDRYDECK_E2E_FAIL=update` で変更を失敗させる。`AZFOUNDRYDECK_E2E_HOLD_FOUNDRY=1` では `e2e-foundry-update-settings-release` と `e2e-foundry-update-release` で解放するまで各呼び出しを保留する。通常ビルドはこの固定応答を含まず、`internal/foundry/azure_update.go` の `azureSource.DeploymentSettings` と `azureSource.UpdateDeployment` が Azure SDK を呼ぶ。設定取得は一覧のデプロイと保持したモデル定義・共有クォータに、そのモデルのバージョン一覧（モデル定義から得る）を加える。一覧に現在のバージョンが無いときも、そのバージョンを選択肢に含める。容量の単位が取れないデプロイは Pay-as-you-go とし、Capacity は返さない。変更は現在のデプロイを取得し、モデル名・形式・SKU 名・RAI ポリシーを保ったまま Version、Capacity、Upgrade policy を変えて `DeploymentsClient.BeginCreateOrUpdate` で完了まで待つ。Capacity は明細に表示した値を、同じレート換算で SKU の capacity 整数へ戻す。呼び出しが失敗した場合は固定応答へ切り替わらない。UI・サービス・入出力の型は両構成で共有する。起動と終了は [実行手順](../project.md#commands) に従う。
 
