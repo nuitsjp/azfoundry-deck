@@ -8,7 +8,7 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧と選択済み Foundry のファイル保存と復元、選択された Foundry の全デプロイ済みモデルの Azure からの取得とメモリでの保持、選択された Foundry の Azure OpenAI エンドポイントと API キーのマスク表示とコピー、選択された Foundry のサブスクリプション ID の表示とコピー、そのサブスクリプションの当月の利用金額の Azure Cost Management からの取得と表示、Foundry の変更・テナントの変更の後の閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの明細（一覧の取得結果の即時表示と、容量上限の取得）の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧と選択済み Foundry のファイル保存と復元、選択された Foundry の全デプロイ済みモデルの Azure からの取得とメモリでの保持、選択された Foundry の Azure OpenAI エンドポイントと API キーのマスク表示とコピー、選択された Foundry のサブスクリプション ID の表示とコピー、そのサブスクリプションの当月の利用金額の Azure Cost Management からの取得と表示と更新、Foundry の変更・テナントの変更の後の閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの明細（一覧の取得結果の即時表示と、容量上限の取得）の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
 | 今回の対象外 | サブスクリプションの変更操作、Foundry の新規作成以外の変更操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
@@ -51,6 +51,7 @@ Foundry の追加は、新規リソースグループと Foundry をセットで
 | [Foundryを追加する](usecases/Foundryを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | 新規リソースグループと Foundry を作成し、Home画面で選択する | 14 | [UCP-1](design/UCP-1.md#新規リソースグループとfoundryを作成する) | 対象 |
 | [Foundryを削除する](usecases/Foundryを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry を削除する。リソースグループに Foundry 関連しかなければ、リソースグループごと削除する | 15 | [UCP-1](design/UCP-1.md) | 対象 |
 | [新版を確認してアプリを更新する](usecases/新版を確認してアプリを更新する/README.md) | Windowsでアプリを利用する人 | 起動時にバックグラウンドで GitHub Releases の新版を取得・検証し、利用者の操作で更新して再起動する | 16 | [UCP-3](design/UCP-3.md) | 対象 |
+| [利用金額を更新する](usecases/利用金額を更新する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry のサブスクリプションの当月の利用金額を取得し直し、Home画面の金額を最新にする | 17 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
