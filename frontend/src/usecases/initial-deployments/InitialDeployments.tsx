@@ -46,6 +46,7 @@ import { CreateFoundryProgressModal } from './CreateFoundryProgressModal';
 import { DeleteFoundryProgressModal } from './DeleteFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
 import { ConnectionItem, FoundryConnection } from './FoundryConnection';
+import { SubscriptionCost } from './SubscriptionCost';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -556,14 +557,23 @@ export function InitialDeployments() {
           </Combobox.Dropdown>
         </Combobox>
         {subscriptionID && (
-          <div style={{ minHeight: 28, marginTop: 10, paddingLeft: 13 }}>
+          <Group
+            gap="xl"
+            align="center"
+            wrap="nowrap"
+            style={{ minHeight: 28, marginTop: 10, paddingLeft: 13 }}
+          >
             <ConnectionItem
               name="Subscription ID"
               shown={subscriptionID}
               value={subscriptionID}
               loading={false}
             />
-          </div>
+            <SubscriptionCost
+              foundryID={view.selectedFoundryId}
+              fetchedAt={view.deploymentsFetchedAt}
+            />
+          </Group>
         )}
         <FoundryConnection
           foundryID={view.selectedFoundryId}
