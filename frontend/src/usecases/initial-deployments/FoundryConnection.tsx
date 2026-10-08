@@ -24,7 +24,7 @@ function maskKey(key: string) {
   return `${'•'.repeat(12)}${key.slice(-4)}`;
 }
 
-function ConnectionItem({
+export function ConnectionItem({
   name,
   shown,
   value,
@@ -118,7 +118,7 @@ export function FoundryConnection({
       gap="xl"
       align="center"
       wrap="nowrap"
-      style={{ minHeight: 28, marginTop: 16, marginBottom: -6, paddingLeft: 13 }}
+      style={{ minHeight: 28, marginTop: 10, marginBottom: -6, paddingLeft: 13 }}
     >
       <ConnectionItem
         name="Azure OpenAI Endpoint"
