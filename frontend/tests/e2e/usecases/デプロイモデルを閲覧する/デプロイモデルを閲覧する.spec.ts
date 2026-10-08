@@ -261,11 +261,18 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     const selectBox = (await page
       .getByRole('button', { name: 'Foundry', exact: true })
       .boundingBox())!;
+    const subscriptionBox = (await page
+      .getByText('Subscription ID', { exact: true })
+      .boundingBox())!;
     const labelBox = (await connection
       .getByText('Azure OpenAI Endpoint', { exact: true })
       .boundingBox())!;
     const titleBox = (await page.getByText('Deployed Models', { exact: true }).boundingBox())!;
-    const above = labelBox.y - (selectBox.y + selectBox.height);
+    // The Foundry select, Subscription ID row and connection row are evenly spaced.
+    const selectToSubscription = subscriptionBox.y - (selectBox.y + selectBox.height);
+    const subscriptionToConnection = labelBox.y - (subscriptionBox.y + subscriptionBox.height);
+    expect(Math.abs(selectToSubscription - subscriptionToConnection)).toBeLessThanOrEqual(6);
+    const above = subscriptionToConnection;
     const below = titleBox.y - (labelBox.y + labelBox.height);
     expect(Math.abs(above - below)).toBeLessThanOrEqual(6);
     // The full key is never rendered nor written to the data folder, including logs.
