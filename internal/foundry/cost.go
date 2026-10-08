@@ -53,6 +53,9 @@ func (s *Service) startCost(ctx context.Context, file string, foundry Foundry, s
 	fetchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	fetch := &costFetch{done: make(chan struct{}), cancel: cancel}
 	s.cost = costCache{file: file, foundryID: foundry.ID, fetch: fetch}
+	// A refresh within the same second keeps the deployments' fetch time, so the
+	// screen is told to read the new Loading state instead of the previous cost.
+	s.emit(CostReadyEvent, foundry.ID)
 	go func() {
 		defer cancel()
 		fetch.value, fetch.err = costSource.Cost(fetchCtx, foundry)
