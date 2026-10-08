@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react';
 import { getCostState } from '../../features/foundry/cost';
 
 // Yen is rounded to whole yen; other billing currencies keep 2 decimals and their code.
+// Without usage Azure returns no currency, so the cost is a bare 0.
 function formatCost(amount: number, currency: string) {
+  if (!currency) return '0';
   if (currency === 'JPY') return `¥${Math.round(amount).toLocaleString('en-US')}`;
   const shown = amount.toLocaleString('en-US', {
     minimumFractionDigits: 2,
