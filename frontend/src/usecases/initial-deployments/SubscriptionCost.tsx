@@ -1,8 +1,10 @@
-import { Group, Loader, Text } from '@mantine/core';
-import { useQuery } from '@tanstack/react-query';
+import { ActionIcon, Group, Loader, Text, Tooltip } from '@mantine/core';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Events } from '@wailsio/runtime';
 import { useEffect, useState } from 'react';
-import { getCostState } from '../../features/foundry/cost';
+import { getCostState, refreshCost } from '../../features/foundry/cost';
+import { publicError } from '../../shared/errors';
+import { RefreshIcon } from './RefreshIcon';
 
 // Yen is rounded to whole yen; other billing currencies keep 2 decimals and their code.
 // Without usage Azure returns no currency, so the cost is a bare 0.
@@ -41,9 +43,13 @@ export function SubscriptionCost({
       }),
     [foundryID],
   );
-  const loading = state.isPending || state.data?.loading === true;
+  const refresh = useMutation({
+    mutationFn: refreshCost,
+    onSettled: () => setRevision((value) => value + 1),
+  });
+  const loading = state.isPending || refresh.isPending || state.data?.loading === true;
   const cost = state.data?.cost ?? null;
-  const error = state.data?.error ?? null;
+  const error = refresh.error ? publicError(refresh.error) : (state.data?.error ?? null);
   return (
     <Group gap="sm" align="center" wrap="nowrap" style={{ minWidth: 0 }}>
       <Text size="sm" fw={500} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -65,6 +71,17 @@ export function SubscriptionCost({
           </Text>
         )
       )}
+      <Tooltip label="Refresh cost">
+        <ActionIcon
+          variant="subtle"
+          aria-label="Refresh cost"
+          disabled={loading}
+          onClick={() => refresh.mutate()}
+          style={{ flexShrink: 0 }}
+        >
+          <RefreshIcon />
+        </ActionIcon>
+      </Tooltip>
     </Group>
   );
 }

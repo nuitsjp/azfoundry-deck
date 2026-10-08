@@ -47,6 +47,7 @@ import { DeleteFoundryProgressModal } from './DeleteFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
 import { ConnectionItem, FoundryConnection } from './FoundryConnection';
 import { SubscriptionCost } from './SubscriptionCost';
+import { RefreshIcon } from './RefreshIcon';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -58,21 +59,6 @@ function fetchedAt(value: string) {
   const time = new Date(value);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}`;
-}
-
-function RefreshIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-5v5h5M4 13a8.1 8.1 0 0 0 15.5 2m.5 5v-5h-5"
-      />
-    </svg>
-  );
 }
 
 function PlusIcon() {
@@ -570,6 +556,7 @@ export function InitialDeployments() {
               loading={false}
             />
             <SubscriptionCost
+              key={view.selectedFoundryId}
               foundryID={view.selectedFoundryId}
               fetchedAt={view.deploymentsFetchedAt}
             />

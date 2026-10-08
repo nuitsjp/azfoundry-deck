@@ -18,7 +18,7 @@ func (s costStateSource) Cost(ctx context.Context, foundry Foundry) (Cost, error
 	return s.cost(ctx, foundry)
 }
 
-func TestCostStateRefetchesOnRefreshAndIgnoresOldCompletion(t *testing.T) {
+func TestCostStateRefetchesOnRefreshCostAndIgnoresOldCompletion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	file := filepath.Join(t.TempDir(), "foundry-state.json")
@@ -57,8 +57,14 @@ func TestCostStateRefetchesOnRefreshAndIgnoresOldCompletion(t *testing.T) {
 		t.Fatalf("pending state = %#v, %v", state, err)
 	}
 	oldDone := service.cost.fetch.done
-	// Refreshing the same Foundry fetches the cost again.
+	// Refreshing the models keeps the cost fetch; Refresh cost starts another one.
 	if _, err := service.RefreshDeployments(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if service.cost.fetch.done != oldDone {
+		t.Fatal("Refresh models fetched the cost again")
+	}
+	if err := service.RefreshCost(ctx); err != nil {
 		t.Fatal(err)
 	}
 	awaitCapacitySignal(t, ctx, service.cost.fetch.done)

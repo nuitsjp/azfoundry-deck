@@ -222,7 +222,7 @@ func (s *Service) acquireModels(ctx context.Context, file string, view InitialFo
 	}
 	s.startCapacityLimits(ctx, file, selected, source)
 	s.startConnection(ctx, file, selected, source)
-	s.startCost(ctx, file, selected, source)
+	s.startCost(ctx, file, selected, source, false)
 	models, err := source.Deployments(ctx, selected, func(count int) {
 		progress.ModelCount = count
 		s.emit(ProgressEvent, progress)
