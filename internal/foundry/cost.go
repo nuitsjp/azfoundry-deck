@@ -2,6 +2,8 @@ package foundry
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
 	"azfoundrydeck/internal/fault"
 )
@@ -39,10 +41,13 @@ type costCache struct {
 	fetch           *costFetch
 }
 
-// startCost fetches the cost whenever a Foundry is selected and on Refresh models,
-// even for a Foundry in the subscription already shown. A discarded fetch never
-// reaches the current cache.
-func (s *Service) startCost(ctx context.Context, file string, foundry Foundry, source Source) {
+// startCost fetches the cost when a Foundry is selected, even for one in the
+// subscription already shown, but not again for the same Foundry unless forced by
+// Refresh cost. A discarded fetch never reaches the current cache.
+func (s *Service) startCost(ctx context.Context, file string, foundry Foundry, source Source, force bool) {
+	if !force && s.cost.file == file && s.cost.foundryID == foundry.ID && s.cost.fetch != nil {
+		return
+	}
 	costSource, ok := source.(CostSource)
 	if !ok {
 		return
@@ -53,8 +58,7 @@ func (s *Service) startCost(ctx context.Context, file string, foundry Foundry, s
 	fetchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	fetch := &costFetch{done: make(chan struct{}), cancel: cancel}
 	s.cost = costCache{file: file, foundryID: foundry.ID, fetch: fetch}
-	// A refresh within the same second keeps the deployments' fetch time, so the
-	// screen is told to read the new Loading state instead of the previous cost.
+	// The screen is told to read the new Loading state instead of the previous cost.
 	s.emit(CostReadyEvent, foundry.ID)
 	go func() {
 		defer cancel()
@@ -101,4 +105,41 @@ func (s *Service) GetCostState(ctx context.Context) (CostState, error) {
 		state.Loading = true
 	}
 	return state, nil
+}
+
+// RefreshCost fetches the selected Foundry's subscription cost again without
+// touching the deployments, limits, connection or state file.
+func (s *Service) RefreshCost(ctx context.Context) error {
+	s.operations.Lock()
+	defer s.operations.Unlock()
+	if err := s.signedIn(ctx); err != nil {
+		return err
+	}
+	err := s.refreshCost(ctx)
+	if err != nil {
+		s.logger.Error("operation_failed", "operation", "foundry.RefreshCost", "cause", err)
+		return fault.New("COST_LOAD_FAILED", "Could not retrieve the month-to-date cost.")
+	}
+	return nil
+}
+
+func (s *Service) refreshCost(ctx context.Context) error {
+	file, err := s.file()
+	if err != nil {
+		return err
+	}
+	view, err := read(file)
+	if err != nil {
+		return err
+	}
+	index := slices.IndexFunc(view.Foundries, func(foundry Foundry) bool { return foundry.ID == view.SelectedFoundryID })
+	if index < 0 {
+		return fmt.Errorf("selected Foundry is not in the saved list")
+	}
+	source, err := s.source()
+	if err != nil {
+		return err
+	}
+	s.startCost(ctx, file, view.Foundries[index], source, true)
+	return nil
 }
