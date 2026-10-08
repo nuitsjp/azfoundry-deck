@@ -45,7 +45,7 @@ import { AddFoundryModal } from './AddFoundryModal';
 import { CreateFoundryProgressModal } from './CreateFoundryProgressModal';
 import { DeleteFoundryProgressModal } from './DeleteFoundryProgressModal';
 import { EditDeploymentModal } from './EditDeploymentModal';
-import { FoundryConnection } from './FoundryConnection';
+import { ConnectionItem, FoundryConnection } from './FoundryConnection';
 import { DeploymentDetails } from '../deployment-details/DeploymentDetails';
 
 function foundryLabel(foundry: Foundry) {
@@ -245,6 +245,7 @@ export function InitialDeployments() {
   // With no Foundry, nothing is selected and the dropdown and the models are empty.
   const selected = view.foundries.find((foundry) => foundry.id === view.selectedFoundryId);
   const label = selected ? foundryLabel(selected) : '';
+  const subscriptionID = selected?.id.match(/^\/subscriptions\/([^/]+)/i)?.[1] ?? '';
 
   return (
     <Stack gap="lg">
@@ -554,6 +555,16 @@ export function InitialDeployments() {
             </Combobox.Options>
           </Combobox.Dropdown>
         </Combobox>
+        {subscriptionID && (
+          <div style={{ minHeight: 28, marginTop: 10, paddingLeft: 13 }}>
+            <ConnectionItem
+              name="Subscription ID"
+              shown={subscriptionID}
+              value={subscriptionID}
+              loading={false}
+            />
+          </div>
+        )}
         <FoundryConnection
           foundryID={view.selectedFoundryId}
           fetchedAt={view.deploymentsFetchedAt}
