@@ -168,9 +168,10 @@ func (fixedSource) Connection(ctx context.Context, foundry Foundry) (Connection,
 	return Connection{Endpoint: "https://" + foundry.Name + ".openai.azure.com/openai/v1", Key: "0123456789abcdef0123456789ab" + suffix}, ctx.Err()
 }
 
-// Cost is the fixed month-to-date cost of the Foundry's subscription: yen for
-// production, US dollars for development and a failure for research. Screen review
-// of the capacity delays it like the limits so that Loading can be observed.
+// Cost is the fixed month-to-date cost of the Foundry's subscription, held by the
+// cost gate: yen for production, US dollars for development, a failure for research
+// and no usage for any other subscription. Screen review of the capacity delays it
+// like the limits so that Loading can be observed.
 func (fixedSource) Cost(ctx context.Context, foundry Foundry) (Cost, error) {
 	if os.Getenv("AZFOUNDRYDECK_E2E_CAPACITY_REVIEW") == "1" {
 		select {
@@ -179,13 +180,18 @@ func (fixedSource) Cost(ctx context.Context, foundry Foundry) (Cost, error) {
 		case <-time.After(4 * time.Second):
 		}
 	}
+	if err := waitForRelease(ctx, "cost"); err != nil {
+		return Cost{}, err
+	}
 	switch {
+	case strings.HasPrefix(foundry.ID, "/subscriptions/review-production/"):
+		return Cost{Amount: 12345.6, Currency: "JPY"}, ctx.Err()
 	case strings.HasPrefix(foundry.ID, "/subscriptions/review-development/"):
 		return Cost{Amount: 1234.56, Currency: "USD"}, ctx.Err()
 	case strings.HasPrefix(foundry.ID, "/subscriptions/review-research/"):
 		return Cost{}, fmt.Errorf("simulated cost management failure")
 	}
-	return Cost{Amount: 12345.6, Currency: "JPY"}, ctx.Err()
+	return Cost{}, ctx.Err()
 }
 
 type fixedLimits struct {
