@@ -88,6 +88,8 @@ Azure OpenAI エンドポイントの取得元（確認日 2026-10-05。情報�
 - 当月の利用がないサブスクリプション4件は、エラーではなく行0件を返した。
 - 権限のないサブスクリプション2件は 403 `AuthorizationFailed`（`Microsoft.CostManagement/Query/read`）または 401 `RBACAccessDenied` を返した。
 - 22回を連続して実行すると、16回目以降に 429 `Too many requests. Please retry.` を返した。
+- 同じサブスクリプションへの連続した問い合わせは、4〜5回目で 429 になった（確認日 2026-10-08、1件に対する Python からの連続実行）。429 の応答は標準の `Retry-After` を持たず、`x-ms-ratelimit-microsoft.costmanagement-entity-retry-after` に 53〜56 秒、`x-ms-ratelimit-remaining-microsoft.costmanagement-entity-requests` に `DefaultQuota:0` を返した。成功時の応答はこれらの Cost Management 固有のヘッダーを返さなかった。
+- 待機して問い合わせ直す実装で1件に8回を連続して実行すると、8回すべて成功し、うち2回は 20.4 秒と 54.8 秒かかった。
 
 - **確認した事実**: 外部仕様や既存コードの調査結果（情報源、対象版、確認日、確認範囲）。仮定と明確に区別します。外部システムの実測応答を保存する場合は `reference/` に配置して参照します。
 
