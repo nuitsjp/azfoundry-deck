@@ -8,7 +8,7 @@
 | --- | --- |
 | 解決する問題・達成したい結果 | Azure 上の Microsoft Foundry とデプロイ済みモデルを、Azure SDK for Go を使うデスクトップアプリから管理できるようにする。 |
 | 利用者・利用場面 | Azure アカウントを持ち、Foundry を運用する個人。Windows デスクトップで利用する。 |
-| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧と選択済み Foundry のファイル保存と復元、選択された Foundry の全デプロイ済みモデルの Azure からの取得とメモリでの保持、選択された Foundry の Azure OpenAI エンドポイントと API キーのマスク表示とコピー、Foundry の変更・テナントの変更の後の閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの明細（一覧の取得結果の即時表示と、容量上限の取得）の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
+| 今回の対象 | Azure へのログインとログアウト（ログイン情報の保存と破棄を含む）、利用対象のテナントの選択と変更、Home画面でのデプロイモデルの閲覧（Foundry 一覧と選択済み Foundry のファイル保存と復元、選択された Foundry の全デプロイ済みモデルの Azure からの取得とメモリでの保持、選択された Foundry の Azure OpenAI エンドポイントと API キーのマスク表示とコピー、選択された Foundry のサブスクリプション ID の表示とコピー、そのサブスクリプションの当月の利用金額の Azure Cost Management からの取得と表示と更新、Foundry の変更・テナントの変更の後の閲覧、Foundry 一覧とデプロイモデルの Azure からの更新を含む）、選択したデプロイモデルの明細（一覧の取得結果の即時表示と、容量上限の取得）の確認、選択中の Foundry のデプロイモデルの削除、選択中の Foundry へのデプロイモデルの追加、選択中の Foundry の既存デプロイモデルの設定変更。 |
 | 今回の対象外 | サブスクリプションの変更操作、Foundry の新規作成以外の変更操作、および上記以外の参照（別ユースケースとして順次追加する）。 |
 
 
@@ -51,6 +51,7 @@ Foundry の追加は、新規リソースグループと Foundry をセットで
 | [Foundryを追加する](usecases/Foundryを追加する/README.md) | Azure にログイン済みの Foundry 運用者 | 新規リソースグループと Foundry を作成し、Home画面で選択する | 14 | [UCP-1](design/UCP-1.md#新規リソースグループとfoundryを作成する) | 対象 |
 | [Foundryを削除する](usecases/Foundryを削除する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry を削除する。リソースグループに Foundry 関連しかなければ、リソースグループごと削除する | 15 | [UCP-1](design/UCP-1.md) | 対象 |
 | [新版を確認してアプリを更新する](usecases/新版を確認してアプリを更新する/README.md) | Windowsでアプリを利用する人 | 起動時にバックグラウンドで GitHub Releases の新版を取得・検証し、利用者の操作で更新して再起動する | 16 | [UCP-3](design/UCP-3.md) | 対象 |
+| [利用金額を更新する](usecases/利用金額を更新する/README.md) | Azure にログイン済みの Foundry 運用者 | 選択中の Foundry のサブスクリプションの当月の利用金額を取得し直し、Home画面の金額を最新にする | 17 | [UCP-1](design/UCP-1.md) | 対象 |
 
 <a id="design"></a>
 ## 4. 確認した事実
@@ -80,6 +81,15 @@ Foundry 一覧の取得方式（確認日 2026-10-03。情報源は開発者の�
 Azure OpenAI エンドポイントの取得元（確認日 2026-10-05。情報源は開発者のサブスクリプションの AIServices アカウント2件に対する Azure CLI の `az cognitiveservices account show` の読み取り）:
 
 - `properties.endpoints` は API 名をキーとする対応表で、`OpenAI Language Model Instance API` の値が `https://<アカウント名>.openai.azure.com/` だった。同じ URL は `OpenAI Realtime API` など他の OpenAI 系のキーにも入っており、`AI Foundry API` は `https://<アカウント名>.services.ai.azure.com/` で別の URL だった。
+
+利用金額の取得（確認日 2026-10-08。情報源は開発者のサブスクリプション11件に対する Azure CLI の `az rest` での Cost Management Query API（`POST /subscriptions/<ID>/providers/Microsoft.CostManagement/query?api-version=2025-03-01`、種別 `ActualCost`、期間 `MonthToDate`、`Cost` の合計）の各2回の実測と、`armcostmanagement` v3.0.0 の `QueryClient.Usage` による3件の実測）:
+
+- 応答は 0.77〜4.05 秒だった。列は `Cost` と `Currency` の2列で、金額のある5件はすべて `JPY` の1行（例: `25524.778183714`）を返した。
+- 当月の利用がないサブスクリプション4件は、エラーではなく行0件を返した。
+- 権限のないサブスクリプション2件は 403 `AuthorizationFailed`（`Microsoft.CostManagement/Query/read`）または 401 `RBACAccessDenied` を返した。
+- 22回を連続して実行すると、16回目以降に 429 `Too many requests. Please retry.` を返した。
+- 同じサブスクリプションへの連続した問い合わせは、4〜5回目で 429 になった（確認日 2026-10-08、1件に対する Python からの連続実行）。429 の応答は標準の `Retry-After` を持たず、`x-ms-ratelimit-microsoft.costmanagement-entity-retry-after` に 53〜56 秒、`x-ms-ratelimit-remaining-microsoft.costmanagement-entity-requests` に `DefaultQuota:0` を返した。成功時の応答はこれらの Cost Management 固有のヘッダーを返さなかった。
+- 待機して問い合わせ直す実装で1件に8回を連続して実行すると、8回すべて成功し、うち2回は 20.4 秒と 54.8 秒かかった。
 
 - **確認した事実**: 外部仕様や既存コードの調査結果（情報源、対象版、確認日、確認範囲）。仮定と明確に区別します。外部システムの実測応答を保存する場合は `reference/` に配置して参照します。
 
@@ -142,6 +152,8 @@ Azure OpenAI エンドポイントの取得元（確認日 2026-10-05。情報�
 | 終了 | 起動した端末で `Ctrl+C` | `http://127.0.0.1:34115/health` に応答しない |
 | Home画面での閲覧（状態ファイルなし） | 閲覧保存の基準フォルダーに `foundry-state.json` が存在しない状態で `mise run server` を起動し、ログイン済みで Home画面を表示する | 進捗モーダルを経て、参照可能な全 Foundry（サブスクリプション名、Foundry 名の昇順）と先頭の Foundry の全デプロイ済みモデルが表示され、閲覧保存の基準フォルダーの `foundry-state.json` に Foundry 一覧と選択が保存される（デプロイ一覧は保存しない）。取得または保存に失敗した場合は Home画面に `FOUNDRY_LOAD_FAILED` が表示される |
 | 画面確認用の起動（Home画面・ログアウトの UI 確認） | `mise run server:review` | `http://127.0.0.1:34115/` がログイン済み（ヘッダー右に `Contoso` とユーザーアイコン）で開く。状態ファイルがなければ固定の Foundry 3件を取得して先頭を選択・保存し、あればその一覧と選択を使う。どちらの場合も選択中の Foundry のデプロイ3件を固定応答から取得する。外部取得の固定応答は待ち時間なしで返るため、進捗モーダルは短時間で閉じる。端末に `review data directory: <一時フォルダー>\AzFoundryDeck-review` が出る |
+| サブスクリプションの利用金額の画面確認 | 起動前に `$env:AZFOUNDRYDECK_E2E_CAPACITY_REVIEW='1'` を設定し、`mise run server:review` を起動して `http://127.0.0.1:34115/` を開く。Foundry のプルダウンで `contoso-foundry-development`、`contoso-foundry-research`、`contoso-foundry-production-japaneast` を順に選ぶ。続けて金額の右の「Refresh cost」ボタンにマウスを合わせて押し、最後に「Refresh models」を押す | プルダウンの下の `Subscription ID` 行の右に `This month` を表示する。取得中は約4秒間 `Loading...` を表示し、その後 Production は `¥12,346`、Development は `1,234.56 USD`、Research は `COST_LOAD_FAILED: Could not retrieve the month-to-date cost.` を赤字で表示する。「Refresh cost」はツールチップに名称を表示し、押すと取得中はボタンが無効になり、取得中の表示を経て金額を表示する。「Refresh models」では金額を取得し直さない。通常ビルドは固定応答を含まず、Azure Cost Management から取得する |
+| 通常構成での利用金額の表示 | `mise run server` でログイン済みの Home画面を開き、Foundry を切り替え、「Refresh cost」を押す | 選択中の Foundry のサブスクリプションの当月の実コストを `This month` に表示し、切り替えと「Refresh cost」のたびに取得中の表示を経て取得し直す。権限のないサブスクリプションは `COST_LOAD_FAILED` を表示する |
 | Home画面での閲覧（状態ファイルあり） | 閲覧保存の基準フォルダーに保存済みの `foundry-state.json` がある状態で `mise run server` を起動し、ログイン済みで `http://127.0.0.1:34115/` を開く。Home画面を再読み込みし、プルダウンを開閉して選択表示にマウスを合わせる | 保存された Foundry 一覧と選択を復元し、Foundry 一覧は取得し直さない。選択中の Foundry のデプロイ一覧を Azure から取得して進捗モーダルを表示し、取得後に全モデルを表示する。展開時は全項目の全文、閉じた選択表示は幅に応じた省略と全文ツールチップを表示する。読み込みや JSON の復元に失敗した場合は `FOUNDRY_LOAD_FAILED` が表示される。処理は [閲覧設計](design/UCP-1.md#デプロイモデルを閲覧する) を参照する |
 | 閲覧の再起動確認 | 上の通常ビルドを起動端末の `Ctrl+C` で終了し、同じデータフォルダーで `mise run server` を起動して Home画面を開く | 再起動前と同じ保存済みの Foundry 一覧・選択を復元し、デプロイ一覧を Azure から取得し直して表示する。保存ファイルには Foundry 一覧と選択だけがある |
 | Foundry変更の画面確認用起動 | `node scripts/run.mjs server:review:foundry-change` | `http://127.0.0.1:34116/` がログイン済みで開く。通常と同じフロントエンドを E2E 用 Go サービスにつなぎ、状態ファイルがなければ固定の Foundry 3件を取得して先頭を選択・保存し、選択中の Foundry のデプロイ3件を取得して表示する。保存済みならその一覧と選択を使う。端末に確認用データフォルダーが表示される |

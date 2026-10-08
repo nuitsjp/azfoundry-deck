@@ -69,6 +69,10 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
   const keyValue = connection.getByLabel('API key', { exact: true });
   const copyEndpoint = connection.getByRole('button', { name: 'Copy Azure OpenAI Endpoint' });
   const copyKey = connection.getByRole('button', { name: 'Copy API key' });
+  const subscriptionValue = page.getByLabel('Subscription ID', { exact: true });
+  const copySubscription = page.getByRole('button', { name: 'Copy Subscription ID' });
+  const costValue = page.getByLabel('This month', { exact: true });
+  const costLoading = page.getByRole('status', { name: 'This month loading' });
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   const frames: string[] = [];
   let dialogSize: { width: number; height: number } | null = null;
@@ -190,6 +194,10 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     await expect(connection.getByText('API key', { exact: true })).toBeVisible();
     await expect(connection.getByRole('status')).toHaveCount(2);
     await expect(connection.getByRole('status')).toHaveText(['Loading...', 'Loading...']);
+    await expect(subscriptionValue).toHaveText('review-production');
+    await expect(page.getByText('This month', { exact: true })).toBeVisible();
+    await expect(costLoading).toHaveText('Loading...');
+    await expect(costValue).toHaveCount(0);
     await expect(copyEndpoint).toBeDisabled();
     await expect(copyKey).toBeDisabled();
   });
@@ -233,6 +241,14 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     await expect(connection.getByRole('status')).toHaveCount(0);
     await expect(endpointValue).toHaveText(endpoint);
     await expect(keyValue).toHaveText('••••••••••••prd1');
+    // The cost also completes on its own; yen is rounded to whole yen.
+    release('cost');
+    await expect(costLoading).toHaveCount(0);
+    await expect(costValue).toHaveText('¥12,346');
+    await copySubscription.click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('review-production');
+    await expect(page.getByRole('button', { name: 'Copied' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Copied' })).toHaveCount(0);
     await copyEndpoint.click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(endpoint);
     await expect(connection.getByRole('button', { name: 'Copied' })).toHaveCount(1);
@@ -275,6 +291,12 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
     const above = subscriptionToConnection;
     const below = titleBox.y - (labelBox.y + labelBox.height);
     expect(Math.abs(above - below)).toBeLessThanOrEqual(6);
+    // The cost sits right of the Subscription ID on the same row.
+    const subscriptionValueBox = (await subscriptionValue.boundingBox())!;
+    const costBox = (await costValue.boundingBox())!;
+    expect(Math.abs(subscriptionValueBox.y - costBox.y)).toBeLessThan(1);
+    expect(costBox.x).toBeGreaterThan(subscriptionValueBox.x + subscriptionValueBox.width);
+    expect(foundries[0].id).toMatch(/^\/subscriptions\/review-production\//);
     // The full key is never rendered nor written to the data folder, including logs.
     expect(await page.content()).not.toContain(apiKey);
     const files = readdirSync(app.dataDir, { recursive: true, withFileTypes: true }).filter(
@@ -360,6 +382,37 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
       modelCount: models.length,
     });
 
+    // Selecting a Foundry fetches its subscription's cost again: other billing currencies keep
+    // 2 decimals and their code, and a failure stays inline without a banner or other effects.
+    const select = page.getByRole('button', { name: 'Foundry', exact: true });
+    await select.click();
+    await page.getByRole('option', { name: labels[1], exact: true }).click();
+    await expect(select).toHaveText(labels[1]);
+    await expect(subscriptionValue).toHaveText('review-development');
+    await expect(costValue).toHaveText('1,234.56 USD');
+    await select.click();
+    await page.getByRole('option', { name: labels[2], exact: true }).click();
+    await expect(select).toHaveText(labels[2]);
+    await expect(subscriptionValue).toHaveText('review-research');
+    await expect(
+      page.getByText('COST_LOAD_FAILED: Could not retrieve the month-to-date cost.', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(costValue).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(table.locator('tbody tr')).toHaveCount(1);
+    await expect(endpointValue).toHaveText(
+      'https://contoso-foundry-research.openai.azure.com/openai/v1',
+    );
+    // The cost is never saved to the data folder.
+    for (const file of readdirSync(app.dataDir, { recursive: true, withFileTypes: true })) {
+      if (!file.isFile()) continue;
+      const text = readFileSync(join(file.parentPath, file.name), 'utf8');
+      expect(text).not.toContain('12345.6');
+      expect(text).not.toContain('1234.56');
+    }
+
     // With a saved Foundry list and a selection other than the first, the next start keeps that
     // selection, does not fetch the Foundry list, and fetches only the deployments from Azure.
     const savedFoundries = [
@@ -417,6 +470,8 @@ test('デプロイモデルを閲覧する', async ({ page, app }) => {
       modelCount: models.length,
     });
     expect(JSON.parse(readFileSync(savedFile, 'utf8'))).toEqual(savedState);
+    // Without usage Azure returns no currency, so the cost is a bare 0.
+    await expect(costValue).toHaveText('0');
     expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
     await expect(
       page.getByText(/^3 · Last fetched (?!2001)\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/),

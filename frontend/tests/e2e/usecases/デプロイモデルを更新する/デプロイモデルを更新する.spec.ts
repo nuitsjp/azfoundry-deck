@@ -164,6 +164,18 @@ test('デプロイモデルを更新する', async ({ page, app }) => {
     expect(readState()).toEqual(original);
     expect(existsSync(join(viewDir, 'foundry-models'))).toBe(false);
 
+    // Refreshing the models leaves the subscription's cost as it is.
+    const costValue = page.getByLabel('This month', { exact: true });
+    const costLoading = page.getByRole('status', { name: 'This month loading' });
+    release('cost');
+    await expect(costValue).toHaveText('¥12,346');
+    hold('cost');
+    await refresh.click();
+    await expect(dialog).toHaveCount(0);
+    await expect(costLoading).toHaveCount(0);
+    await expect(costValue).toHaveText('¥12,346');
+    release('cost');
+
     // A restart does not keep the refreshed list: it is fetched from Azure again.
     release('models');
     await app.restart();
