@@ -94,7 +94,7 @@ func (s *Service) Check(ctx context.Context) (status Status, err error) {
 	if err != nil {
 		return status, err
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck // Signature verification uses the read result; no writes need flushing.
 	b, err := io.ReadAll(io.LimitReader(reader, maxManifestSize+1))
 	if err != nil {
 		return status, err
@@ -120,8 +120,8 @@ func (s *Service) Check(ctx context.Context) (status Status, err error) {
 	status = s.status
 	s.mu.Unlock()
 	if oldStage != "" {
-		os.Remove(oldStage)
-		os.Remove(filepath.Dir(oldStage))
+		os.Remove(oldStage)               //nolint:errcheck // Cleanup must not undo the completed update check; the old stage is no longer trusted.
+		os.Remove(filepath.Dir(oldStage)) //nolint:errcheck // An unused directory does not affect the checked update.
 	}
 	return status, nil
 }
@@ -149,7 +149,7 @@ func (s *Service) Download(ctx context.Context) (status Status, err error) {
 	path := filepath.Join(stageDir, m.Filename)
 	defer func() {
 		if err != nil {
-			os.RemoveAll(stageDir)
+			os.RemoveAll(stageDir) //nolint:errcheck // Preserve the download failure; this stage is never offered for installation.
 			s.report("failed", 0, m.Size)
 		}
 	}()
@@ -157,7 +157,7 @@ func (s *Service) Download(ctx context.Context) (status Status, err error) {
 	if err != nil {
 		return status, err
 	}
-	defer source.Close()
+	defer source.Close() //nolint:errcheck // Size and hash verification use the read result; no writes need flushing.
 	target, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return status, err
@@ -211,8 +211,8 @@ func (s *Service) Download(ctx context.Context) (status Status, err error) {
 	s.staged = path
 	s.mu.Unlock()
 	if previous != "" {
-		os.Remove(previous)
-		os.Remove(filepath.Dir(previous))
+		os.Remove(previous)               //nolint:errcheck // Cleanup must not discard the verified new installer; the previous stage is no longer trusted.
+		os.Remove(filepath.Dir(previous)) //nolint:errcheck // An unused directory does not affect the verified new installer.
 	}
 	s.report("ready", copied, m.Size)
 	return s.GetStatus(), nil
@@ -222,7 +222,7 @@ func (s *Service) Download(ctx context.Context) (status Status, err error) {
 // background. A failure is only logged; the next startup checks again.
 func Run(ctx context.Context, s *Service) {
 	// Leftovers from a download interrupted by exit are never trusted.
-	os.RemoveAll(s.cfg.CacheDir)
+	os.RemoveAll(s.cfg.CacheDir) //nolint:errcheck // Existing leftovers are never reused; Download creates a new staging directory.
 	status, err := s.Check(ctx)
 	if err == nil && status.Available {
 		status, err = s.Download(ctx)
@@ -257,7 +257,7 @@ func (s *Service) Apply() (err error) {
 	}
 	h := sha256.New()
 	n, err := io.Copy(h, io.LimitReader(f, m.Size+1))
-	f.Close()
+	f.Close() //nolint:errcheck // Hash verification uses the read result; no writes need flushing.
 	if err != nil {
 		return err
 	}

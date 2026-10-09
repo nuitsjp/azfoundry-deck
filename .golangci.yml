@@ -1,0 +1,20 @@
+version: '2'
+
+run:
+  timeout: 2m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable: [errcheck, nolintlint]
+  settings:
+    errcheck:
+      check-blank: true
+    nolintlint:
+      require-specific: true
+      require-explanation: true
+      allow-unused: false
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

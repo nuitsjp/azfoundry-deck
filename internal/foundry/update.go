@@ -55,7 +55,7 @@ func (s *Service) GetDeploymentSettings(ctx context.Context, deploymentID string
 		return DeploymentSettings{}, fault.New("DEPLOYMENT_UPDATE_FAILED", "Could not load the deployment settings.")
 	}
 	s.startCapacityLimits(ctx, file, foundry, source)
-	limits, loading, _ := s.readLimits()
+	limits, loading, _ := s.readLimits() //nolint:errcheck // Refresh past failures; the completed fetch result is checked below.
 	if !loading && limits != nil {
 		s.startQuotaRefresh(ctx)
 	}

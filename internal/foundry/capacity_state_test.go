@@ -65,7 +65,10 @@ func TestCapacityStateReturnsWhileLimitsRunAndOutlivesInitialRequest(t *testing.
 			return nil, ctx.Err()
 		}
 	}, func(string, any) {})
-	source, _ := service.source()
+	source, err := service.source()
+	if err != nil {
+		t.Fatal(err)
+	}
 	controlled := source.(capacityStateSource)
 	var fetchCtx context.Context
 	controlled.deployments = func(requestCtx context.Context, _ Foundry, _ func(int)) ([]Deployment, error) {

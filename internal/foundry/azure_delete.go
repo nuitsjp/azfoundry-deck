@@ -86,23 +86,27 @@ func (s *azureSource) DeleteFoundry(ctx context.Context, foundry Foundry) error 
 
 	// 1. Delete nested projects first to prevent 409 Conflict (CannotDeleteResource).
 	projectsClient, err := armcognitiveservices.NewProjectsClient(id.SubscriptionID, s.credential, nil)
-	if err == nil {
-		pager := projectsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				break
-			}
-			for _, project := range page.Value {
-				if project.Name != nil {
-					projectName := *project.Name
-					if idx := strings.LastIndex(projectName, "/"); idx != -1 {
-						projectName = projectName[idx+1:]
-					}
-					poller, err := projectsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, projectName, nil)
-					if err == nil {
-						_, _ = poller.PollUntilDone(ctx, nil)
-					}
+	if err != nil {
+		return fmt.Errorf("create projects client: %w", err)
+	}
+	projects := projectsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
+	for projects.More() {
+		page, err := projects.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list projects in Foundry %s: %w", foundry.Name, err)
+		}
+		for _, project := range page.Value {
+			if project.Name != nil {
+				projectName := *project.Name
+				if idx := strings.LastIndex(projectName, "/"); idx != -1 {
+					projectName = projectName[idx+1:]
+				}
+				poller, err := projectsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, projectName, nil)
+				if err != nil {
+					return fmt.Errorf("begin delete project %s: %w", projectName, err)
+				}
+				if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+					return fmt.Errorf("wait for delete project %s: %w", projectName, err)
 				}
 			}
 		}
@@ -110,23 +114,27 @@ func (s *azureSource) DeleteFoundry(ctx context.Context, foundry Foundry) error 
 
 	// 2. Delete nested deployments if any exist directly under the account.
 	deploymentsClient, err := armcognitiveservices.NewDeploymentsClient(id.SubscriptionID, s.credential, nil)
-	if err == nil {
-		pager := deploymentsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
-		for pager.More() {
-			page, err := pager.NextPage(ctx)
-			if err != nil {
-				break
-			}
-			for _, d := range page.Value {
-				if d.Name != nil {
-					deploymentName := *d.Name
-					if idx := strings.LastIndex(deploymentName, "/"); idx != -1 {
-						deploymentName = deploymentName[idx+1:]
-					}
-					poller, err := deploymentsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, deploymentName, nil)
-					if err == nil {
-						_, _ = poller.PollUntilDone(ctx, nil)
-					}
+	if err != nil {
+		return fmt.Errorf("create deployments client: %w", err)
+	}
+	deployments := deploymentsClient.NewListPager(foundry.ResourceGroupName, foundry.Name, nil)
+	for deployments.More() {
+		page, err := deployments.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("list deployments in Foundry %s: %w", foundry.Name, err)
+		}
+		for _, d := range page.Value {
+			if d.Name != nil {
+				deploymentName := *d.Name
+				if idx := strings.LastIndex(deploymentName, "/"); idx != -1 {
+					deploymentName = deploymentName[idx+1:]
+				}
+				poller, err := deploymentsClient.BeginDelete(ctx, foundry.ResourceGroupName, foundry.Name, deploymentName, nil)
+				if err != nil {
+					return fmt.Errorf("begin delete deployment %s: %w", deploymentName, err)
+				}
+				if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+					return fmt.Errorf("wait for delete deployment %s: %w", deploymentName, err)
 				}
 			}
 		}
@@ -161,7 +169,7 @@ func (s *azureSource) PurgeFoundry(ctx context.Context, foundry Foundry) error {
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			break
+			return fmt.Errorf("list deleted Foundry accounts: %w", err)
 		}
 		for _, item := range page.Value {
 			if item.ID != nil && item.Name != nil && strings.EqualFold(*item.Name, foundry.Name) {
@@ -208,7 +216,7 @@ func (s *azureSource) DeleteResourceGroup(ctx context.Context, foundry Foundry) 
 	if !runtime.HasStatusCode(resp, http.StatusOK, http.StatusAccepted, http.StatusNoContent, http.StatusNotFound) {
 		return fmt.Errorf("delete resource group: %w", runtime.NewResponseError(resp))
 	}
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // Closing a read-only response does not change the accepted status.
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -225,7 +233,7 @@ func (s *azureSource) DeleteResourceGroup(ctx context.Context, foundry Foundry) 
 			if err != nil {
 				return fmt.Errorf("check resource group: %w", err)
 			}
-			checkResp.Body.Close()
+			checkResp.Body.Close() //nolint:errcheck // Only the HEAD response status is needed.
 			if runtime.HasStatusCode(checkResp, http.StatusNotFound) {
 				return nil
 			}

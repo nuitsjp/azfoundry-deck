@@ -46,13 +46,13 @@ func saveJSON(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	defer os.Remove(file.Name()) //nolint:errcheck // After rename the temporary file is absent; on failure preserve the original error.
 	if _, err := file.Write(data); err != nil {
-		file.Close()
+		file.Close() //nolint:errcheck // Preserve the Write failure while releasing the temporary file.
 		return err
 	}
 	if err := file.Sync(); err != nil {
-		file.Close()
+		file.Close() //nolint:errcheck // Preserve the Sync failure while releasing the temporary file.
 		return err
 	}
 	if err := file.Close(); err != nil {

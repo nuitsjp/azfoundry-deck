@@ -1,0 +1,49 @@
+name: Dependency checks
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 1'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read Go version
+        id: tools
+        shell: pwsh
+        run: |
+          $goVersion = [regex]::Match((Get-Content mise.toml -Raw), '(?m)^go = "([^"]+)"').Groups[1].Value
+          "go=$goVersion" >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ steps.tools.outputs.go }}
+          cache: true
+      - name: Install locked dependencies
+        run: |
+          npm --prefix frontend ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go mod download
+      - name: npm vulnerabilities
+        id: npm
+        run: npm --prefix frontend audit --audit-level=low
+      - name: Build embedded frontend for Go analysis
+        if: success() || failure() && steps.npm.outcome == 'failure'
+        run: |
+          node scripts/run.mjs cli:install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/run.mjs generate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix frontend run build:prepared
+      - name: Go vulnerabilities in production and E2E builds
+        if: success() || failure() && steps.npm.outcome == 'failure'
+        run: node scripts/run.mjs audit:go

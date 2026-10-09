@@ -139,13 +139,13 @@ func (s *azureSource) CreateResourceGroup(ctx context.Context, spec FoundryCreat
 		return fmt.Errorf("check resource group existence: %w", err)
 	}
 	if runtime.HasStatusCode(resp, http.StatusNoContent) {
-		resp.Body.Close()
+		resp.Body.Close() //nolint:errcheck // Only the HEAD response status is needed.
 		return fault.New("FOUNDRY_CREATE_FAILED", "A resource group with this name already exists. Choose a new resource group name.")
 	}
 	if !runtime.HasStatusCode(resp, http.StatusNotFound) {
 		return fmt.Errorf("check resource group existence: %w", runtime.NewResponseError(resp))
 	}
-	resp.Body.Close()
+	resp.Body.Close() //nolint:errcheck // Only the HEAD response status is needed.
 	req, err = runtime.NewRequest(ctx, http.MethodPut, s.graph.Endpoint()+path)
 	if err != nil {
 		return fmt.Errorf("create resource group request: %w", err)
@@ -162,7 +162,7 @@ func (s *azureSource) CreateResourceGroup(ctx context.Context, spec FoundryCreat
 	if !runtime.HasStatusCode(resp, http.StatusOK, http.StatusCreated) {
 		return fmt.Errorf("create resource group: %w", runtime.NewResponseError(resp))
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // Closing a read-only response does not change the accepted result.
 	var created struct {
 		Properties struct {
 			ProvisioningState string `json:"provisioningState"`

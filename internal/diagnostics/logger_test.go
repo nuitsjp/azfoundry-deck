@@ -12,7 +12,11 @@ func TestRotationHasBoundedGenerations(t *testing.T) {
 	if err := w.open(); err != nil {
 		t.Fatal(err)
 	}
-	defer w.Close()
+	t.Cleanup(func() {
+		if err := w.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	for i := 0; i < 20; i++ {
 		if _, err := w.Write([]byte("12345678\n")); err != nil {
 			t.Fatal(err)
@@ -23,7 +27,10 @@ func TestRotationHasBoundedGenerations(t *testing.T) {
 		t.Fatalf("rotation: %d %v", len(files), err)
 	}
 	for _, f := range files {
-		info, _ := f.Info()
+		info, err := f.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if info.Size() > 16 {
 			t.Fatal("file exceeded expected limit")
 		}

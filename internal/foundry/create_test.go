@@ -55,8 +55,13 @@ func TestGetModelCatalogSuccess(t *testing.T) {
 	f := Foundry{ID: "f1", Name: "foundry-1"}
 	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
-	data, _ := json.Marshal(initial)
-	_ = os.WriteFile(path, data, 0600)
+	data, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	expectedItems := []ModelCatalogItem{
 		{Name: "gpt-4o", Publisher: "OpenAI", Option: "Pay-as-you-go", Tasks: []string{"chat"}},
@@ -90,8 +95,13 @@ func TestGetModelCatalogFailure(t *testing.T) {
 	f := Foundry{ID: "f1", Name: "foundry-1"}
 	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
-	data, _ := json.Marshal(initial)
-	_ = os.WriteFile(path, data, 0600)
+	data, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	source := controlledCreateSource{
 		listModels: func(context.Context, Foundry) ([]ModelCatalogItem, error) {
@@ -102,7 +112,7 @@ func TestGetModelCatalogFailure(t *testing.T) {
 	service := New(new(sync.Mutex), func() (Source, error) { return source, nil }, func(context.Context) error { return nil }, func() (string, error) { return path, nil },
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {})
 
-	_, err := service.GetModelCatalog(ctx)
+	_, err = service.GetModelCatalog(ctx)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -119,8 +129,13 @@ func TestCreateDeploymentSuccess(t *testing.T) {
 	f := Foundry{ID: "f1", Name: "foundry-1"}
 	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
-	data, _ := json.Marshal(initial)
-	_ = os.WriteFile(path, data, 0600)
+	data, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	deployedSpec := DeploymentCreateSpec{
 		DeploymentName: "new-deploy",
@@ -189,8 +204,13 @@ func TestCreateDeploymentValidationAndFailure(t *testing.T) {
 	f := Foundry{ID: "f1", Name: "foundry-1"}
 	initial := savedState{Foundries: []Foundry{f}, SelectedFoundryID: f.ID}
 	path := filepath.Join(t.TempDir(), "foundry-state.json")
-	data, _ := json.Marshal(initial)
-	_ = os.WriteFile(path, data, 0600)
+	data, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	source := controlledCreateSource{
 		createDeployment: func(context.Context, Foundry, DeploymentCreateSpec) error {
@@ -202,7 +222,7 @@ func TestCreateDeploymentValidationAndFailure(t *testing.T) {
 		slog.New(slog.NewTextHandler(io.Discard, nil)), func(string, any) {})
 
 	// Empty deployment name
-	_, err := service.CreateDeployment(ctx, DeploymentCreateSpec{DeploymentName: "", ModelName: "gpt-4o"})
+	_, err = service.CreateDeployment(ctx, DeploymentCreateSpec{DeploymentName: "", ModelName: "gpt-4o"})
 	if err == nil {
 		t.Fatal("expected error for empty deployment name")
 	}

@@ -1,6 +1,6 @@
 # Node.jsは.nvmrcと同じ版を指定する。Go・Pythonは以下の検証用ツール版を使用する。
 [tools]
-go = "1.26.8"
+go = "1.26.9"
 node = "24.21.0"
 python = "3.14.8"
 
@@ -110,8 +110,32 @@ description = "新版の更新の画面確認用：適用前の再検証が失�
 run = "node scripts/run.mjs server:review:update-untrusted"
 
 [tasks.verify]
-description = "生成・型検査・Lint・整形・テスト・文書検査・server E2Eを一括実行する"
+description = "日常用：生成・画面ビルド・静的解析・整形・単体テスト・文書検査を実行する（E2Eなし）"
 run = "node scripts/run.mjs verify"
+
+[tasks."verify:e2e"]
+description = "作業完了前：日常検証にE2E用ビルドとserver E2Eを加えて実行する"
+run = "node scripts/run.mjs verify:e2e"
+
+[tasks.audit]
+description = "外部DBを使いGo・npm依存の既知脆弱性を検査する（PR・依存更新時・定期実行用）"
+run = "node scripts/run.mjs audit"
+
+[tasks.format]
+description = "GoとTypeScriptを整形する"
+run = "node scripts/run.mjs format"
+
+[tasks."format:check"]
+description = "GoとTypeScriptの整形状態を検査する"
+run = "node scripts/run.mjs format:check"
+
+[tasks.lint]
+description = "TypeScript・設定・Node運用スクリプト・workflowのLintを実行する"
+run = "node scripts/run.mjs lint"
+
+[tasks."lint:go"]
+description = "画面をビルドし、Goのエラー処理と検査除外を本番・E2E構成で検査する"
+run = "node scripts/run.mjs lint:go"
 
 [tasks."test:core"]
 description = "Goの機能検証を実行する"

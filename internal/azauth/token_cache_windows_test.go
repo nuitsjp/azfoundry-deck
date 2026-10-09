@@ -27,7 +27,9 @@ func TestDeleteTokenCacheRemovesFilesAndIsIdempotent(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		for _, f := range files {
-			_ = os.Remove(f)
+			if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Error(err)
+			}
 		}
 	})
 	if err := os.MkdirAll(filepath.Dir(files[0]), 0o700); err != nil {

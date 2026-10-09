@@ -123,16 +123,36 @@ tasks:
       - node scripts/build.mjs package
   ci:
     cmds:
-      - task: verify:prepare
+      - task: verify
+      - npm --prefix frontend exec -- playwright install --only-shell chromium
+      - task: build:server:e2e
       - task: ci:finish
   ci:finish:
     deps: [test:e2e, build]
   test:core:
     cmds: [go test ./internal/...]
   lint:
+    deps: [lint:frontend, lint:scripts, check:workflow]
+  lint:frontend:
     cmds: [npm --prefix frontend run lint]
+  lint:scripts:
+    cmds: [npm --prefix frontend run lint:scripts]
+  check:workflow:
+    cmds: [node scripts/run.mjs check:workflow]
+  lint:go:
+    cmds:
+      - task: frontend:build
+      - task: lint:go:prepared
+  lint:go:prepared:
+    cmds: [node scripts/run.mjs lint:go:prepared]
+  format:
+    cmds:
+      - node scripts/run.mjs format:go
+      - npm --prefix frontend run format
   format:check:
-    cmds: [npm --prefix frontend run format:check]
+    cmds:
+      - node scripts/run.mjs format:go:check
+      - npm --prefix frontend run format:check
   test:frontend:
     cmds: [npm --prefix frontend run test]
   check:docs:
@@ -140,17 +160,23 @@ tasks:
       - python {{.DOC_CHECK}} .
   test:e2e:
     cmds: [npm --prefix frontend run test:e2e]
-  verify:prepare:
+  verify:
     cmds:
       - task: generate
       - task: verify:prepared
   verify:prepared:
     deps: [frontend:build, lint, format:check, test:frontend, test:core, check:docs]
     cmds:
-      - go vet -tags production ./...
-      - go vet -tags server,production,e2e ./...
-      - task: build:server:e2e
-  verify:
+      - task: verify:go:prepared
+  # Go checks only read assets after frontend:build has finished.
+  verify:go:prepared:
+    deps: [vet:go:prepared, lint:go:prepared]
+  vet:go:prepared:
     cmds:
-      - task: verify:prepare
+      - go vet -tags production . ./internal/... ./cmd/...
+      - go vet -tags server,production,e2e . ./internal/... ./cmd/...
+  verify:e2e:
+    cmds:
+      - task: verify
+      - task: build:server:e2e
       - task: test:e2e

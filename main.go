@@ -103,7 +103,7 @@ func run() error {
 		logger = slog.Default()
 		logger.Warn("診断ログを保存できません。標準エラー出力を使用します。", "cause", err)
 	} else {
-		defer logs.Close()
+		defer logs.Close() //nolint:errcheck // Shutdown cannot report a closing failure through the same diagnostic log.
 	}
 	logger.Info("starting", "version", cfg.Version, "os", runtime.GOOS, "arch", runtime.GOARCH, "server", serverMode)
 	root, err := fs.Sub(webAssets, "frontend/dist")

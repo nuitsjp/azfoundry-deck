@@ -84,7 +84,7 @@ func run(args []string) error {
 		}
 		h := sha256.New()
 		size, err := io.Copy(h, f)
-		f.Close()
+		f.Close() //nolint:errcheck // The read result determines whether hashing succeeded; no writes need flushing.
 		if err != nil {
 			return err
 		}

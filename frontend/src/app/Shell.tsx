@@ -3,7 +3,7 @@ import { Outlet } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AppShell, Group, Text, UnstyledButton } from '@mantine/core';
 import { Window } from '@wailsio/runtime';
-import { appInfo } from '../features/application/queries';
+import { appInfo, reportFrontendError } from '../features/application/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { AccountBadge, LoginModal } from '../usecases/azure-login/AzureLogin';
 
@@ -20,21 +20,30 @@ function AppIcon() {
 function WindowControls() {
   const [maximised, setMaximised] = useState(false);
   useEffect(() => {
-    const sync = () => void Window.IsMaximised().then(setMaximised);
+    const sync = () => {
+      void Window.IsMaximised().then(setMaximised).catch(reportFrontendError);
+    };
     sync();
     window.addEventListener('resize', sync);
     return () => window.removeEventListener('resize', sync);
   }, []);
   return (
     <Group gap={0} wrap="nowrap" className="window-controls">
-      <UnstyledButton aria-label="最小化" onClick={() => void Window.Minimise()}>
+      <UnstyledButton
+        aria-label="最小化"
+        onClick={() => {
+          void Window.Minimise().catch(reportFrontendError);
+        }}
+      >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
           <path d="M0 5.5h10" stroke="currentColor" />
         </svg>
       </UnstyledButton>
       <UnstyledButton
         aria-label={maximised ? '元に戻す' : '最大化'}
-        onClick={() => void Window.ToggleMaximise()}
+        onClick={() => {
+          void Window.ToggleMaximise().catch(reportFrontendError);
+        }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" fill="none">
           {maximised ? (
@@ -47,7 +56,9 @@ function WindowControls() {
       <UnstyledButton
         aria-label="閉じる"
         className="window-close"
-        onClick={() => void Window.Close()}
+        onClick={() => {
+          void Window.Close().catch(reportFrontendError);
+        }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
           <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" />
