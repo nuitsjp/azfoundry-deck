@@ -106,7 +106,7 @@ func (s *Service) readLimits() (CapacityLimits, bool, error) {
 // startQuotaRefresh invalidates the old quota immediately. A refresh triggered
 // after a mutation succeeds always follows any older fetch of that same view.
 func (s *Service) startQuotaRefresh(ctx context.Context) *limitsFetch {
-	base, _, _ := s.readLimits()
+	base, _, _ := s.readLimits() //nolint:errcheck // A previous fetch failure must not prevent the new quota refresh.
 	previous := s.limits.fetch
 	foundryID := s.limits.foundryID
 	fetchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))

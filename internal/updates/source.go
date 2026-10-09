@@ -48,7 +48,7 @@ func openSource(ctx context.Context, client *http.Client, source, filename strin
 			return nil, err
 		}
 		if response.StatusCode != http.StatusOK {
-			response.Body.Close()
+			response.Body.Close() //nolint:errcheck // Preserve the HTTP failure while releasing the response.
 			return nil, errors.New("update source returned HTTP " + response.Status)
 		}
 		return response.Body, nil

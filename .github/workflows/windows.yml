@@ -145,7 +145,8 @@ jobs:
           go env GOMODCACHE GOCACHE
       - name: Dependencies
         run: node scripts/run.mjs setup:dependencies --reuse-node-modules
-      - name: Browser
+      - name: Browser for reference application
+        if: matrix.directory == 'reference'
         working-directory: ${{ matrix.directory }}/frontend
         run: npx playwright install --only-shell chromium
       - name: Verify and build

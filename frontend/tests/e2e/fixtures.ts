@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -36,7 +36,7 @@ async function freePort() {
 export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, string> }>({
   /** Extra environment for the server, e.g. AZFOUNDRYDECK_E2E_FAIL to inject a failure. */
   serverEnv: [{}, { option: true }],
-  app: async ({ serverEnv }, provide) => {
+  app: async ({ serverEnv }, provide, testInfo) => {
     const dataDir = await mkdtemp(join(tmpdir(), 'wails-e2e-'));
     let child: ChildProcess | undefined;
     let output = '';
@@ -53,6 +53,10 @@ export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, st
         },
       });
       child = running;
+      output += `${new Date().toISOString()} start pid=${running.pid} port=${port}\n`;
+      running.on('exit', (code, signal) => {
+        output += `${new Date().toISOString()} exit pid=${running.pid} code=${code} signal=${signal}\n`;
+      });
       running.stdout?.on('data', (chunk) => {
         output += chunk;
       });
@@ -70,7 +74,10 @@ export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, st
           (response) => response.ok,
           () => false,
         );
-        if (healthy) return;
+        if (healthy) {
+          output += `${new Date().toISOString()} healthy pid=${running.pid} port=${port}\n`;
+          return;
+        }
         await new Promise((wait) => setTimeout(wait, 100));
       }
     }
@@ -78,6 +85,7 @@ export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, st
       const running = child;
       child = undefined;
       if (!running || running.exitCode !== null || running.signalCode !== null) return;
+      output += `${new Date().toISOString()} stop pid=${running.pid}\n`;
       // Wait for exit before the data directory is reused or removed.
       await new Promise((exited) => {
         running.once('exit', exited);
@@ -97,7 +105,20 @@ export const test = base.extend<{ app: IsolatedApp; serverEnv: Record<string, st
       await provide(app);
     } finally {
       await stop();
-      await rm(dataDir, { recursive: true, force: true });
+      try {
+        if (testInfo.status !== testInfo.expectedStatus) {
+          await testInfo.attach('e2e-server', { body: output, contentType: 'text/plain' });
+          const diagnosticLog = join(dataDir, 'logs/app.jsonl');
+          if (existsSync(diagnosticLog)) {
+            await testInfo.attach('e2e-app-log', {
+              body: readFileSync(diagnosticLog),
+              contentType: 'application/x-ndjson',
+            });
+          }
+        }
+      } finally {
+        await rm(dataDir, { recursive: true, force: true });
+      }
     }
   },
   baseURL: async ({ app }, provide) => {

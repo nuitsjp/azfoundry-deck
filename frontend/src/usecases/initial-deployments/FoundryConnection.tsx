@@ -2,6 +2,7 @@ import { ActionIcon, Group, Loader, Text, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Events } from '@wailsio/runtime';
 import { useEffect, useState } from 'react';
+import { reportFrontendError } from '../../features/application/queries';
 import { getConnectionState } from '../../features/foundry/connection';
 
 function CopyIcon() {
@@ -72,7 +73,10 @@ export function ConnectionItem({
           disabled={loading || !value}
           onClick={() => {
             if (!value) return;
-            void navigator.clipboard.writeText(value).then(() => setCopied(true));
+            void navigator.clipboard
+              .writeText(value)
+              .then(() => setCopied(true))
+              .catch(reportFrontendError);
           }}
           style={{ flexShrink: 0 }}
         >

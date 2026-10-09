@@ -43,7 +43,7 @@ func (w *Writer) open() error {
 	}
 	info, err := f.Stat()
 	if err != nil {
-		f.Close()
+		f.Close() //nolint:errcheck // Preserve the Stat failure while releasing the unusable file.
 		return err
 	}
 	w.file = f

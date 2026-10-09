@@ -68,26 +68,27 @@ export function AddDeploymentModal({
     if (!opened) return;
     let active = true;
     let request = 0;
-    const load = async () => {
+    const load = () => {
       const currentRequest = ++request;
-      try {
-        const result = await getModelCatalog(foundryID);
-        if (active && currentRequest === request) {
-          setCatalogView(result);
-          setCatalogError(null);
-        }
-      } catch (cause) {
-        if (active && currentRequest === request) {
-          setCatalogError(cause instanceof Error ? cause.message : String(cause));
-        }
-      }
+      void getModelCatalog(foundryID)
+        .then((result) => {
+          if (active && currentRequest === request) {
+            setCatalogView(result);
+            setCatalogError(null);
+          }
+        })
+        .catch((cause: unknown) => {
+          if (active && currentRequest === request) {
+            setCatalogError(cause instanceof Error ? cause.message : String(cause));
+          }
+        });
     };
     setCatalogView(null);
     setCatalogError(null);
     const unsubscribe = Events.On('foundry:capacity-ready', (event) => {
-      if (event.data === foundryID) void load();
+      if (event.data === foundryID) load();
     });
-    void load();
+    load();
     return () => {
       active = false;
       unsubscribe();

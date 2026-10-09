@@ -14,9 +14,7 @@ export function useLogin() {
     onSuccess: (status) => {
       client.setQueryData(statusKey, status);
     },
-    onError: () => {
-      void client.invalidateQueries({ queryKey: statusKey });
-    },
+    onError: () => client.invalidateQueries({ queryKey: statusKey }),
   });
 }
 export function useLogout() {

@@ -14,12 +14,21 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  { rules: { 'no-void': ['error', { allowAsStatement: true }] } },
+  { files: ['*.mjs'], languageOptions: { globals: globals.node } },
   {
     files: ['**/*.{ts,tsx}'],
-    languageOptions: { globals: { ...globals.browser, ...globals.node } },
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     plugins: { 'react-hooks': hooks },
     rules: {
       ...hooks.configs.recommended.rules,
+      'react-hooks/exhaustive-deps': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+      '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

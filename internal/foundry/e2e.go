@@ -209,7 +209,9 @@ func waitCatalogRelease(ctx context.Context, stage string) error {
 		return err
 	}
 	_, err = fmt.Fprintln(file, stage)
-	file.Close()
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
 		return err
 	}
