@@ -17,7 +17,18 @@ import {
 } from '@mantine/core';
 import { Events } from '@wailsio/runtime';
 import { getModelCatalog, type ModelCatalogView } from '../../features/foundry/model-catalog';
-import type { DeploymentCreateSpec, ModelCatalogItem } from '../../features/foundry/models';
+import type {
+  DeploymentCreateSpec,
+  ModelCatalogItem,
+  ModelSKUItem,
+} from '../../features/foundry/models';
+
+// The initial capacity is half of the maximum, aligned to the SKU's minimum and step.
+function halfCapacity(sku: ModelSKUItem) {
+  const { maxCapacity: maximum, minCapacity: minimum, capacityStep: step } = sku;
+  if (maximum === null || minimum === null || step === null || maximum < minimum) return null;
+  return minimum + Math.max(0, Math.floor((maximum / 2 - minimum) / step)) * step;
+}
 
 function SearchIcon() {
   return (
@@ -128,25 +139,32 @@ export function AddDeploymentModal({
     if (catalogView?.quotaStatus !== 'ready') return null;
     return currentSKU?.maxCapacity ?? null;
   }, [catalogView?.quotaStatus, currentSKU]);
+  const minCapacity = currentSKU?.minCapacity ?? null;
+  const capacityStep = currentSKU?.capacityStep ?? null;
   const quotaLoading = catalogView?.quotaStatus === 'loading';
   const quotaError = catalogView?.quotaStatus === 'error' ? catalogView.quotaError : null;
-  const capacityUnavailable = currentMaxCapacity === null || currentMaxCapacity < 1000;
+  const capacityUnavailable =
+    currentMaxCapacity === null ||
+    minCapacity === null ||
+    capacityStep === null ||
+    currentMaxCapacity < minCapacity;
   const parsedCapacity = Number(capacityInputText);
   const capacityInvalid =
     selectedModel?.option === 'Standard' &&
     (capacityUnavailable ||
       !Number.isInteger(parsedCapacity) ||
-      parsedCapacity < 1000 ||
-      parsedCapacity % 1000 !== 0 ||
+      parsedCapacity < minCapacity! ||
+      (parsedCapacity - minCapacity!) % capacityStep! !== 0 ||
       parsedCapacity > currentMaxCapacity!);
 
   useEffect(() => {
-    if (!capacityEntered && currentMaxCapacity !== null) {
-      const half = Math.floor(currentMaxCapacity / 2000) * 1000;
+    if (!capacityEntered && currentSKU) {
+      const half = halfCapacity(currentSKU);
+      if (half === null) return;
       setCapacity(half);
       setCapacityInputText(String(half));
     }
-  }, [capacityEntered, currentMaxCapacity]);
+  }, [capacityEntered, currentSKU]);
 
   // Automatically select first model when catalog loads
   useEffect(() => {
@@ -158,9 +176,8 @@ export function AddDeploymentModal({
       const skus = initial.skus ?? [];
       const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
       setSelectedSKU(defSku?.name ?? '');
-      const skuCap = defSku?.maxCapacity;
-      if (skuCap) {
-        const half = Math.floor(skuCap / 2000) * 1000;
+      const half = defSku ? halfCapacity(defSku) : null;
+      if (half !== null) {
         setCapacity(half);
         setCapacityInputText(String(half));
       }
@@ -176,9 +193,8 @@ export function AddDeploymentModal({
     const skus = model.skus ?? [];
     const defSku = skus.find((s) => s.name === 'GlobalStandard') ?? skus[0];
     setSelectedSKU(defSku?.name ?? '');
-    const skuCap = defSku?.maxCapacity;
-    if (skuCap) {
-      const half = Math.floor(skuCap / 2000) * 1000;
+    const half = defSku ? halfCapacity(defSku) : null;
+    if (half !== null) {
       setCapacity(half);
       setCapacityInputText(String(half));
     }
@@ -259,7 +275,8 @@ export function AddDeploymentModal({
       modelName: selectedModel.name,
       version: selectedVersion,
       sku: selectedSKU,
-      capacity: selectedModel.option === 'Pay-as-you-go' ? null : capacity,
+      skuCapacity:
+        selectedModel.option === 'Pay-as-you-go' ? null : capacity / currentSKU!.capacityPerUnit!,
       upgradePolicy: upgradePolicy,
     };
     onDeploy(spec);
@@ -573,7 +590,7 @@ export function AddDeploymentModal({
                               (currentMaxCapacity?.toLocaleString() ?? 'Not available')
                             )}
                           </Text>{' '}
-                          TPM (Available)
+                          {currentSKU?.capacityUnit} (Available)
                         </Text>
                       </Group>
                       <TextInput
@@ -581,7 +598,7 @@ export function AddDeploymentModal({
                         disabled={capacityUnavailable}
                         error={
                           !capacityUnavailable && capacityInvalid
-                            ? 'Enter a capacity within the available quota, in steps of 1,000.'
+                            ? `Enter a capacity within the available quota, in steps of ${capacityStep!.toLocaleString()}.`
                             : undefined
                         }
                         value={capacityInputText}
@@ -593,10 +610,10 @@ export function AddDeploymentModal({
                       />
                       <Box pt="xs" pb="xs">
                         <Slider
-                          min={1000}
-                          max={Math.max(1000, currentMaxCapacity ?? 1000)}
+                          min={minCapacity ?? 0}
+                          max={Math.max(minCapacity ?? 0, currentMaxCapacity ?? 0)}
                           disabled={capacityUnavailable}
-                          step={1000}
+                          step={capacityStep ?? 1}
                           value={capacity}
                           onChange={handleSliderChange}
                           label={(val) => val.toLocaleString()}

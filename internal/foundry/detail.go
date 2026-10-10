@@ -10,6 +10,8 @@ import (
 // CapacityLimits is an immutable snapshot of one Foundry's definitions and quota.
 type CapacityLimits interface {
 	Maximum(Deployment) *float64
+	// CapacityStep returns the smallest capacity and its increment in the deployment's unit.
+	CapacityStep(Deployment) (float64, float64)
 	Versions(Deployment) []string
 	Catalog() []ModelCatalogItem
 	RefreshQuota(context.Context) (CapacityLimits, error)

@@ -19,6 +19,8 @@ type DeploymentSettings struct {
 	Versions        []string `json:"versions"`
 	Capacity        *float64 `json:"capacity"`
 	CapacityMaximum *float64 `json:"capacityMaximum"`
+	CapacityMinimum float64  `json:"capacityMinimum"`
+	CapacityStep    float64  `json:"capacityStep"`
 	CapacityUnit    *string  `json:"capacityUnit"`
 	UpgradePolicy   string   `json:"upgradePolicy"`
 }
@@ -93,6 +95,7 @@ func deploymentSettings(deployment Deployment, limits CapacityLimits) Deployment
 		settings.Option = "Standard"
 		settings.Capacity, settings.CapacityUnit = deployment.Capacity, deployment.CapacityUnit
 		settings.CapacityMaximum = limits.Maximum(deployment)
+		settings.CapacityMinimum, settings.CapacityStep = limits.CapacityStep(deployment)
 	}
 	return settings
 }

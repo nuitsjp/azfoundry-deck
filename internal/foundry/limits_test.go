@@ -11,9 +11,10 @@ import (
 
 type fakeLimits struct{ quota float64 }
 
-func (l fakeLimits) Maximum(d Deployment) *float64  { value := l.quota; return &value }
-func (l fakeLimits) Versions(d Deployment) []string { return []string{d.Version} }
-func (l fakeLimits) Catalog() []ModelCatalogItem    { return []ModelCatalogItem{} }
+func (l fakeLimits) Maximum(d Deployment) *float64              { value := l.quota; return &value }
+func (l fakeLimits) CapacityStep(Deployment) (float64, float64) { return 1, 1 }
+func (l fakeLimits) Versions(d Deployment) []string             { return []string{d.Version} }
+func (l fakeLimits) Catalog() []ModelCatalogItem                { return []ModelCatalogItem{} }
 func (l fakeLimits) RefreshQuota(context.Context) (CapacityLimits, error) {
 	return fakeLimits{quota: l.quota + 1}, nil
 }

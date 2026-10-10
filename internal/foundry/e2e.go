@@ -304,6 +304,8 @@ func (fixedLimits) Maximum(d Deployment) *float64 {
 	return &maximum
 }
 
+func (fixedLimits) CapacityStep(Deployment) (float64, float64) { return 1000, 1000 }
+
 func (fixedLimits) Versions(d Deployment) []string {
 	versions := []string{"2025-04-14", "2024-11-20"}
 	switch d.ModelName {
@@ -412,8 +414,8 @@ func fixedCatalog(foundry Foundry) []ModelCatalogItem {
 			Sub:         "128k context · GlobalStandard",
 			MaxCapacity: &cap160,
 			SKUs: []ModelSKUItem{
-				{Name: "GlobalStandard", MaxCapacity: &cap160},
-				{Name: "DataZoneStandard", MaxCapacity: &cap66},
+				tpmSKU("GlobalStandard", &cap160),
+				tpmSKU("DataZoneStandard", &cap66),
 			},
 			Versions: []string{"2024-11-20 (Default)", "2024-08-06", "2024-05-13"},
 		},
@@ -425,7 +427,7 @@ func fixedCatalog(foundry Foundry) []ModelCatalogItem {
 			Sub:         "128k context · GlobalStandard",
 			MaxCapacity: &cap250,
 			SKUs: []ModelSKUItem{
-				{Name: "GlobalStandard", MaxCapacity: &cap250},
+				tpmSKU("GlobalStandard", &cap250),
 			},
 			Versions: []string{"2024-07-18 (Default)"},
 		},
@@ -459,8 +461,8 @@ func fixedCatalog(foundry Foundry) []ModelCatalogItem {
 			Sub:         "Next-gen reasoning model",
 			MaxCapacity: &cap160,
 			SKUs: []ModelSKUItem{
-				{Name: "GlobalStandard", MaxCapacity: &cap160},
-				{Name: "DataZoneStandard", MaxCapacity: &cap66},
+				tpmSKU("GlobalStandard", &cap160),
+				tpmSKU("DataZoneStandard", &cap66),
 			},
 			Versions: []string{"2024-11-20 (Default)"},
 		},
@@ -516,6 +518,12 @@ func fixedCatalog(foundry Foundry) []ModelCatalogItem {
 		return []ModelCatalogItem{items[1]}
 	}
 	return items
+}
+
+// tpmSKU is a fixed Standard SKU whose capacity changes by 1,000 TPM.
+func tpmSKU(name string, maximum *int64) ModelSKUItem {
+	unit, step := "TPM", int64(1000)
+	return ModelSKUItem{Name: name, MaxCapacity: maximum, MinCapacity: &step, CapacityStep: &step, CapacityPerUnit: &step, CapacityUnit: &unit}
 }
 
 func (fixedSource) CreateDeployment(ctx context.Context, foundry Foundry, spec DeploymentCreateSpec) error {

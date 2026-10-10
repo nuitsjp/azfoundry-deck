@@ -5,7 +5,6 @@ package foundry
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math"
 	"sort"
 	"strings"
@@ -59,19 +58,23 @@ func (l *azureLimits) Catalog() []ModelCatalogItem {
 					}
 					skuSeen[sName] = true
 
-					var skuCap *int64
-					if option == "Standard" && sku.UsageName != nil && sku.Capacity != nil && sku.Capacity.Maximum != nil {
-						if available, ok := usageLimits[strings.ToLower(*sku.UsageName)]; ok {
+					item := ModelSKUItem{Name: sName}
+					unit, multiplier := l.catalogUnit(m, sName)
+					if option == "Standard" && unit != "" && sku.Capacity != nil {
+						item.CapacityUnit = &unit
+						minimum, step := int64(1), int64(1)
+						if sku.Capacity.Step != nil && *sku.Capacity.Step > 0 && sku.Capacity.Minimum != nil {
+							minimum, step = int64(*sku.Capacity.Minimum), int64(*sku.Capacity.Step)
+						}
+						minimum, step = minimum*multiplier, step*multiplier
+						item.MinCapacity, item.CapacityStep, item.CapacityPerUnit = &minimum, &step, &multiplier
+						if available, ok := usageLimits[strings.ToLower(ptrValue(sku.UsageName))]; ok && sku.Capacity.Maximum != nil {
 							maximum := math.Min(available, float64(*sku.Capacity.Maximum))
-							// Keep the creation API's existing 1,000-unit conversion.
-							capacity := int64(allowedCapacity(maximum, sku.Capacity)) * 1000
-							skuCap = &capacity
+							capacity := int64(allowedCapacity(maximum, sku.Capacity)) * multiplier
+							item.MaxCapacity = &capacity
 						}
 					}
-					skus = append(skus, ModelSKUItem{
-						Name:        sName,
-						MaxCapacity: skuCap,
-					})
+					skus = append(skus, item)
 				}
 			}
 
@@ -118,6 +121,39 @@ func (l *azureLimits) Catalog() []ModelCatalogItem {
 	return result
 }
 
+// catalogUnit returns the SKU's capacity unit and the amount of that unit per SKU
+// capacity. Token rates take precedence over request rates, as for deployments.
+func (l *azureLimits) catalogUnit(model *armcognitiveservices.AccountModel, sku string) (string, int64) {
+	switch sku {
+	case "ProvisionedManaged", "GlobalProvisionedManaged", "DataZoneProvisionedManaged":
+		return "PTU", 1
+	}
+	rates := l.rates[modelRateKey(ptrValue(model.Name), ptrValue(model.Format), ptrValue(model.Version), sku)]
+	for _, key := range []string{"token", "request"} {
+		for _, rate := range rates {
+			if rate.Key != key || rate.RenewalPeriod <= 0 {
+				continue
+			}
+			multiplier := int64(rate.Count * 60 / rate.RenewalPeriod)
+			if multiplier <= 0 {
+				return "", 0
+			}
+			if key == "request" {
+				return "RPM", multiplier
+			}
+			return "TPM", multiplier
+		}
+	}
+	return "", 0
+}
+
+func ptrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 func (s *azureSource) CreateDeployment(ctx context.Context, foundry Foundry, spec DeploymentCreateSpec) error {
 	id, err := arm.ParseResourceID(foundry.ID)
 	if err != nil {
@@ -146,14 +182,8 @@ func (s *azureSource) CreateDeployment(ctx context.Context, foundry Foundry, spe
 		sku := &armcognitiveservices.SKU{
 			Name: to.Ptr(spec.SKU),
 		}
-		if spec.Capacity != nil {
-			// Cognitive Services SKU capacity is in increments of 1k TPM
-			skuCap := int32(*spec.Capacity / 1000)
-			if skuCap < 1 {
-				skuCap = 1
-			}
-			sku.Capacity = &skuCap
-			slog.Info("create_deployment_sku_capacity", "spec.Capacity", *spec.Capacity, "skuCap", skuCap)
+		if spec.SKUCapacity != nil {
+			sku.Capacity = to.Ptr(int32(*spec.SKUCapacity))
 		}
 		deployment.SKU = sku
 	}

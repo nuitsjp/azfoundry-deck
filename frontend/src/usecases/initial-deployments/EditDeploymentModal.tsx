@@ -22,9 +22,9 @@ const upgradePolicies = [
   { value: 'NoAutoUpgrade', label: 'No automatic upgrade' },
 ];
 
-function snapCapacity(value: number, maximum: number) {
-  const stepped = Math.round(value / 1000) * 1000;
-  return Math.min(maximum, Math.max(1000, stepped));
+function snapCapacity(value: number, minimum: number, step: number, maximum: number) {
+  const stepped = minimum + Math.round((value - minimum) / step) * step;
+  return Math.min(maximum, Math.max(minimum, stepped));
 }
 
 export function EditDeploymentModal({
@@ -70,6 +70,8 @@ export function EditDeploymentModal({
   const opened = deploymentID !== null;
   const standard = baseline !== null && baseline.option !== 'Pay-as-you-go';
   const maximum = baseline?.capacityMaximum ?? 0;
+  const minimum = baseline?.capacityMinimum ?? 0;
+  const step = baseline?.capacityStep ?? 0;
   const versionList = baseline?.versions ?? [];
   const versions = baseline
     ? versionList.includes(baseline.version)
@@ -80,8 +82,8 @@ export function EditDeploymentModal({
     baseline && upgradePolicies.some((item) => item.value === baseline.upgradePolicy)
       ? upgradePolicies
       : [...upgradePolicies, { value: policy, label: policy }];
-  const sliderValue = Math.min(maximum, Math.max(1000, capacity));
-  const labelGrowsRight = maximum <= 1000 || sliderValue <= 1000 + (maximum - 1000) / 2;
+  const sliderValue = Math.min(maximum, Math.max(minimum, capacity));
+  const labelGrowsRight = maximum <= minimum || sliderValue <= minimum + (maximum - minimum) / 2;
   const overMaximum = standard && maximum > 0 && capacity > maximum;
   const unchanged =
     baseline !== null &&
@@ -94,13 +96,13 @@ export function EditDeploymentModal({
     setCapacityText(value);
     const parsed = Number.parseInt(value, 10);
     if (Number.isNaN(parsed) || maximum <= 0) return;
-    const next = snapCapacity(parsed, maximum);
+    const next = snapCapacity(parsed, minimum, step, maximum);
     setCapacity(next);
   }
 
   function changeSlider(value: number) {
     onClearError();
-    const next = snapCapacity(value, maximum);
+    const next = snapCapacity(value, minimum, step, maximum);
     setCapacity(next);
     setCapacityText(String(next));
   }
@@ -181,9 +183,9 @@ export function EditDeploymentModal({
               />
               <Box pt="xs">
                 <Slider
-                  min={1000}
+                  min={minimum}
                   max={maximum}
-                  step={1000}
+                  step={step}
                   value={sliderValue}
                   onChange={changeSlider}
                   label={(value) => value.toLocaleString('en-US')}

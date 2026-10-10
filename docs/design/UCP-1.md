@@ -248,13 +248,13 @@ Go サービスは、現在のアカウント・テナントの閲覧保存先�
 
 ## 新規デプロイモデルを追加する
 
-`frontend/src/usecases/initial-deployments/AddDeploymentModal.tsx` は、開くたびに `frontend/src/features/foundry/model-catalog.ts` から `Service.GetModelCatalog` を呼ぶ。画面側の60秒キャッシュと固定700ミリ秒の待機は設けない。サービスは [保持規則](#モデルカタログと共有クォータの保持) に従って対象を照合し、保持したモデル定義からカタログを作る。初回取得中は同じ取得を待つ。モデル名、版、SKU はモデル定義から構成し、容量上限はモデル定義と有効な共有クォータから求める。保持済みの場合は Azure を呼ばない。
+`frontend/src/usecases/initial-deployments/AddDeploymentModal.tsx` は、開くたびに `frontend/src/features/foundry/model-catalog.ts` から `Service.GetModelCatalog` を呼ぶ。画面側の60秒キャッシュと固定700ミリ秒の待機は設けない。サービスは [保持規則](#モデルカタログと共有クォータの保持) に従って対象を照合し、保持したモデル定義からカタログを作る。初回取得中は同じ取得を待つ。モデル名、版、SKU はモデル定義から構成し、容量上限はモデル定義と有効な共有クォータから求める。SKU ごとの単位と倍率（`ModelSKUItem` の `capacityUnit`、`capacityPerUnit`）は、明細と同じくモデル定義の SKU のレート定義から token を優先して求め、Provisioned 系は PTU とする。Azure SDK はモデル定義のレート定義の `key` を読み捨てるため、Accounts ListModels の生の応答から読み取る。最小値と刻み（`minCapacity`、`capacityStep`）は SKU の容量設定を倍率で換算し、設定が無い場合は倍率とする。単位を求められない SKU は容量を返さない。保持済みの場合は Azure を呼ばない。
 
 カタログの表示とクォータの状態は分ける。取得済みモデル定義がある場合は、クォータ更新中も一覧とモデル選択を表示する。入力初期値、クォータ更新中・失敗時の Capacity と Deploy の扱いは [追加シナリオ](../usecases/デプロイモデルを追加する/scenarios/新規デプロイモデルを追加する.md) に従う。画面は対象のアカウント・テナント・Foundry が変わると取得結果とフォーム状態を破棄し、前の対象の結果を表示・送信しない。
 
 追加画面は `Service.GetModelCatalog` の `ModelCatalogView` 契約（対象 Foundry ID、モデル一覧、クォータの取得中・取得済み・失敗状態と原因）を生成バインディング経由で受け取る。`model-catalog.ts` は応答の Foundry ID を要求先と照合し、異なる対象の結果を返さない。画面確認用の E2E ビルドでは、`foundry_source_e2e.go` の合成点で Azure 呼び出しの境界を `internal/foundry/e2e.go` の `fixedSource` へ差し替える。モデルカタログの構成・保持、取得状態の通知と表示は通常と同じ Go サービスと `AddDeploymentModal` を通す。通常ビルドは実 Azure へ接続し、固定応答へフォールバックしない。確認用構成の起動・終了と通常構成への切り替えは [実行手順](../project.md#commands) に従う。
 
-デプロイ作成は `internal/foundry/create.go` の既存のサービスから Azure SDK 境界へ依頼し、Azure 上で作成が完了した後にデプロイ一覧を取得し直す。成功後のクォータ更新は保持規則に従う。作成失敗時の入力保持と再試行は [作成失敗シナリオ](../usecases/デプロイモデルを追加する/scenarios/デプロイ作成に失敗した場合は設定画面へ戻る.md) に従い、クォータ更新の失敗を作成失敗として扱わない。
+デプロイ作成は `internal/foundry/create.go` の既存のサービスから Azure SDK 境界へ依頼し、画面は表示単位の Capacity を `capacityPerUnit` で割った SKU の capacity 整数を `DeploymentCreateSpec.skuCapacity` として送る。Azure 上で作成が完了した後にデプロイ一覧を取得し直す。成功後のクォータ更新は保持規則に従う。作成失敗時の入力保持と再試行は [作成失敗シナリオ](../usecases/デプロイモデルを追加する/scenarios/デプロイ作成に失敗した場合は設定画面へ戻る.md) に従い、クォータ更新の失敗を作成失敗として扱わない。
 
 ## 一覧からデプロイモデルを削除する
 
@@ -266,7 +266,7 @@ Go サービス（`internal/foundry/delete.go`）は既存の操作ロック内�
 
 ## 一覧からデプロイモデルの設定を変更する
 
-明細見出しの Edit deployment は、`frontend/src/usecases/initial-deployments/EditDeploymentModal.tsx` を開く。モーダルは `frontend/src/features/foundry/deployment-settings.ts` から `Service.GetDeploymentSettings` を呼び、取得中はモーダル内にプログレスを表示する。サービスは設定を、メモリの一覧のデプロイと保持した容量上限の情報から作り、開くたびに共有クォータ一覧だけを取り直す（モデル定義は保持分を使う。その Foundry の上限情報が未保持の場合は、モデル定義と共有クォータの両方を取得する）。取得結果は `internal/foundry/update.go` の `DeploymentSettings` で、Deployment name、Model、SKU は変更できない表示とし、Version、Capacity、Upgrade policy に現在値を入れる。Cancel と × は Azure を呼ばず、変更前の一覧と明細を残して閉じる。
+明細見出しの Edit deployment は、`frontend/src/usecases/initial-deployments/EditDeploymentModal.tsx` を開く。モーダルは `frontend/src/features/foundry/deployment-settings.ts` から `Service.GetDeploymentSettings` を呼び、取得中はモーダル内にプログレスを表示する。サービスは設定を、メモリの一覧のデプロイと保持した容量上限の情報から作り、開くたびに共有クォータ一覧だけを取り直す（モデル定義は保持分を使う。その Foundry の上限情報が未保持の場合は、モデル定義と共有クォータの両方を取得する）。取得結果は `internal/foundry/update.go` の `DeploymentSettings` で、Deployment name、Model、SKU は変更できない表示とし、Version、Capacity、Upgrade policy に現在値を入れる。Capacity の最小値と刻みはモデル・SKUの容量設定を設定容量の倍率で換算した値とし、設定が無い場合は設定容量1単位分とする。Cancel と × は Azure を呼ばず、変更前の一覧と明細を残して閉じる。
 
 Update は確認ダイアログを出さず、`frontend/src/features/foundry/update-deployment.ts` から `Service.UpdateDeployment` へ `DeploymentUpdateSpec` を渡す。実行中は設定モーダルの前面に `AcquisitionProgressModal` の `mode="update"`（「Updating deployment」、「Update」の1行にデプロイ名を表示）を開き、Escape・外側クリックでは閉じない。Go サービスは既存の操作ロック内でログイン済みの確認と、メモリの一覧からの選択中の Foundry・指定デプロイの識別を行い、`DeploymentUpdateSource.UpdateDeployment` の完了後に既存の `acquireModels` で選択中 Foundry のデプロイ一覧を取得し直してメモリを置き換え、状態ファイルを保存する。容量を変更した場合の共有クォータの更新は [保持規則](#モデルカタログと共有クォータの保持) に従う。失敗時はメモリの一覧を変えず、`DEPLOYMENT_UPDATE_FAILED` を返す。画面は成功後に両方のモーダルを閉じ、同じデプロイを選択したまま、置き換えた一覧から明細を即時表示する。失敗時は進捗モーダルだけを閉じ、設定モーダルの入力値を保持して同じエラーをモーダル内に表示する。設定取得の失敗も同じエラーコードで、変更は開始しない。
 

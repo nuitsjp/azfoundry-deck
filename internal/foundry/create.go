@@ -9,9 +9,15 @@ import (
 	"azfoundrydeck/internal/fault"
 )
 
+// ModelSKUItem is one SKU choice. Capacities are in CapacityUnit, and
+// CapacityPerUnit converts one SKU capacity into that unit.
 type ModelSKUItem struct {
-	Name        string `json:"name"`
-	MaxCapacity *int64 `json:"maxCapacity"`
+	Name            string  `json:"name"`
+	MaxCapacity     *int64  `json:"maxCapacity"`
+	MinCapacity     *int64  `json:"minCapacity"`
+	CapacityStep    *int64  `json:"capacityStep"`
+	CapacityPerUnit *int64  `json:"capacityPerUnit"`
+	CapacityUnit    *string `json:"capacityUnit"`
 }
 
 type ModelCatalogItem struct {
@@ -32,8 +38,9 @@ type DeploymentCreateSpec struct {
 	ModelName      string `json:"modelName"`
 	Version        string `json:"version"`
 	SKU            string `json:"sku"`
-	Capacity       *int64 `json:"capacity"`
-	UpgradePolicy  string `json:"upgradePolicy"`
+	// SKUCapacity is the Azure SKU capacity, not the capacity in TPM, RPM or PTU.
+	SKUCapacity   *int64 `json:"skuCapacity"`
+	UpgradePolicy string `json:"upgradePolicy"`
 }
 
 type ModelCatalogView struct {
