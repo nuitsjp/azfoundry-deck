@@ -3,6 +3,9 @@
 package foundry
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -25,7 +28,8 @@ func TestAzureCatalogDistinguishesUnknownQuotaFromZeroAndClampsCapacity(t *testi
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			limits := azureLimits{models: []*armcognitiveservices.AccountModel{{Name: to.Ptr("gpt-test"), Version: to.Ptr("v1"), SKUs: []*armcognitiveservices.ModelSKU{{Name: to.Ptr("Standard"), UsageName: to.Ptr("SHARED"), Capacity: &armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(50))}}}}}, quota: tc.quota}
+			limits := azureLimits{models: []*armcognitiveservices.AccountModel{{Name: to.Ptr("gpt-test"), Version: to.Ptr("v1"), SKUs: []*armcognitiveservices.ModelSKU{{Name: to.Ptr("Standard"), UsageName: to.Ptr("SHARED"), Capacity: &armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(50))}}}}}, quota: tc.quota,
+				rates: map[string][]modelRate{modelRateKey("gpt-test", "", "v1", "Standard"): {{Key: "token", Count: 1000, RenewalPeriod: 60}}}}
 			items := limits.Catalog()
 			if len(items) != 1 || len(items[0].SKUs) != 1 {
 				t.Fatalf("catalog = %#v", items)
@@ -62,5 +66,56 @@ func TestAzureCatalogDoesNotInventVersionSKUOrCapacity(t *testing.T) {
 		if item.Name == "missing-capacity" && (len(item.SKUs) != 1 || item.SKUs[0].MaxCapacity != nil) {
 			t.Fatalf("invented SKU capacity: %#v", item)
 		}
+	}
+}
+
+func TestAzureCatalogUsesEachSKUsUnitMinimumAndStep(t *testing.T) {
+	model := func(name, sku string, config armcognitiveservices.CapacityConfig) *armcognitiveservices.AccountModel {
+		return &armcognitiveservices.AccountModel{Name: to.Ptr(name), Format: to.Ptr("Microsoft"), Version: to.Ptr("1"),
+			SKUs: []*armcognitiveservices.ModelSKU{{Name: to.Ptr(sku), UsageName: to.Ptr("shared"), Capacity: &config}}}
+	}
+	limits := azureLimits{
+		models: []*armcognitiveservices.AccountModel{
+			model("decision", "GlobalStandard", armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(1000000))}),
+			model("reasoning", "GlobalStandard", armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(1000000))}),
+			model("provisioned", "GlobalProvisionedManaged", armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(1000000)), Minimum: to.Ptr(int32(15)), Step: to.Ptr(int32(5))}),
+			model("unknown", "GlobalStandard", armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(1000000))}),
+		},
+		rates: map[string][]modelRate{
+			modelRateKey("decision", "Microsoft", "1", "GlobalStandard"):  {{Key: "request", Count: 1, RenewalPeriod: 60}},
+			modelRateKey("reasoning", "Microsoft", "1", "GlobalStandard"): {{Key: "request", Count: 1, RenewalPeriod: 60}, {Key: "token", Count: 1000, RenewalPeriod: 10}},
+		},
+		quota: catalogUsage(150, 112),
+	}
+	want := map[string][4]int64{
+		"decision":    {38, 1, 1, 1},
+		"reasoning":   {228000, 6000, 6000, 6000},
+		"provisioned": {35, 15, 5, 1},
+	}
+	units := map[string]string{"decision": "RPM", "reasoning": "TPM", "provisioned": "PTU"}
+	for _, item := range limits.Catalog() {
+		sku := item.SKUs[0]
+		if item.Name == "unknown" {
+			if sku.CapacityUnit != nil || sku.MaxCapacity != nil || sku.MinCapacity != nil {
+				t.Fatalf("guessed capacity: %#v", sku)
+			}
+			continue
+		}
+		got := [4]int64{*sku.MaxCapacity, *sku.MinCapacity, *sku.CapacityStep, *sku.CapacityPerUnit}
+		if got != want[item.Name] || *sku.CapacityUnit != units[item.Name] {
+			t.Fatalf("%s = %v %s, want %v %s", item.Name, got, *sku.CapacityUnit, want[item.Name], units[item.Name])
+		}
+	}
+}
+
+func TestModelRatesKeepTheRuleKeysTheSDKDrops(t *testing.T) {
+	body := `{"value":[{"name":"Microsoft-Decision-1","format":"Microsoft","version":"1","skus":[{"name":"GlobalStandard","rateLimits":[{"key":"request","count":1,"renewalPeriod":60}]}]}]}`
+	rates := map[string][]modelRate{}
+	if err := readModelRates(&http.Response{Body: io.NopCloser(strings.NewReader(body))}, rates); err != nil {
+		t.Fatal(err)
+	}
+	got := rates[modelRateKey("microsoft-decision-1", "MICROSOFT", "1", "globalstandard")]
+	if len(got) != 1 || got[0] != (modelRate{Key: "request", Count: 1, RenewalPeriod: 60}) {
+		t.Fatalf("rates = %#v", rates)
 	}
 }

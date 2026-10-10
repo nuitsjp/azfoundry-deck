@@ -17,8 +17,9 @@ type catalogSnapshot struct {
 	refresh func(context.Context) (CapacityLimits, error)
 }
 
-func (l catalogSnapshot) Maximum(Deployment) *float64  { maximum := float64(l.maximum); return &maximum }
-func (l catalogSnapshot) Versions(Deployment) []string { return []string{"1", "2"} }
+func (l catalogSnapshot) Maximum(Deployment) *float64                { maximum := float64(l.maximum); return &maximum }
+func (l catalogSnapshot) CapacityStep(Deployment) (float64, float64) { return 1, 1 }
+func (l catalogSnapshot) Versions(Deployment) []string               { return []string{"1", "2"} }
 func (l catalogSnapshot) Catalog() []ModelCatalogItem {
 	maximum := l.maximum
 	return []ModelCatalogItem{{Name: l.name, Versions: []string{"1", "2"}, MaxCapacity: &maximum,

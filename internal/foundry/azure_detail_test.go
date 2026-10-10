@@ -101,3 +101,30 @@ func TestCapacityUnitsRejectIncompleteOrInvalidRates(t *testing.T) {
 		}
 	}
 }
+
+func TestCapacityStepUsesSKUSettingsInDeploymentUnit(t *testing.T) {
+	model := func(config *armcognitiveservices.CapacityConfig) *armcognitiveservices.AccountModel {
+		return &armcognitiveservices.AccountModel{Name: to.Ptr("chat"), Format: to.Ptr("OpenAI"), Version: to.Ptr("1"),
+			SKUs: []*armcognitiveservices.ModelSKU{{Name: to.Ptr("GlobalStandard"), Capacity: config}}}
+	}
+	cases := []struct {
+		name               string
+		config             *armcognitiveservices.CapacityConfig
+		multiplier         float64
+		minimum, increment float64
+	}{
+		{"configured TPM", &armcognitiveservices.CapacityConfig{Minimum: to.Ptr(int32(1)), Step: to.Ptr(int32(1))}, 1000, 1000, 1000},
+		{"configured PTU", &armcognitiveservices.CapacityConfig{Minimum: to.Ptr(int32(15)), Step: to.Ptr(int32(5))}, 1, 15, 5},
+		{"unset RPM", &armcognitiveservices.CapacityConfig{Maximum: to.Ptr(int32(1000000))}, 1, 1, 1},
+		{"unset TPM", &armcognitiveservices.CapacityConfig{}, 1000, 1000, 1000},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			limits := azureLimits{models: []*armcognitiveservices.AccountModel{model(c.config)}}
+			deployment := Deployment{ModelName: "chat", Version: "1", SKUName: to.Ptr("GlobalStandard"), format: "OpenAI", multiplier: c.multiplier}
+			if minimum, increment := limits.CapacityStep(deployment); minimum != c.minimum || increment != c.increment {
+				t.Fatalf("got %v/%v, want %v/%v", minimum, increment, c.minimum, c.increment)
+			}
+		})
+	}
+}

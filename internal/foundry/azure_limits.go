@@ -4,12 +4,16 @@ package foundry
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
+	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices/v3"
 )
 
@@ -65,7 +69,45 @@ type azureLimits struct {
 	usages   *armcognitiveservices.UsagesClient
 	location string
 	models   []*armcognitiveservices.AccountModel
-	quota    []*armcognitiveservices.Usage
+	// rates holds each model SKU's rate rules by modelRateKey; the SDK drops their keys.
+	rates map[string][]modelRate
+	quota []*armcognitiveservices.Usage
+}
+
+type modelRate struct {
+	Key           string  `json:"key"`
+	Count         float64 `json:"count"`
+	RenewalPeriod float64 `json:"renewalPeriod"`
+}
+
+func modelRateKey(name, format, version, sku string) string {
+	return strings.ToLower(name + "|" + format + "|" + version + "|" + sku)
+}
+
+// readModelRates reads the rate rule keys from the raw model list page.
+func readModelRates(response *http.Response, rates map[string][]modelRate) error {
+	body, err := runtime.Payload(response)
+	if err != nil {
+		return err
+	}
+	var page struct {
+		Value []struct {
+			Name, Format, Version string
+			SKUs                  []struct {
+				Name       string
+				RateLimits []modelRate `json:"rateLimits"`
+			} `json:"skus"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(body, &page); err != nil {
+		return err
+	}
+	for _, model := range page.Value {
+		for _, sku := range model.SKUs {
+			rates[modelRateKey(model.Name, model.Format, model.Version, sku.Name)] = sku.RateLimits
+		}
+	}
+	return nil
 }
 
 // CapacityLimits fetches the Foundry's model definitions, and in parallel its
@@ -85,6 +127,7 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry, publi
 	}
 	base := azureLimits{accounts: accounts, foundry: foundry, usages: usages}
 	var models []*armcognitiveservices.AccountModel
+	rates := map[string][]modelRate{}
 	var quotaLimits CapacityLimits
 	var wg sync.WaitGroup
 	var modelsErr, quotaErr error
@@ -93,7 +136,11 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry, publi
 		defer wg.Done()
 		pager := accounts.NewListModelsPager(foundry.ResourceGroupName, foundry.Name, nil)
 		for pager.More() {
-			page, err := pager.NextPage(ctx)
+			var response *http.Response
+			page, err := pager.NextPage(policy.WithCaptureResponse(ctx, &response))
+			if err == nil {
+				err = readModelRates(response, rates)
+			}
 			if err != nil {
 				modelsErr = fmt.Errorf("get model capacity definition: %w", err)
 				return
@@ -101,7 +148,7 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry, publi
 			models = append(models, page.Value...)
 		}
 		published := base
-		published.models = models
+		published.models, published.rates = models, rates
 		publishModels(&published)
 	}()
 	go func() {
@@ -113,7 +160,7 @@ func (s *azureSource) CapacityLimits(ctx context.Context, foundry Foundry, publi
 		return nil, modelsErr
 	}
 	limits := *quotaLimits.(*azureLimits)
-	limits.models = models
+	limits.models, limits.rates = models, rates
 	return &limits, quotaErr
 }
 
@@ -149,6 +196,32 @@ func (l *azureLimits) RefreshQuota(ctx context.Context) (CapacityLimits, error) 
 }
 
 func (l *azureLimits) Maximum(d Deployment) *float64 {
+	sku := l.sku(d)
+	if sku == nil || sku.UsageName == nil || sku.Capacity == nil || sku.Capacity.Maximum == nil {
+		return nil
+	}
+	for _, usage := range l.quota {
+		if usage == nil || usage.Name == nil || !sameValue(usage.Name.Value, sku.UsageName) || usage.Limit == nil || usage.CurrentValue == nil || usage.Unit == nil || *usage.Unit != armcognitiveservices.UnitTypeCount {
+			continue
+		}
+		maximum := math.Min(d.skuCapacity+math.Max(0, *usage.Limit-*usage.CurrentValue), float64(*sku.Capacity.Maximum))
+		maximum = allowedCapacity(maximum, sku.Capacity) * d.multiplier
+		return &maximum
+	}
+	return nil
+}
+
+// CapacityStep returns the smallest capacity and its increment in the deployment's unit.
+// A SKU without a configured minimum and step changes by one SKU capacity unit.
+func (l *azureLimits) CapacityStep(d Deployment) (float64, float64) {
+	minimum, step := d.multiplier, d.multiplier
+	if sku := l.sku(d); sku != nil && sku.Capacity != nil && sku.Capacity.Step != nil && *sku.Capacity.Step > 0 && sku.Capacity.Minimum != nil {
+		minimum, step = float64(*sku.Capacity.Minimum)*d.multiplier, float64(*sku.Capacity.Step)*d.multiplier
+	}
+	return minimum, step
+}
+
+func (l *azureLimits) sku(d Deployment) *armcognitiveservices.ModelSKU {
 	if d.multiplier == 0 || d.SKUName == nil {
 		return nil
 	}
@@ -164,18 +237,7 @@ func (l *azureLimits) Maximum(d Deployment) *float64 {
 			}
 		}
 	}
-	if sku == nil || sku.UsageName == nil || sku.Capacity == nil || sku.Capacity.Maximum == nil {
-		return nil
-	}
-	for _, usage := range l.quota {
-		if usage == nil || usage.Name == nil || !sameValue(usage.Name.Value, sku.UsageName) || usage.Limit == nil || usage.CurrentValue == nil || usage.Unit == nil || *usage.Unit != armcognitiveservices.UnitTypeCount {
-			continue
-		}
-		maximum := math.Min(d.skuCapacity+math.Max(0, *usage.Limit-*usage.CurrentValue), float64(*sku.Capacity.Maximum))
-		maximum = allowedCapacity(maximum, sku.Capacity) * d.multiplier
-		return &maximum
-	}
-	return nil
+	return sku
 }
 
 func (l *azureLimits) Versions(d Deployment) []string {
