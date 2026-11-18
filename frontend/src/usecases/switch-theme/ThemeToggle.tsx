@@ -59,10 +59,10 @@ export function ThemeToggle() {
     <Tooltip label={label} position="bottom">
       <ActionIcon
         variant="subtle"
-        color="gray"
         size="lg"
         aria-label={label}
         disabled={save.isPending}
+        style={{ color: 'var(--mantine-color-text)' }}
         onClick={() => {
           save.mutate(next, {
             onSuccess: (saved) => {
