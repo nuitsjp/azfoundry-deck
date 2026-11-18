@@ -6,6 +6,7 @@ import { Window } from '@wailsio/runtime';
 import { appInfo, reportFrontendError } from '../features/application/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { AccountBadge, LoginModal } from '../usecases/azure-login/AzureLogin';
+import { ThemeToggle } from '../usecases/switch-theme/ThemeToggle';
 
 function AppIcon() {
   return (
@@ -81,6 +82,7 @@ export function Shell() {
             </Text>
           </Group>
           <Group h="100%" gap="sm" wrap="nowrap" className="no-drag">
+            <ThemeToggle />
             <AccountBadge />
             {info.data?.server === false && <WindowControls />}
           </Group>

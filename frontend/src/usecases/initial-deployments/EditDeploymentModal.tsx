@@ -165,11 +165,11 @@ export function EditDeploymentModal({
                   Capacity
                 </Text>
                 <Text size="xs" c="dimmed">
-                  <Text span fw={600} c="white">
+                  <Text span fw={600} c="var(--mantine-color-bright)">
                     {capacity.toLocaleString('en-US')}
                   </Text>{' '}
                   /{' '}
-                  <Text span fw={600} c="white">
+                  <Text span fw={600} c="var(--mantine-color-bright)">
                     {maximum.toLocaleString('en-US')}
                   </Text>{' '}
                   {baseline.capacityUnit ?? 'TPM'}

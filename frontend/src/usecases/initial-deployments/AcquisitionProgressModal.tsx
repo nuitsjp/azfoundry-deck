@@ -23,7 +23,7 @@ function Mark({ phase }: { phase: AcquisitionPhase }) {
         height="18"
         viewBox="0 0 16 16"
         fill="none"
-        stroke="var(--mantine-color-teal-4)"
+        stroke="var(--mantine-color-teal-text)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -33,7 +33,11 @@ function Mark({ phase }: { phase: AcquisitionPhase }) {
       </svg>
     );
   return (
-    <Box w={8} h={8} style={{ borderRadius: '50%', background: 'var(--mantine-color-dark-4)' }} />
+    <Box
+      w={8}
+      h={8}
+      style={{ borderRadius: '50%', background: 'var(--mantine-color-default-border)' }}
+    />
   );
 }
 
@@ -57,7 +61,7 @@ function Step({
         gridTemplateColumns: '20px auto minmax(0, 1fr) 92px',
         alignItems: 'center',
         columnGap: 12,
-        borderTop: bordered ? '1px solid var(--mantine-color-dark-4)' : undefined,
+        borderTop: bordered ? '1px solid var(--mantine-color-default-border)' : undefined,
       }}
     >
       <Box display="flex" style={{ justifyContent: 'center' }}>

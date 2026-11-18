@@ -3,7 +3,11 @@ import type { FoundryCreateProgress } from '../../features/foundry/create-foundr
 
 export function Step({ label, name, phase }: { label: string; name: string; phase: string }) {
   return (
-    <Group wrap="nowrap" py="md" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+    <Group
+      wrap="nowrap"
+      py="md"
+      style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}
+    >
       <Box w={22} ta="center">
         {phase === 'running' ? (
           <Loader size={18} />

@@ -107,7 +107,7 @@ function TenantSelection({ account }: { account: Account }) {
         確定
       </Button>
       {failure && (
-        <Text size="xs" c="red.4" role="alert">
+        <Text size="xs" c="red" role="alert">
           {failure.code}: {failure.message}
         </Text>
       )}
@@ -132,6 +132,7 @@ export function LoginModal() {
       closeOnClickOutside={false}
       centered
       size="sm"
+      zIndex={90}
     >
       {status.data?.phase === Phase.SelectingTenant && status.data.account ? (
         <TenantSelection account={status.data.account} />
@@ -149,7 +150,7 @@ export function LoginModal() {
             <Button onClick={() => login.mutate()}>Azureにログイン</Button>
           )}
           {failure && (
-            <Text size="xs" c="red.4" role="alert" ta="center">
+            <Text size="xs" c="red" role="alert" ta="center">
               {failure.code}: {failure.message}
             </Text>
           )}
