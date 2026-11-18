@@ -1,31 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ThemeMode as BindingThemeMode } from '@bindings/azfoundrydeck/internal/settings/models';
+import * as SettingsService from '@bindings/azfoundrydeck/internal/settings/service';
 
 export type ThemeMode = 'dark' | 'light';
 
 const THEME_QUERY_KEY = ['settings', 'theme'] as const;
-const MOCK_SESSION_KEY = 'azfoundrydeck.mock.theme';
+export const saveThemeKey = ['settings', 'save-theme'] as const;
 
-function readMockTheme(): ThemeMode {
-  try {
-    const value = window.sessionStorage.getItem(MOCK_SESSION_KEY);
-    return value === 'light' ? 'light' : 'dark';
-  } catch {
-    return 'dark';
-  }
+function toThemeMode(value: BindingThemeMode | string): ThemeMode {
+  return value === BindingThemeMode.ThemeLight ? 'light' : 'dark';
 }
 
-function writeMockTheme(theme: ThemeMode): ThemeMode {
-  try {
-    window.sessionStorage.setItem(MOCK_SESSION_KEY, theme);
-  } catch {
-    // Keep in-memory state when session storage is unavailable during mock review.
-  }
-  return theme;
+function toBindingThemeMode(value: ThemeMode): BindingThemeMode {
+  return value === 'light' ? BindingThemeMode.ThemeLight : BindingThemeMode.ThemeDark;
 }
 
 export const themeQueryOptions = () => ({
   queryKey: THEME_QUERY_KEY,
-  queryFn: async (): Promise<ThemeMode> => readMockTheme(),
+  queryFn: async (): Promise<ThemeMode> => toThemeMode(await SettingsService.GetTheme()),
   staleTime: Infinity,
   gcTime: Infinity,
   retry: false,
@@ -38,9 +30,19 @@ export function useThemeQuery() {
 export function useSaveTheme() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (theme: ThemeMode): Promise<ThemeMode> => writeMockTheme(theme),
+    mutationKey: saveThemeKey,
+    mutationFn: async (theme: ThemeMode): Promise<ThemeMode> =>
+      toThemeMode(await SettingsService.SetTheme(toBindingThemeMode(theme))),
     onSuccess: (saved) => {
       client.setQueryData(THEME_QUERY_KEY, saved);
     },
   });
+}
+
+export function useLatestSaveThemeState() {
+  const states = useMutationState({
+    filters: { mutationKey: saveThemeKey },
+    select: (mutation) => mutation.state,
+  });
+  return states[states.length - 1];
 }

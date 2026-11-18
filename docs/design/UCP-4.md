@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | テーマ基盤・連携 | 起動時に Go サービスから現在のテーマを取得して Mantine へ適用し、切り替え結果と失敗状態を管理する | `frontend/src/main.tsx`、`frontend/src/features/settings/queries.ts` |
 | 切り替えUI | ヘッダー右側に切り替えボタンとツールチップを配置し、現在の配色に応じたアイコンと切り替え操作を提供する | `frontend/src/app/Shell.tsx`、`frontend/src/usecases/switch-theme/ThemeToggle.tsx` |
-| スタイル・各画面 | 配色モードに追従するセマンティック変数を用いてライト・ダーク両対応の配色を描画する | `frontend/src/style.css`、`frontend/src/usecases/initial-deployments/AddDeploymentModal.tsx`、`frontend/src/usecases/initial-deployments/CreateFoundryProgressModal.tsx`、`frontend/src/usecases/initial-deployments/AcquisitionProgressModal.tsx` |
+| スタイル・各画面 | 配色モードに追従するセマンティック変数を用いてライト・ダーク両対応の配色を描画する | `frontend/src/style.css`、`frontend/src/usecases/azure-login/AzureLogin.tsx`、`frontend/src/usecases/azure-logout/AccountMenu.tsx`、`frontend/src/usecases/initial-deployments/AddDeploymentModal.tsx`、`frontend/src/usecases/initial-deployments/EditDeploymentModal.tsx`、`frontend/src/usecases/initial-deployments/CreateFoundryProgressModal.tsx`、`frontend/src/usecases/initial-deployments/AcquisitionProgressModal.tsx` |
 | Go サービス | `settings.json` の読み込み・検証・原子的保存と排他制御を行い、失敗時は公開エラーコード（`THEME_LOAD_FAILED` / `THEME_SAVE_FAILED`）を返す | `main.go`、`internal/settings/service.go` |
 
 ```mermaid
