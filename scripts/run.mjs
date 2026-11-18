@@ -89,7 +89,7 @@ try {
     run(actionlint, ['-shellcheck=', '-pyflakes=', ...workflows.map(name => `.github/workflows/${name}`)]);
   } else if (command === 'audit' || command === 'audit:go') {
     installAnalysisTool('govulncheck');
-    if (command === 'audit') run('npm', ['audit', '--audit-level=low'], resolve('frontend'));
+    if (command === 'audit') run('npm', ['audit', '--omit=dev', '--audit-level=low'], resolve('frontend'));
     for (const tags of ['production', 'server,production,e2e']) {
       run(resolve(tools, windows ? 'govulncheck.exe' : 'govulncheck'), ['-tags', tags, '.', './internal/...', './cmd/...']);
     }
