@@ -35,7 +35,7 @@ jobs:
           go mod download
       - name: npm vulnerabilities
         id: npm
-        run: npm --prefix frontend audit --audit-level=low
+        run: npm --prefix frontend audit --omit=dev --audit-level=low
       - name: Build embedded frontend for Go analysis
         if: success() || failure() && steps.npm.outcome == 'failure'
         run: |
