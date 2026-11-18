@@ -31,7 +31,7 @@ export function AccountMenu({ account }: { account: Account }) {
           ログアウト
         </Menu.Item>
         {failure && (
-          <Text size="xs" c="red.4" role="alert" px="sm" py={4} maw={280}>
+          <Text size="xs" c="red" role="alert" px="sm" py={4} maw={280}>
             {failure.code}: {failure.message}
           </Text>
         )}

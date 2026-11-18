@@ -22,6 +22,7 @@ import (
 	"azfoundrydeck/internal/diagnostics"
 	"azfoundrydeck/internal/fault"
 	"azfoundrydeck/internal/foundry"
+	"azfoundrydeck/internal/settings"
 	"azfoundrydeck/internal/updates"
 )
 
@@ -163,6 +164,7 @@ func run() error {
 	}, logger, emit)
 	info := desktop.Info{Name: cfg.Name, Version: cfg.Version, AppID: cfg.ID, Server: serverMode, DiagnosticsAvailable: diagnosticsAvailable}
 	appService := desktop.New(info, logger)
+	settingsService := settings.New(filepath.Join(dir, "settings.json"), logger)
 	updateConfig := updates.Config{AppID: cfg.ID, Version: cfg.Version, Arch: runtime.GOARCH, Source: cfg.UpdateSource, PublicKey: cfg.UpdatePublicKey, CacheDir: filepath.Join(dir, "updates")}
 	boundary, err := updateSource(dir, &updateConfig, logger)
 	if err != nil {
@@ -172,7 +174,7 @@ func run() error {
 	options := application.Options{
 		Name: cfg.Name, Description: "Azure Foundry 管理用デスクトップアプリ", Logger: logger,
 		Assets:       application.AssetOptions{Handler: application.BundledAssetFileServer(root), DisableLogging: true},
-		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService), application.NewService(updateService)},
+		Services:     []application.Service{application.NewService(authService), application.NewService(appService), application.NewService(foundryService), application.NewService(settingsService), application.NewService(updateService)},
 		MarshalError: fault.Marshal,
 		// ARM creation can outlast Wails' default 30-second response deadline.
 		Server:  application.ServerOptions{Host: "127.0.0.1", Port: port, WriteTimeout: -1},

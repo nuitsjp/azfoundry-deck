@@ -293,8 +293,8 @@ export function AddDeploymentModal({
       padding={0}
       styles={{
         header: {
-          borderBottom: '1px solid var(--mantine-color-border)',
-          background: 'var(--mantine-color-dark-8)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          background: 'var(--mantine-color-default-hover)',
           margin: 0,
           padding: '12px 20px',
         },
@@ -356,10 +356,10 @@ export function AddDeploymentModal({
             {/* Left Pane: Search, Filter, List */}
             <Box
               style={{
-                borderRight: '1px solid var(--mantine-color-border)',
+                borderRight: '1px solid var(--mantine-color-default-border)',
                 display: 'flex',
                 flexDirection: 'column',
-                background: 'var(--mantine-color-dark-8)',
+                background: 'var(--mantine-color-default-hover)',
                 minHeight: 0,
                 overflow: 'hidden',
               }}
@@ -367,8 +367,8 @@ export function AddDeploymentModal({
               <Box
                 p="xs"
                 style={{
-                  borderBottom: '1px solid var(--mantine-color-border)',
-                  background: 'var(--mantine-color-dark-7)',
+                  borderBottom: '1px solid var(--mantine-color-default-border)',
+                  background: 'var(--mantine-color-body)',
                 }}
               >
                 <Stack gap={8}>
@@ -435,7 +435,7 @@ export function AddDeploymentModal({
                           p="xs"
                           px="sm"
                           style={{
-                            borderBottom: '1px solid var(--mantine-color-dark-5)',
+                            borderBottom: '1px solid var(--mantine-color-default-border)',
                             cursor: 'pointer',
                             background: isSelected
                               ? 'var(--mantine-color-primary-light)'
@@ -450,7 +450,7 @@ export function AddDeploymentModal({
                               size="sm"
                               fw={600}
                               truncate
-                              c={isSelected ? 'var(--mantine-color-white)' : undefined}
+                              c={isSelected ? 'var(--mantine-color-bright)' : undefined}
                             >
                               {m.name}
                             </Text>
@@ -481,9 +481,7 @@ export function AddDeploymentModal({
             </Box>
 
             {/* Right Pane: Configuration */}
-            <ScrollArea
-              style={{ flex: 1, minHeight: 0, background: 'var(--mantine-color-dark-7)' }}
-            >
+            <ScrollArea style={{ flex: 1, minHeight: 0, background: 'var(--mantine-color-body)' }}>
               {selectedModel ? (
                 <Stack p="md" gap="md">
                   {error && (
@@ -502,10 +500,13 @@ export function AddDeploymentModal({
                       {quotaError}
                     </Alert>
                   )}
-                  <Box pb="xs" style={{ borderBottom: '1px solid var(--mantine-color-border)' }}>
+                  <Box
+                    pb="xs"
+                    style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+                  >
                     <Group justify="space-between" align="flex-start">
                       <Box>
-                        <Text size="lg" fw={700} c="white">
+                        <Text size="lg" fw={700} c="var(--mantine-color-bright)">
                           {selectedModel.name}
                         </Text>
                         <Text size="xs" c="dimmed">
@@ -579,11 +580,11 @@ export function AddDeploymentModal({
                           Capacity
                         </Text>
                         <Text size="xs" c="dimmed">
-                          <Text span fw={600} c="white">
+                          <Text span fw={600} c="var(--mantine-color-bright)">
                             {quotaLoading && !capacityEntered ? '—' : capacity.toLocaleString()}
                           </Text>{' '}
                           /{' '}
-                          <Text span fw={600} c="white">
+                          <Text span fw={600} c="var(--mantine-color-bright)">
                             {quotaLoading ? (
                               <span role="status">Loading...</span>
                             ) : (
@@ -626,12 +627,12 @@ export function AddDeploymentModal({
                     <Box
                       p="sm"
                       style={{
-                        background: 'var(--mantine-color-dark-8)',
-                        border: '1px solid var(--mantine-color-border)',
+                        background: 'var(--mantine-color-default-hover)',
+                        border: '1px solid var(--mantine-color-default-border)',
                         borderRadius: 'var(--mantine-radius-sm)',
                       }}
                     >
-                      <Text size="xs" fw={600} c="yellow" mb={6}>
+                      <Text size="xs" fw={600} c="var(--mantine-color-yellow-text)" mb={6}>
                         Serverless API (Pay-as-you-go)
                       </Text>
                       <Group grow gap="xs">
@@ -691,8 +692,8 @@ export function AddDeploymentModal({
         p="sm"
         px="md"
         style={{
-          borderTop: '1px solid var(--mantine-color-border)',
-          background: 'var(--mantine-color-dark-8)',
+          borderTop: '1px solid var(--mantine-color-default-border)',
+          background: 'var(--mantine-color-default-hover)',
           display: 'flex',
           justifyContent: 'flex-end',
           gap: 10,

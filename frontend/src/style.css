@@ -1,3 +1,8 @@
+:root[data-mantine-color-scheme='light'] {
+  --mantine-color-dimmed: var(--mantine-color-gray-7);
+  --mantine-color-placeholder: var(--mantine-color-gray-6);
+}
+
 body {
   margin: 0;
 }

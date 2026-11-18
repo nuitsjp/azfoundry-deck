@@ -20,6 +20,7 @@ import {
   useLogin,
   useSelectTenant,
 } from '../../features/auth/queries';
+import { useLatestSaveThemeState, useThemeQuery } from '../../features/settings/queries';
 import { publicError } from '../../shared/errors';
 import { AccountMenu } from '../azure-logout/AccountMenu';
 
@@ -107,7 +108,7 @@ function TenantSelection({ account }: { account: Account }) {
         確定
       </Button>
       {failure && (
-        <Text size="xs" c="red.4" role="alert">
+        <Text size="xs" c="red" role="alert">
           {failure.code}: {failure.message}
         </Text>
       )}
@@ -118,10 +119,15 @@ function TenantSelection({ account }: { account: Account }) {
 // Blocks the app until sign-in completes. Not shown while the status is loading.
 export function LoginModal() {
   const status = useQuery(authStatus());
+  const theme = useThemeQuery();
+  const latestSaveTheme = useLatestSaveThemeState();
   const login = useLogin();
   const error = status.error ?? login.error;
   const waiting = login.isPending || status.data?.phase === Phase.SigningIn;
   const failure = !waiting && error ? publicError(error) : null;
+  const themeError =
+    (latestSaveTheme?.status === 'error' ? latestSaveTheme.error : null) ?? theme.error;
+  const themeFailure = themeError ? publicError(themeError) : null;
   const opened = status.isError || (!!status.data && status.data.phase !== Phase.SignedIn);
   return (
     <Modal
@@ -132,6 +138,7 @@ export function LoginModal() {
       closeOnClickOutside={false}
       centered
       size="sm"
+      zIndex={90}
     >
       {status.data?.phase === Phase.SelectingTenant && status.data.account ? (
         <TenantSelection account={status.data.account} />
@@ -149,11 +156,16 @@ export function LoginModal() {
             <Button onClick={() => login.mutate()}>Azureにログイン</Button>
           )}
           {failure && (
-            <Text size="xs" c="red.4" role="alert" ta="center">
+            <Text size="xs" c="red" role="alert" ta="center">
               {failure.code}: {failure.message}
             </Text>
           )}
         </Stack>
+      )}
+      {themeFailure && (
+        <Text size="xs" c="red" role="alert" ta="center" mt="xs">
+          {themeFailure.code}: {themeFailure.message}
+        </Text>
       )}
     </Modal>
   );

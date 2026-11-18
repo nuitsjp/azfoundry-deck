@@ -4,8 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, AppShell, Group, Text, UnstyledButton } from '@mantine/core';
 import { Window } from '@wailsio/runtime';
 import { appInfo, reportFrontendError } from '../features/application/queries';
+import { useLatestSaveThemeState, useThemeQuery } from '../features/settings/queries';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { AccountBadge, LoginModal } from '../usecases/azure-login/AzureLogin';
+import { ThemeToggle } from '../usecases/switch-theme/ThemeToggle';
 
 function AppIcon() {
   return (
@@ -70,6 +72,17 @@ function WindowControls() {
 
 export function Shell() {
   const info = useQuery(appInfo());
+  const theme = useThemeQuery();
+  const latestSaveTheme = useLatestSaveThemeState();
+  const [closedLoadError, setClosedLoadError] = useState(false);
+  const [closedSaveAt, setClosedSaveAt] = useState<number | null>(null);
+  const themeSaveError =
+    latestSaveTheme?.status === 'error' && latestSaveTheme.submittedAt !== closedSaveAt
+      ? latestSaveTheme.error
+      : null;
+  const themeLoadError =
+    !closedLoadError && latestSaveTheme?.status !== 'success' ? theme.error : null;
+
   return (
     <AppShell header={{ height: 48 }} padding="lg" className="app-shell">
       <AppShell.Header withBorder={false}>
@@ -81,6 +94,7 @@ export function Shell() {
             </Text>
           </Group>
           <Group h="100%" gap="sm" wrap="nowrap" className="no-drag">
+            <ThemeToggle />
             <AccountBadge />
             {info.data?.server === false && <WindowControls />}
           </Group>
@@ -88,6 +102,15 @@ export function Shell() {
       </AppShell.Header>
       <AppShell.Main>
         <ErrorNotice error={info.error} />
+        {themeLoadError && (
+          <ErrorNotice error={themeLoadError} onClose={() => setClosedLoadError(true)} />
+        )}
+        {themeSaveError && (
+          <ErrorNotice
+            error={themeSaveError}
+            onClose={() => setClosedSaveAt(latestSaveTheme?.submittedAt ?? null)}
+          />
+        )}
         {info.data && !info.data.diagnosticsAvailable && (
           <Alert color="yellow" mb="lg">
             診断ログを保存できません。データ領域のアクセス権と空き容量を確認してください。
